@@ -134,15 +134,32 @@ Use these Claude Code slash commands for common tasks:
 
 The `.claude/agents/` directory contains specialized subagents that Claude Code can orchestrate as a team. Each agent has a single focused responsibility and can run in parallel or cooperatively.
 
+### Implementation Agents
+
 | Agent | Role | Mode |
 |---|---|---|
 | `csharp-writer` | Writes C# code following all project conventions (vertical slices, records, sealed, no comments) | Implementation |
 | `react-writer` | Writes React/TypeScript code (strict TS, functional components, hooks, co-located features) | Implementation |
-| `test-generator` | Creates tests — unit (xUnit + FluentAssertions + fakes), integration (Testcontainers), acceptance (WAF) | Testing |
-| `arch-validator` | Validates architecture boundaries — module isolation, layer dependencies, port/adapter compliance | Analysis (read-only) |
 | `sk-plugin-builder` | Builds Semantic Kernel plugins, agents, processes with proper DI and observability | Implementation |
-| `build-runner` | Runs builds and tests, interprets errors, provides fix diagnostics | Verification |
+| `test-generator` | Creates tests — unit (xUnit + FluentAssertions + fakes), integration (Testcontainers), acceptance (WAF) | Testing |
+
+### Analysis Agents
+
+| Agent | Role | Mode |
+|---|---|---|
+| `code-analyzer` | Deep multi-dimensional analysis of files, modules, or features — architecture, quality, SK, tests, improvements | Analysis (read-only) |
+| `pattern-finder` | Discovers pattern usages across the codebase, groups by module/layer, identifies deviations from canonical implementations | Analysis (read-only) |
+| `arch-validator` | Validates architecture boundaries — module isolation, layer dependencies, port/adapter compliance | Analysis (read-only) |
 | `code-quality-reviewer` | Reviews code for standards compliance with confidence-based scoring (reports only ≥80) | Analysis (read-only) |
+| `pr-reviewer` | Full pull request review — architecture, quality, tests, standards — with Blocker/Required/Suggestion categorization | Analysis (read-only) |
+
+### Verification Agents
+
+| Agent | Role | Mode |
+|---|---|---|
+| `build-runner` | Runs builds and tests, interprets errors, provides fix diagnostics | Verification |
+| `change-verifier` | Validates recent changes — compilation, targeted tests, coverage gaps, regression detection | Verification |
+| `issue-investigator` | Investigates bugs, failing tests, unexpected behavior through systematic root cause analysis | Investigation |
 
 ### Orchestration Patterns
 
@@ -171,6 +188,25 @@ Launch react-writer: "Create the PlaceOrder form page in web/src/features/orders
 1. sk-plugin-builder: "Create an OrderAnalysis SK plugin"
 2. test-generator: "Write tests for the OrderAnalysis plugin"
 3. build-runner: "Build and test the AI plugin"
+```
+
+**Codebase analysis** — understand existing code before making changes:
+```
+Launch code-analyzer: "Analyze the Identity module for quality and compliance"
+Launch pattern-finder: "Find all usages of the vertical slice handler pattern"
+```
+
+**PR review pipeline** — comprehensive review before merge:
+```
+1. pr-reviewer: "Review the changes in the last 3 commits"
+2. change-verifier: "Verify all changes compile and pass tests"
+```
+
+**Bug investigation** — systematic debugging:
+```
+1. issue-investigator: "Investigate why PlaceOrderHandlerTests.Handle_ValidCommand_CreatesOrder is failing"
+2. csharp-writer: "Apply the fix from the investigation"
+3. change-verifier: "Verify the fix passes all tests"
 ```
 
 ## Agent Behavior Guidelines
