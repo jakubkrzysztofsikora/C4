@@ -35,6 +35,11 @@ Generate a comprehensive implementation plan for a large-scope initiative (MVP, 
    - Files to create, modify, or delete
    - Dependencies on other tasks (explicit ordering where needed)
    - Estimated complexity: `S` (< 1 hour), `M` (1–4 hours), `L` (4–8 hours), `XL` (8–16 hours; consider decomposing further)
+   - **Test plan** (TDD – write tests before implementation):
+     - Unit tests: list test classes and key test cases for domain logic and application handlers
+     - Module tests: list integration/acceptance tests that verify the slice end-to-end within the module
+     - Identify fakes, fixtures, and builders needed
+     - Every feature task must have a paired or embedded test task; no feature is complete without green tests
 7. Order tasks to maximize safe incremental delivery:
    - Domain model and ports first
    - Application handlers second
@@ -68,6 +73,7 @@ Generate a comprehensive implementation plan for a large-scope initiative (MVP, 
     - [ ] All tasks follow the vertical slice pattern
     - [ ] Critical path is identified and optimized
 14. Run `dotnet build` to confirm the current state compiles before starting.
+15. Run `dotnet test` to confirm all existing tests pass before starting.
 
 ## Output Format
 
@@ -99,6 +105,10 @@ Goal: <one-sentence goal>
 #### 1.1 – <Task Name>
 - **Files to create**: `<path1>`, `<path2>`
 - **Files to modify**: `<path3>`
+- **Test plan (TDD)**:
+  - Unit tests: `<TestClass1>` – `<Method>_<Scenario>_<ExpectedOutcome>`, ...
+  - Module tests: `<AcceptanceTestClass>` – `<Method>_<Scenario>_<ExpectedOutcome>`, ...
+  - Fakes/Fixtures needed: `<FakeName>`, `<BuilderName>`
 - **Acceptance criteria**:
   - <criterion 1>
   - <criterion 2>
@@ -178,8 +188,8 @@ When implementing tasks from a plan created by this command:
 3. **Update Status** as work progresses: `Not Started` → `In Progress` → `Blocked` → `Completed`.
 4. **Log scope changes** whenever a task is added, removed, or modified after the initial plan.
 5. **Log decisions** that deviate from the original plan with context for future reference.
-6. **Never skip tests** – every feature task must have corresponding test coverage before marking complete.
+6. **Never skip tests** – every feature task must have corresponding test coverage before marking complete. Write tests first (TDD): define the expected behavior in a failing test, then implement the production code to make it pass.
 7. **Build after every task** – run `dotnet build` (and `npm run build` for frontend tasks) to confirm green build.
-8. **Run affected tests after every task** – confirm no regressions.
+8. **Run all tests after every task** – run `dotnet test` (and `npm test` for frontend tasks) to confirm no regressions across the entire solution.
 9. **Commit after every task** – each completed task should be a separate, atomic commit.
 10. **Prefer small, reversible changes** – if a task is XL, consider breaking it down further before starting.
