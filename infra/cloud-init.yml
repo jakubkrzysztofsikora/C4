@@ -13,12 +13,6 @@ runcmd:
   - usermod -aG docker root
   - mkdir -p /opt/c4
   - |
-    cat > /opt/c4/.env <<'DOTENV'
-    POSTGRES_DB=c4
-    POSTGRES_USER=c4
-    POSTGRES_PASSWORD=${postgres_password}
-    DOTENV
-  - |
     cat > /etc/nginx/sites-available/c4 <<'NGINX'
     server {
         listen 80 default_server;

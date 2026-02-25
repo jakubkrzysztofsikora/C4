@@ -12,9 +12,3 @@ variable "instance_type" {
   type    = string
   default = "DEV1-S"
 }
-
-variable "postgres_password" {
-  type      = string
-  sensitive = true
-  default   = "c4prod2026!"
-}

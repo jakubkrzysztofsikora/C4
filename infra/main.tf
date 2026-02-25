@@ -6,6 +6,10 @@ terraform {
       source  = "scaleway/scaleway"
       version = "~> 2.40"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -14,9 +18,18 @@ provider "scaleway" {
   zone   = var.zone
 }
 
+resource "tls_private_key" "deploy" {
+  algorithm = "ED25519"
+}
+
+resource "scaleway_iam_ssh_key" "deploy" {
+  name       = "c4-deploy"
+  public_key = tls_private_key.deploy.public_key_openssh
+}
+
 data "scaleway_marketplace_image" "ubuntu" {
-  label          = "ubuntu_noble"
-  instance_type  = var.instance_type
+  label         = "ubuntu_noble"
+  instance_type = var.instance_type
 }
 
 resource "scaleway_instance_ip" "public" {}
@@ -58,18 +71,23 @@ resource "scaleway_instance_server" "c4" {
   }
 
   user_data = {
-    cloud-init = templatefile("${path.module}/cloud-init.yml", {
-      postgres_password = var.postgres_password
-    })
+    cloud-init = file("${path.module}/cloud-init.yml")
   }
 
   tags = ["c4", "app"]
+
+  depends_on = [scaleway_iam_ssh_key.deploy]
 }
 
 output "public_ip" {
   value = scaleway_instance_ip.public.address
 }
 
-output "app_url" {
-  value = "http://${scaleway_instance_ip.public.address}"
+output "server_id" {
+  value = scaleway_instance_server.c4.id
+}
+
+output "ssh_private_key" {
+  value     = tls_private_key.deploy.private_key_openssh
+  sensitive = true
 }
