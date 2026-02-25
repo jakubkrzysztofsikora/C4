@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Discovery.Application/Discovery.Application.csproj" />
+    <ProjectReference Include="../Discovery.Domain/Discovery.Domain.csproj" />
+    <ProjectReference Include="../../../Shared/Infrastructure/Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+</Project>

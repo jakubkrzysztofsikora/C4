@@ -1,0 +1,69 @@
+.diagram-grid {
+  display: grid;
+  grid-template-columns: 270px 1fr;
+  gap: 14px;
+  min-height: 72vh;
+}
+
+.diagram-sidebar {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #101a2e, #0f1627);
+  padding: 14px;
+}
+
+.diagram-stage {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0a1324;
+}
+
+.toolbox { display: grid; gap: 10px; }
+
+.toolbox input,
+.toolbox select {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0d172a;
+  color: var(--text);
+  padding: 8px;
+}
+
+.service-node {
+  min-width: 200px;
+  border-radius: 12px;
+  border: 1px solid #324a73;
+  background: linear-gradient(180deg, #132443, #0f1c35);
+  color: #e8edf7;
+  box-shadow: 0 6px 24px rgba(0,0,0,.35);
+  padding: 10px;
+}
+
+.service-node .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.service-node .title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 600;
+}
+
+.badge {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  border: 1px solid;
+}
+
+.badge.green { color: #6af0a8; border-color: #2e8f5e; background: rgba(33,95,68,.3); }
+.badge.yellow { color: #ffd27b; border-color: #9d7c35; background: rgba(121,95,29,.3); }
+.badge.red { color: #ff9393; border-color: #9e3a3a; background: rgba(94,29,29,.32); }
+.badge.drift { color: #bce0ff; border-color: #4f7da8; background: rgba(48,74,106,.35); }
+
+.legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
