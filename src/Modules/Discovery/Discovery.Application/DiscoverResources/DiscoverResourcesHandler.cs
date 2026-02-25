@@ -1,5 +1,5 @@
 using C4.Modules.Discovery.Application.Ports;
-using C4.Modules.Discovery.Contracts.IntegrationEvents;
+using C4.Shared.Kernel.IntegrationEvents;
 using C4.Modules.Discovery.Domain.Resources;
 using C4.Shared.Kernel;
 using MediatR;

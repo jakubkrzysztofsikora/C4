@@ -14,7 +14,8 @@ public sealed class RegisterOrganizationEndpoint : IEndpoint
             return result.IsSuccess
                 ? Results.Created($"/api/organizations/{result.Value.OrganizationId}", result.Value)
                 : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 
     public sealed record RegisterOrganizationRequest(string Name);

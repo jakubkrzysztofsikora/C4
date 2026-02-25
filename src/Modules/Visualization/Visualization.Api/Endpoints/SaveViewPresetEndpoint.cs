@@ -12,7 +12,8 @@ public sealed class SaveViewPresetEndpoint : IEndpoint
         {
             var result = await sender.Send(new SaveViewPresetCommand(projectId, request.Name, request.Json), ct);
             return result.IsSuccess ? Results.Created($"/api/projects/{projectId}/view-presets/{result.Value.PresetId}", result.Value) : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 
     public sealed record SaveViewPresetRequest(string Name, string Json);

@@ -1,10 +1,9 @@
+import { useCallback } from 'react';
+import { fetchBlob, ApiError } from '../../../shared/api/client';
 import { DiagramData, DiagramNode } from '../types';
 
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 80;
-const COL_COUNT = 3;
-const COL_GAP = 340;
-const ROW_GAP = 220;
 const PADDING = 80;
 
 function healthColor(health: DiagramNode['health']): string {
@@ -25,16 +24,16 @@ function escapeXml(value: string): string {
 }
 
 function buildSvg(data: DiagramData): string {
-  const positioned = data.nodes.map((node, index) => ({
+  const positioned = data.nodes.map((node) => ({
     ...node,
-    x: PADDING + (index % COL_COUNT) * COL_GAP,
-    y: PADDING + Math.floor(index / COL_COUNT) * ROW_GAP,
+    x: (node.position?.x ?? 0) + PADDING,
+    y: (node.position?.y ?? 0) + PADDING,
   }));
 
-  const cols = Math.min(data.nodes.length, COL_COUNT);
-  const rows = Math.ceil(data.nodes.length / COL_COUNT);
-  const width = PADDING * 2 + cols * COL_GAP;
-  const height = PADDING * 2 + rows * ROW_GAP;
+  const maxX = positioned.reduce((max, n) => Math.max(max, n.x + NODE_WIDTH), 0);
+  const maxY = positioned.reduce((max, n) => Math.max(max, n.y + NODE_HEIGHT), 0);
+  const width = maxX + PADDING;
+  const height = maxY + PADDING;
 
   const positionById = new Map(positioned.map((n) => [n.id, n]));
 
@@ -74,7 +73,7 @@ function buildSvg(data: DiagramData): string {
       (c) =>
         `<marker id="arrow-${c}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
   <path d="M0,0 L0,6 L8,3 z" fill="#${c}"/>
-</marker>`
+</marker>`,
     )
     .join('\n');
 
@@ -87,26 +86,53 @@ ${nodesSvg}
 </svg>`;
 }
 
-export function useDiagramExport(data: DiagramData) {
-  function exportAs(format: 'svg' | 'pdf') {
-    const svg = buildSvg(data);
-    if (format === 'svg') {
-      const blob = new Blob([svg], { type: 'image/svg+xml' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'architecture-diagram.svg';
-      a.click();
-      URL.revokeObjectURL(url);
-    } else {
-      const win = window.open('', '_blank');
-      if (!win) return;
-      win.document.write(`<!DOCTYPE html><html><head><title>Architecture Diagram</title>
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function isApiError(value: unknown): value is ApiError {
+  return value instanceof ApiError;
+}
+
+export function useDiagramExport(data: DiagramData, projectId?: string) {
+  const exportAs = useCallback(
+    async (format: 'svg' | 'pdf') => {
+      if (projectId !== undefined) {
+        try {
+          const blob = await fetchBlob(
+            `/api/projects/${projectId}/diagram/export?format=${format}`,
+          );
+          downloadBlob(blob, `architecture-diagram.${format}`);
+          return;
+        } catch (err: unknown) {
+          if (isApiError(err)) {
+            console.warn(`Backend export failed (${err.status}), falling back to local export`);
+          }
+        }
+      }
+
+      const svg = buildSvg(data);
+      if (format === 'svg') {
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        downloadBlob(blob, 'architecture-diagram.svg');
+      } else {
+        const win = window.open('', '_blank');
+        if (!win) return;
+        win.document.write(
+          `<!DOCTYPE html><html><head><title>Architecture Diagram</title>
 <style>body{margin:0;background:#0f1b2d}@media print{body{margin:0}}</style></head>
-<body>${svg}<script>window.onload=()=>window.print()<\/script></body></html>`);
-      win.document.close();
-    }
-  }
+<body>${svg}<script>window.onload=()=>window.print()<\/script></body></html>`,
+        );
+        win.document.close();
+      }
+    },
+    [data, projectId],
+  );
 
   return { exportAs };
 }

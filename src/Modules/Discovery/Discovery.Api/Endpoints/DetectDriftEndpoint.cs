@@ -12,7 +12,8 @@ public sealed class DetectDriftEndpoint : IEndpoint
         {
             var result = await sender.Send(new DetectDriftCommand(subscriptionId, request.IacContent, request.Format), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 
     public sealed record DetectDriftRequest(string IacContent, string Format);

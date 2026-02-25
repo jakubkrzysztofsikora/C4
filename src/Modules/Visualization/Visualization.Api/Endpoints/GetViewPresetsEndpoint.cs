@@ -12,6 +12,7 @@ public sealed class GetViewPresetsEndpoint : IEndpoint
         {
             var result = await sender.Send(new GetViewPresetsQuery(projectId), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 }

@@ -5,6 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="../Identity.Application/Identity.Application.csproj" />
     <ProjectReference Include="../Identity.Domain/Identity.Domain.csproj" />
+    <ProjectReference Include="../../../Shared/Testing/Testing.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

@@ -14,7 +14,8 @@ public sealed class ConnectAzureSubscriptionEndpoint : IEndpoint
             return result.IsSuccess
                 ? Results.Created($"/api/discovery/subscriptions/{result.Value.SubscriptionId}", result.Value)
                 : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 
     public sealed record ConnectAzureSubscriptionRequest(string ExternalSubscriptionId, string DisplayName);

@@ -16,7 +16,8 @@ public sealed class UpdateMemberRoleEndpoint : IEndpoint
             return result.IsSuccess
                 ? Results.Ok(result.Value)
                 : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 
     public sealed record UpdateMemberRoleRequest(Role Role);

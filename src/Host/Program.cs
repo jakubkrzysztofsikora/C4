@@ -1,8 +1,10 @@
+using C4.Host;
 using C4.Modules.Discovery.Api;
 using C4.Modules.Graph.Api;
 using C4.Modules.Identity.Api;
 using C4.Modules.Telemetry.Api;
 using C4.Modules.Visualization.Api;
+using C4.Modules.Visualization.Api.Hubs;
 using C4.Shared.Infrastructure.Endpoints;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
@@ -12,6 +14,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks();
+builder.Services.AddSignalR();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -34,15 +37,16 @@ builder.Services.AddCors(options =>
 
 builder.Services
     .AddIdentityModule(builder.Configuration)
-    .AddDiscoveryModule()
-    .AddGraphModule()
+    .AddDiscoveryModule(builder.Configuration)
+    .AddGraphModule(builder.Configuration)
     .AddTelemetryModule(builder.Configuration)
-    .AddVisualizationModule();
+    .AddVisualizationModule(builder.Configuration);
 
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
+    await SeedDataService.MigrateAndSeedAsync(app);
     app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -53,6 +57,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseHttpsRedirection();
 app.MapHealthChecks("/health");
+app.MapHub<DiagramHub>("/hubs/diagram");
 app.MapEndpoints();
 
 app.Run();
+
+public partial class Program { }

@@ -5,6 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="../Discovery.Application/Discovery.Application.csproj" />
     <ProjectReference Include="../Discovery.Domain/Discovery.Domain.csproj" />
+    <ProjectReference Include="../../../Shared/Testing/Testing.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

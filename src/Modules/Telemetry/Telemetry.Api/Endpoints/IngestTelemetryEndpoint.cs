@@ -12,7 +12,8 @@ public sealed class IngestTelemetryEndpoint : IEndpoint
         {
             var result = await sender.Send(new IngestTelemetryCommand(projectId, request.Service, request.Value), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 
     public sealed record IngestTelemetryRequest(string Service, double Value);

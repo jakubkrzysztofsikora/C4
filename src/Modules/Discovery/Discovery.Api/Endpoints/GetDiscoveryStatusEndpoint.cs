@@ -12,6 +12,7 @@ public sealed class GetDiscoveryStatusEndpoint : IEndpoint
         {
             var result = await sender.Send(new GetDiscoveryStatusQuery(subscriptionId), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 }

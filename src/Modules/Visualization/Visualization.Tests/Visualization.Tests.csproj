@@ -5,6 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="../Visualization.Application/Visualization.Application.csproj" />
     <ProjectReference Include="../Visualization.Domain/Visualization.Domain.csproj" />
+    <ProjectReference Include="../../../Shared/Testing/Testing.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

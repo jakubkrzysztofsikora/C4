@@ -5,6 +5,10 @@ namespace C4.Modules.Graph.Domain.GraphEdge;
 
 public sealed class GraphEdge : Entity<GraphEdgeId>
 {
+#pragma warning disable CS8618
+    private GraphEdge() : base(default!) { }
+#pragma warning restore CS8618
+
     private GraphEdge(GraphEdgeId id, GraphNodeId sourceNodeId, GraphNodeId targetNodeId, EdgeProperties properties) : base(id)
     {
         SourceNodeId = sourceNodeId;

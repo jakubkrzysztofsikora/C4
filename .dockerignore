@@ -1,0 +1,16 @@
+.git
+.github
+.vscode
+.idea
+infra
+docs
+**/.terraform
+**/node_modules
+**/bin
+**/obj
+**/dist
+**/*.md
+*.tfstate
+*.tfvars
+.env
+.env.*

@@ -14,7 +14,8 @@ public sealed class CreateProjectEndpoint : IEndpoint
             return result.IsSuccess
                 ? Results.Created($"/api/organizations/{organizationId}/projects/{result.Value.ProjectId}", result.Value)
                 : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 
     public sealed record CreateProjectRequest(string Name);

@@ -67,3 +67,14 @@
 .badge.drift { color: #bce0ff; border-color: #4f7da8; background: rgba(48,74,106,.35); }
 
 .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+@media (max-width: 768px) {
+  .diagram-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .diagram-stage {
+    min-height: 50vh;
+  }
+}

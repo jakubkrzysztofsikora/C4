@@ -16,7 +16,8 @@ public sealed class InviteMemberEndpoint : IEndpoint
             return result.IsSuccess
                 ? Results.Created($"/api/projects/{projectId}/members/{result.Value.MemberId}", result.Value)
                 : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 
     public sealed record InviteMemberRequest(string ExternalUserId, Role Role);

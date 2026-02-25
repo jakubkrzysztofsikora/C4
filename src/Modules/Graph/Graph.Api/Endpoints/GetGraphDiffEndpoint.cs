@@ -12,6 +12,7 @@ public sealed class GetGraphDiffEndpoint : IEndpoint
         {
             var result = await sender.Send(new GetGraphDiffQuery(projectId, fromSnapshotId, toSnapshotId), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 }
