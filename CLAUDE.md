@@ -125,6 +125,7 @@ Use these Claude Code slash commands for common tasks:
 | `/investigate-issue` | Root cause investigation for a bug or unexpected behavior |
 | `/create-feature` | Scaffold a new vertical slice feature end-to-end |
 | `/create-test` | Generate tests for a given unit, handler, or slice |
+| `/create-plan` | Generate a comprehensive plan for a large initiative (MVP, POC, feature set, refactor) with progress tracking |
 | `/refactor` | Guided refactoring with architecture compliance check |
 | `/review-pr` | Structured pull request review |
 | `/web-research` | Research a topic and synthesize findings into actionable guidance |
