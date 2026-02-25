@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { Layout } from './shared/components/Layout';
 import { AuthPage } from './features/auth/AuthPage';
@@ -7,7 +7,7 @@ import { OrganizationProjectsPage } from './features/organization/OrganizationPr
 import { SubscriptionWizardPage } from './features/subscription/SubscriptionWizardPage';
 import { DiagramPage } from './features/diagram/DiagramPage';
 
-function ProtectedRoute({ token, children }: { token: string | null; children: JSX.Element }) {
+function ProtectedRoute({ token, children }: { token: string | null; children: ReactNode }) {
   return token ? children : <Navigate to="/login" replace />;
 }
 
@@ -27,6 +27,7 @@ export function App() {
           <Route path="organizations" element={<ProtectedRoute token={token}><OrganizationProjectsPage /></ProtectedRoute>} />
           <Route path="subscriptions" element={<ProtectedRoute token={token}><SubscriptionWizardPage /></ProtectedRoute>} />
           <Route path="diagram" element={<ProtectedRoute token={token}><DiagramPage /></ProtectedRoute>} />
+          <Route path="diagram/:projectId" element={<ProtectedRoute token={token}><DiagramPage /></ProtectedRoute>} />
         </Route>
       </Routes>
     </BrowserRouter>

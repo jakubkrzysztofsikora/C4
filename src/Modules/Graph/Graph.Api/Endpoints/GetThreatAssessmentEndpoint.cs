@@ -12,6 +12,7 @@ public sealed class GetThreatAssessmentEndpoint : IEndpoint
         {
             var result = await sender.Send(new GetThreatAssessmentQuery(projectId), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 }

@@ -1,4 +1,4 @@
-using C4.Modules.Discovery.Contracts.IntegrationEvents;
+using C4.Shared.Kernel.IntegrationEvents;
 using C4.Modules.Graph.Application.IntegrationEventHandlers;
 using C4.Modules.Graph.Application.Ports;
 using C4.Modules.Graph.Domain.ArchitectureGraph;

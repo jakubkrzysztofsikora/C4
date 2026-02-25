@@ -1,6 +1,6 @@
 using C4.Modules.Discovery.Application.Ports;
 
-namespace C4.Modules.Discovery.Api.Persistence;
+namespace C4.Modules.Discovery.Infrastructure.Persistence.Repositories;
 
 public sealed class InMemoryDriftResultRepository : IDriftResultRepository
 {

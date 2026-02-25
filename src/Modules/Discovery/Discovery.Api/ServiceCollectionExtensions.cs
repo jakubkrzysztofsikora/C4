@@ -8,7 +8,6 @@ using C4.Shared.Infrastructure.Endpoints;
 using C4.Shared.Kernel;
 using FluentValidation;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -28,26 +27,16 @@ public static class ServiceCollectionExtensions
 
         services.AddValidatorsFromAssembly(C4.Modules.Discovery.Application.AssemblyReference.Assembly);
 
-        var connectionString = configuration.GetConnectionString("Discovery");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            services.AddDbContext<DiscoveryDbContext>(options => options.UseInMemoryDatabase("discovery-dev"));
-        }
-        else
-        {
-            services.AddDbContext<DiscoveryDbContext>(options => options.UseNpgsql(connectionString));
-        }
-
-        services.AddScoped<IAzureSubscriptionRepository, AzureSubscriptionRepository>();
-        services.AddScoped<IDiscoveredResourceRepository, DiscoveredResourceRepository>();
-        services.AddScoped<IDriftResultRepository, DriftResultRepository>();
+        services.AddSingleton<IAzureSubscriptionRepository, InMemoryAzureSubscriptionRepository>();
+        services.AddSingleton<IDiscoveredResourceRepository, InMemoryDiscoveredResourceRepository>();
+        services.AddSingleton<IDriftResultRepository, InMemoryDriftResultRepository>();
         services.AddSingleton<IAzureResourceGraphClient, FakeAzureResourceGraphClient>();
 
         services.AddSingleton<BicepParser>();
         services.AddSingleton<TerraformParser>();
         services.AddSingleton<IIacStateParser, CompositeIacStateParser>();
 
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<DiscoveryDbContext>());
+        services.AddSingleton<IUnitOfWork, NoOpDiscoveryUnitOfWork>();
         services.AddEndpoints(AssemblyReference.Assembly);
 
         return services;

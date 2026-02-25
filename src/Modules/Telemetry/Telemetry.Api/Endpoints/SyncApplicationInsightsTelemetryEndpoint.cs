@@ -12,7 +12,8 @@ public sealed class SyncApplicationInsightsTelemetryEndpoint : IEndpoint
         {
             var result = await sender.Send(new SyncApplicationInsightsTelemetryCommand(projectId, request?.LookbackMinutes ?? 30), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 
     public sealed record SyncApplicationInsightsTelemetryRequest(int LookbackMinutes = 30);

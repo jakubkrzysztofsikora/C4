@@ -2,7 +2,6 @@
   <ItemGroup>
     <ProjectReference Include="../Graph.Domain/Graph.Domain.csproj" />
     <ProjectReference Include="../../../Shared/Kernel/Kernel.csproj" />
-    <ProjectReference Include="../../Discovery/Discovery.Contracts/Discovery.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MediatR" />

@@ -1,6 +1,6 @@
 using MediatR;
 
-namespace C4.Modules.Discovery.Contracts.IntegrationEvents;
+namespace C4.Shared.Kernel.IntegrationEvents;
 
 public sealed record ResourcesDiscoveredIntegrationEvent(Guid ProjectId, IReadOnlyCollection<DiscoveredResourceEventItem> Resources) : INotification;
 

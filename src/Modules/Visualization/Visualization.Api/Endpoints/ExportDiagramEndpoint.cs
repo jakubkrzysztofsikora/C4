@@ -12,6 +12,7 @@ public sealed class ExportDiagramEndpoint : IEndpoint
         {
             var result = await sender.Send(new ExportDiagramCommand(projectId, format), ct);
             return result.IsSuccess ? Results.File(result.Value.Content, result.Value.ContentType) : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 }

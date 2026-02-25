@@ -12,6 +12,7 @@ public sealed class AnalyzeArchitectureEndpoint : IEndpoint
         {
             var result = await sender.Send(new AnalyzeArchitectureCommand(projectId), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 }

@@ -12,6 +12,7 @@ public sealed class GetDiagramEndpoint : IEndpoint
         {
             var result = await sender.Send(new GetDiagramQuery(projectId), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 }

@@ -12,6 +12,7 @@ public sealed class GetGraphEndpoint : IEndpoint
         {
             var result = await sender.Send(new GetGraphQuery(projectId, level), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 }

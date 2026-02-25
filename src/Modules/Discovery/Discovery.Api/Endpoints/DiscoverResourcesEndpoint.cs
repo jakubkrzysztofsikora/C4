@@ -12,7 +12,8 @@ public sealed class DiscoverResourcesEndpoint : IEndpoint
         {
             var result = await sender.Send(new DiscoverResourcesCommand(subscriptionId, request.ExternalSubscriptionId, request.ProjectId), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-        });
+        })
+        .RequireAuthorization();
     }
 
     public sealed record DiscoverResourcesRequest(string ExternalSubscriptionId, Guid ProjectId);

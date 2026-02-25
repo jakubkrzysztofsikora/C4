@@ -1,6 +1,6 @@
 using C4.Shared.Kernel;
 
-namespace C4.Modules.Discovery.Api.Persistence;
+namespace C4.Modules.Discovery.Infrastructure.Persistence;
 
 public sealed class NoOpDiscoveryUnitOfWork : IUnitOfWork
 {
