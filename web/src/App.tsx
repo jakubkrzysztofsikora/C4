@@ -12,10 +12,9 @@ function ProtectedRoute({ token, children }: { token: string | null; children: J
 }
 
 export function App() {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(null);
 
   const onLogin = (value: string) => {
-    localStorage.setItem('token', value);
     setToken(value);
   };
 
