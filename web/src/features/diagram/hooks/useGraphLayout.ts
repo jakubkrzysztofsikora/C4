@@ -7,7 +7,9 @@ const NODE_HEIGHT = 100;
 
 export function useGraphLayout(data: DiagramData): DiagramData {
   return useMemo(() => {
-    if (data.nodes.length === 0) return data;
+    if (data.nodes.length === 0) {
+      return data;
+    }
 
     const graph = new dagre.graphlib.Graph();
     graph.setDefaultEdgeLabel(() => ({}));
