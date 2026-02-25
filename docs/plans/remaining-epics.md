@@ -329,9 +329,9 @@ Goal: Configure Semantic Kernel with Ollama (local LLM) for chat completion and 
     ```
 - **Files to create**:
   - `src/Shared/Infrastructure/AI/SemanticKernelExtensions.cs` – extension method `AddSemanticKernel(configuration)` that:
-    - Creates `OllamaApiClient` from configured endpoint
-    - Registers chat completion via `builder.AddOllamaChatClient(endpoint, chatModel)`
-    - Registers embeddings via `builder.AddOllamaTextEmbeddingGeneration(embeddingModel, endpoint)`
+    - Registers chat completion via `services.AddOllamaChatCompletion(chatModel, endpoint)` (requires `#pragma warning disable SKEXP0070` — all Ollama connector APIs are experimental/alpha)
+    - Registers embeddings via `services.AddOllamaEmbeddingGenerator(embeddingModel, endpoint)` (uses new `IEmbeddingGenerator<string, Embedding<float>>` from `Microsoft.Extensions.AI`)
+    - Registers `Kernel` as transient from the service provider
     - Registers all SK plugins from modules
   - `src/Shared/Infrastructure/AI/OllamaHealthCheck.cs` – health check that verifies Ollama is reachable and models are available
 - **Docker Compose changes** (task 5.1 includes updating docker-compose.yml):
@@ -339,26 +339,34 @@ Goal: Configure Semantic Kernel with Ollama (local LLM) for chat completion and 
   - Add `ollama-pull` init service that pulls required models on first start:
     ```yaml
     ollama:
-      image: ollama/ollama
+      image: ollama/ollama:latest
       ports:
         - "11434:11434"
       volumes:
-        - ollama-data:/root/.ollama
+        - ollama_data:/root/.ollama
+      environment:
+        - OLLAMA_NUM_PARALLEL=1
       healthcheck:
-        test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+        test: ["CMD", "ollama", "list"]
         interval: 10s
         timeout: 5s
-        retries: 10
+        retries: 5
+      restart: unless-stopped
 
-    ollama-pull:
-      image: ollama/ollama
+    ollama-init:
+      image: ollama/ollama:latest
       depends_on:
         ollama:
           condition: service_healthy
-      volumes:
-        - ollama-data:/root/.ollama
-      entrypoint: ["/bin/sh", "-c", "ollama pull llama3.1 && ollama pull nomic-embed-text"]
       restart: "no"
+      entrypoint: ["/bin/sh", "-c"]
+      command:
+        - |
+          ollama pull qwen2.5-coder:7b --host http://ollama:11434
+          ollama pull nomic-embed-text --host http://ollama:11434
+
+    volumes:
+      ollama_data:
     ```
   - Backend `depends_on` updated to include `ollama` healthy
 - **Acceptance criteria**:
@@ -373,11 +381,18 @@ Goal: Configure Semantic Kernel with Ollama (local LLM) for chat completion and 
 **Recommended Ollama Models:**
 | Purpose | Model | Size | Notes |
 |---------|-------|------|-------|
-| Chat / Architecture Analysis | `llama3.1` (8B) | ~4.7 GB | Best balance of quality and speed for code understanding |
-| Chat / Alternative | `deepseek-coder-v2` | ~8.9 GB | Stronger on code-specific tasks, larger footprint |
-| Chat / Lightweight | `phi3` (3.8B) | ~2.3 GB | Faster but less capable; good for dev/CI |
-| Embeddings | `nomic-embed-text` | ~274 MB | Best embedding model available in Ollama |
-| Embeddings / Alternative | `mxbai-embed-large` | ~670 MB | Higher quality but larger |
+| Chat / Architecture Analysis | `qwen2.5-coder:7b` | ~4.7 GB | Best code model at 7B class; 128K context; supports function calling |
+| Chat / Alternative | `llama3.1:8b` | ~4.7 GB | Strong general + code; good function calling support |
+| Chat / Lightweight (CI) | `phi3:mini` (3.8B) | ~2.3 GB | Fast iteration; good structured output |
+| Embeddings | `nomic-embed-text` | ~0.5 GB | 768 dimensions, 8K context; best speed/quality tradeoff |
+| Embeddings / Alternative | `mxbai-embed-large` | ~1.2 GB | 1024 dimensions; higher retrieval quality |
+
+**Key Ollama + SK Gotchas (from research):**
+- All `AddOllama*` methods require `#pragma warning disable SKEXP0070` — the connector is alpha/experimental
+- SK Ollama connector does NOT expose `ResponseFormat` for structured JSON output (GitHub issue #11452) — use prompt engineering + manual JSON parsing instead
+- Function calling is model-dependent — only models tagged with `tools` capability on ollama.com support it (llama3.1, qwen2.5-coder, phi4, mistral)
+- Function calling has broken across SK version upgrades — pin both SK and OllamaSharp versions together
+- Running chat + embedding models simultaneously may cause model offloading if VRAM is constrained — set `OLLAMA_NUM_PARALLEL=1` if needed
 
 #### 5.2 – Create SK Logging Filters
 - **Files to create**:
@@ -418,7 +433,7 @@ Goal: Configure Semantic Kernel with Ollama (local LLM) for chat completion and 
   - Plugin performs STRIDE-based threat analysis on architecture graph
   - Returns list of ThreatAssessment value objects with category, risk level, affected components, description, and mitigation suggestions
   - Calculates aggregate risk score for the overall architecture
-  - Uses structured output parsing from AI responses
+  - Uses prompt-engineered JSON output with manual parsing (SK Ollama connector does not support ResponseFormat; request JSON in prompt, parse with `System.Text.Json`)
 
 #### 5.5 – Create AnalyzeArchitecture Vertical Slice
 - **Files to create**:
