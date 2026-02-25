@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Graph.Application/Graph.Application.csproj" />
+    <ProjectReference Include="../Graph.Domain/Graph.Domain.csproj" />
+    <ProjectReference Include="../../../Shared/Infrastructure/Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+</Project>

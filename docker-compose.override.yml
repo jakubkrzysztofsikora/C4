@@ -1,0 +1,10 @@
+services:
+  backend:
+    volumes:
+      - ./:/src
+    command: sh -c "dotnet restore C4.sln && dotnet run --project src/Host/Host.csproj --urls http://0.0.0.0:5000"
+
+  frontend:
+    volumes:
+      - ./web:/app
+      - /app/node_modules

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Telemetry.Application/Telemetry.Application.csproj" />
+    <ProjectReference Include="../Telemetry.Infrastructure/Telemetry.Infrastructure.csproj" />
+    <ProjectReference Include="../../../Shared/Infrastructure/Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>

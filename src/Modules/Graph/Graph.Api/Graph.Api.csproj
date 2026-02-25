@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Graph.Application/Graph.Application.csproj" />
+    <ProjectReference Include="../Graph.Infrastructure/Graph.Infrastructure.csproj" />
+    <ProjectReference Include="../../../Shared/Infrastructure/Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>
