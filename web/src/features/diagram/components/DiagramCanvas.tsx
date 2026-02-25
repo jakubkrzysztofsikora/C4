@@ -40,10 +40,10 @@ function ServiceNode({ data }: { data: { node: DiagramNode } }) {
 const nodeTypes = { service: ServiceNode };
 
 export function DiagramCanvas({ data }: { data: DiagramData }) {
-  const nodes: Node[] = data.nodes.map((node, index) => ({
+  const nodes: Node[] = data.nodes.map((node) => ({
     id: node.id,
     type: 'service',
-    position: { x: 80 + (index % 3) * 340, y: 80 + Math.floor(index / 3) * 220 },
+    position: { x: node.x ?? 0, y: node.y ?? 0 },
     data: { node }
   }));
 
