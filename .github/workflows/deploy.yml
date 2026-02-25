@@ -51,6 +51,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set lowercase image names
+        run: |
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "BACKEND_IMAGE=${{ env.REGISTRY }}/${REPO_LOWER}/c4-backend" >> $GITHUB_ENV
+          echo "FRONTEND_IMAGE=${{ env.REGISTRY }}/${REPO_LOWER}/c4-frontend" >> $GITHUB_ENV
+
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -173,7 +179,7 @@ jobs:
             "${{ github.sha }}" \
             "${{ needs.provision.outputs.server_ip }}" <<'SCRIPT'
           set -euo pipefail
-          GH_TOKEN="$1"; GH_ACTOR="$2"; DB_PASS="$3"; REPO="$4"; TAG="$5"; IP="$6"
+          GH_TOKEN="$1"; GH_ACTOR="$2"; DB_PASS="$3"; REPO=$(echo "$4" | tr '[:upper:]' '[:lower:]'); TAG="$5"; IP="$6"
           mkdir -p /opt/c4 && cd /opt/c4
 
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
