@@ -1,6 +1,5 @@
-using C4.Modules.Discovery.Application.IntegrationEvents;
 using C4.Modules.Discovery.Application.Ports;
-using C4.Modules.Discovery.Domain.Relationships;
+using C4.Modules.Discovery.Contracts.IntegrationEvents;
 using C4.Modules.Discovery.Domain.Resources;
 using C4.Shared.Kernel;
 using MediatR;
@@ -20,12 +19,6 @@ public sealed class DiscoverResourcesHandler(
 
         await discoveredResourceRepository.UpsertRangeAsync(request.SubscriptionId, resources, cancellationToken);
 
-        var byResourceId = resources.ToDictionary(r => r.ResourceId, StringComparer.OrdinalIgnoreCase);
-        var relationships = records
-            .Where(r => !string.IsNullOrWhiteSpace(r.ParentResourceId) && byResourceId.ContainsKey(r.ParentResourceId!))
-            .Select(r => ResourceRelationship.Create(byResourceId[r.ParentResourceId!].Id, byResourceId[r.ResourceId].Id, "contains"))
-            .ToArray();
-
         await mediator.Publish(new ResourcesDiscoveredIntegrationEvent(
             request.ProjectId,
             resources.Select(r => new DiscoveredResourceEventItem(r.ResourceId, r.ResourceType, r.Name)).ToArray()),
@@ -33,6 +26,6 @@ public sealed class DiscoverResourcesHandler(
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result<DiscoverResourcesResponse>.Success(new DiscoverResourcesResponse(request.SubscriptionId, resources.Length, relationships.Length));
+        return Result<DiscoverResourcesResponse>.Success(new DiscoverResourcesResponse(request.SubscriptionId, resources.Length));
     }
 }

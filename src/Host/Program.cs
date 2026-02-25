@@ -17,7 +17,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     {
         options.Authority = builder.Configuration["Authentication:Authority"];
         options.Audience = builder.Configuration["Authentication:Audience"];
-        options.RequireHttpsMetadata = false;
+        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
     });
 builder.Services.AddAuthorization();
 builder.Services.AddCors(options =>

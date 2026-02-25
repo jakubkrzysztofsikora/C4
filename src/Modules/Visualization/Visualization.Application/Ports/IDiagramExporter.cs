@@ -2,5 +2,6 @@ namespace C4.Modules.Visualization.Application.Ports;
 
 public interface IDiagramExporter
 {
-    byte[] Export(string diagramJson);
+    string Format { get; }
+    Task<byte[]> ExportAsync(string diagramJson, CancellationToken cancellationToken);
 }

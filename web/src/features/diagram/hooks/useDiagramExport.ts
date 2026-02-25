@@ -15,6 +15,15 @@ function trafficColor(traffic: number): string {
   return traffic >= 0.8 ? '#2e8f5e' : traffic >= 0.5 ? '#9d7c35' : '#9e3a3a';
 }
 
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 function buildSvg(data: DiagramData): string {
   const positioned = data.nodes.map((node, index) => ({
     ...node,
@@ -51,8 +60,8 @@ function buildSvg(data: DiagramData): string {
       const color = healthColor(node.health);
       return `<g transform="translate(${node.x},${node.y})">
   <rect width="${NODE_WIDTH}" height="${NODE_HEIGHT}" rx="8" ry="8" fill="#1a2744" stroke="${color}" stroke-width="2"/>
-  <text x="12" y="26" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#e0e6f0">${node.label}</text>
-  <text x="12" y="44" font-family="Inter,sans-serif" font-size="11" fill="#8896b3">${node.level} · ${node.serviceType}</text>
+  <text x="12" y="26" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#e0e6f0">${escapeXml(node.label)}</text>
+  <text x="12" y="44" font-family="Inter,sans-serif" font-size="11" fill="#8896b3">${escapeXml(node.level)} · ${escapeXml(node.serviceType)}</text>
   <text x="${NODE_WIDTH - 12}" y="26" font-family="Inter,sans-serif" font-size="10" fill="${color}" text-anchor="end">${node.health.toUpperCase()}</text>
   ${node.drift ? `<text x="12" y="66" font-family="Inter,sans-serif" font-size="10" fill="#f4a261">DRIFT</text>` : ''}
 </g>`;

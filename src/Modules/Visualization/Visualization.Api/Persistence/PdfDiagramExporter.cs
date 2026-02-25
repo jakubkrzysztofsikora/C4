@@ -5,8 +5,10 @@ namespace C4.Modules.Visualization.Api.Persistence;
 
 public sealed class PdfDiagramExporter : IDiagramExporter
 {
-    public byte[] Export(string diagramJson)
+    public string Format => "pdf";
+
+    public Task<byte[]> ExportAsync(string diagramJson, CancellationToken cancellationToken)
     {
-        return Encoding.UTF8.GetBytes($"PDF-FAKE\n{diagramJson}");
+        return Task.FromResult(Encoding.UTF8.GetBytes($"PDF-FAKE\n{diagramJson}"));
     }
 }
