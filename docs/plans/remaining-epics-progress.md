@@ -34,8 +34,8 @@ Planning complete – ready to start
 - [ ] 4.3 – Update Discovery module registration for EF Core persistence
 - [ ] 4.4 – Write Discovery persistence integration tests
 
-### Epic 5: AI Integration with Semantic Kernel
-- [ ] 5.1 – Configure Semantic Kernel in Host with Azure OpenAI
+### Epic 5: AI Integration with Semantic Kernel + Ollama
+- [ ] 5.1 – Configure Semantic Kernel in Host with Ollama (local LLM)
 - [ ] 5.2 – Create SK logging filters (IPromptRenderFilter, IFunctionInvocationFilter)
 - [ ] 5.3 – Create ArchitectureAnalysis SK plugin
 - [ ] 5.4 – Create BasicThreatDetection SK plugin (STRIDE-based risk scoring)
@@ -72,6 +72,7 @@ Planning complete – ready to start
 | 2026-02-25 | Added Epic 4 (Discovery Persistence) as new gap | Discovery module only had in-memory repositories; needs EF Core like Identity and Telemetry | +4 tasks, ~7h |
 | 2026-02-25 | Added task 7.11 (Frontend Tests) | Only 1 frontend test exists; need broader coverage | +1 task, ~2.5h |
 | 2026-02-25 | Risk R8 added for .NET 9 SDK availability | .NET 9 SDK not in apt repos; required manual install via dotnet-install.sh | Already mitigated |
+| 2026-02-25 | Switched AI backend from Azure OpenAI to Ollama | User requested local models; no API key dependency; added Ollama Docker service | Adds R9-R11 risks, adds ollama service to docker-compose |
 
 ## Decisions Log
 | Date | Decision | Context |
@@ -81,6 +82,9 @@ Planning complete – ready to start
 | 2026-02-25 | Create a shared Testing project for WebApplicationFactory and Testcontainers fixtures | Avoids duplicating test infrastructure across 5+ test projects |
 | 2026-02-25 | Separate migration history tables per module | Multiple DbContexts sharing one history table causes conflicts; use `__EFMigrationsHistory_<Module>` convention |
 | 2026-02-25 | AI plugins use FakeChatCompletionService in tests | Real LLM calls are non-deterministic, slow, and require API keys; all AI tests use canned responses |
+| 2026-02-25 | Use Ollama with local models instead of Azure OpenAI | No external API keys needed; models run locally; Docker Compose manages Ollama lifecycle; llama3.1 for chat, nomic-embed-text for embeddings |
+| 2026-02-25 | Use Microsoft.SemanticKernel.Connectors.Ollama (pre-release) | Native SK connector; uses OllamaSharp under the hood; wraps behind ports so connector can be swapped later if needed |
+| 2026-02-25 | Docker volume for Ollama model persistence | Models are large (4-8 GB); volume prevents re-downloading on container restart; init container handles pull |
 
 ## Blocked Items
 | Task | Blocker | Since | Resolution |

@@ -9,13 +9,15 @@ Complete all remaining work from the Dynamic Architecture MVP plan. This covers 
 ### Success Criteria
 - [ ] All modules persist data to PostgreSQL via EF Core (no in-memory-only repositories remain in production paths)
 - [ ] Real-time diagram updates flow from backend to frontend via SignalR
-- [ ] Semantic Kernel is configured with ArchitectureAnalysis and ThreatDetection plugins
+- [ ] Semantic Kernel is configured with Ollama (local LLM) for chat completion and embeddings
+- [ ] ArchitectureAnalysis and ThreatDetection SK plugins are functional with local models
 - [ ] AnalyzeArchitecture and GetThreatAssessment slices are functional
 - [ ] EF Core migrations exist for all modules and apply cleanly to a fresh database
 - [ ] Seed data populates a demo environment for first-time users
 - [ ] E2E acceptance tests verify key flows via WebApplicationFactory
 - [ ] Architecture boundary tests enforce modular monolith rules via ArchUnitNET
-- [ ] Docker Compose brings up backend, frontend, and PostgreSQL with `docker compose up` and passes smoke tests
+- [ ] Docker Compose brings up backend, frontend, PostgreSQL, and Ollama with `docker compose up` and passes smoke tests
+- [ ] Ollama container pulls required models (chat + embeddings) on first start
 - [ ] All existing + new tests pass (`dotnet test`, `npm test`)
 - [ ] Solution compiles with zero warnings
 
@@ -33,7 +35,8 @@ Goal: Add all NuGet and npm packages required for remaining epics so that subseq
 - **Files to modify**:
   - `Directory.Packages.props` – add package versions for:
     - `Microsoft.SemanticKernel` (latest 1.x stable)
-    - `Microsoft.SemanticKernel.Connectors.AzureOpenAI`
+    - `Microsoft.SemanticKernel.Connectors.Ollama` (Ollama-native SK connector)
+    - `OllamaSharp` (underlying Ollama client library used by SK connector)
     - `Microsoft.AspNetCore.SignalR.Client` (for integration tests)
     - `Testcontainers` and `Testcontainers.PostgreSql`
     - `ArchUnitNET` and `ArchUnitNET.xUnit`
@@ -294,12 +297,12 @@ Goal: Replace in-memory repositories in the Discovery module with EF Core persis
 
 ---
 
-### Epic 5: AI Integration with Semantic Kernel
-Goal: Configure Semantic Kernel in the Host, create ArchitectureAnalysis and ThreatDetection plugins, and expose them as vertical slices.
+### Epic 5: AI Integration with Semantic Kernel + Ollama
+Goal: Configure Semantic Kernel with Ollama (local LLM) for chat completion and embeddings, create ArchitectureAnalysis and ThreatDetection plugins, and expose them as vertical slices. Uses locally-pulled models — no external API keys required.
 
 | # | Task | Type | Module | Complexity | Depends On | Status |
 |---|------|------|--------|------------|------------|--------|
-| 5.1 | Configure Semantic Kernel in Host with Azure OpenAI | Infrastructure | Host | M | 1.1 | ⬚ |
+| 5.1 | Configure Semantic Kernel in Host with Ollama | Infrastructure | Host | M | 1.1 | ⬚ |
 | 5.2 | Create SK logging filters (IPromptRenderFilter, IFunctionInvocationFilter) | Feature | Shared | S | 5.1 | ⬚ |
 | 5.3 | Create ArchitectureAnalysis SK plugin | Feature | Graph | L | 5.1 | ⬚ |
 | 5.4 | Create BasicThreatDetection SK plugin (STRIDE-based risk scoring) | Feature | Graph | L | 5.1 | ⬚ |
@@ -307,18 +310,74 @@ Goal: Configure Semantic Kernel in the Host, create ArchitectureAnalysis and Thr
 | 5.6 | Create GetThreatAssessment vertical slice | Feature | Graph | M | 5.4 | ⬚ |
 | 5.7 | Write AI integration tests | Test | Graph | M | 5.5, 5.6 | ⬚ |
 
-#### 5.1 – Configure Semantic Kernel in Host
+#### 5.1 – Configure Semantic Kernel in Host with Ollama
 - **Files to modify**:
-  - `src/Host/Program.cs` – register Kernel, add Azure OpenAI chat completion service
-  - `src/Host/appsettings.json` – add AzureOpenAI configuration section (endpoint, deployment, model)
-  - `src/Host/appsettings.Development.json` – add development AI config with placeholder values
+  - `src/Host/Program.cs` – register Kernel with Ollama chat completion and embedding services
+  - `src/Host/appsettings.json` – add Ollama configuration section:
+    ```json
+    "Ollama": {
+      "Endpoint": "http://ollama:11434",
+      "ChatModel": "llama3.1",
+      "EmbeddingModel": "nomic-embed-text"
+    }
+    ```
+  - `src/Host/appsettings.Development.json` – override with localhost endpoint for local dev:
+    ```json
+    "Ollama": {
+      "Endpoint": "http://localhost:11434"
+    }
+    ```
 - **Files to create**:
-  - `src/Shared/Infrastructure/AI/SemanticKernelExtensions.cs` – extension method `AddSemanticKernel(configuration)` encapsulating kernel builder setup
+  - `src/Shared/Infrastructure/AI/SemanticKernelExtensions.cs` – extension method `AddSemanticKernel(configuration)` that:
+    - Creates `OllamaApiClient` from configured endpoint
+    - Registers chat completion via `builder.AddOllamaChatClient(endpoint, chatModel)`
+    - Registers embeddings via `builder.AddOllamaTextEmbeddingGeneration(embeddingModel, endpoint)`
+    - Registers all SK plugins from modules
+  - `src/Shared/Infrastructure/AI/OllamaHealthCheck.cs` – health check that verifies Ollama is reachable and models are available
+- **Docker Compose changes** (task 5.1 includes updating docker-compose.yml):
+  - Add `ollama` service using `ollama/ollama` image
+  - Add `ollama-pull` init service that pulls required models on first start:
+    ```yaml
+    ollama:
+      image: ollama/ollama
+      ports:
+        - "11434:11434"
+      volumes:
+        - ollama-data:/root/.ollama
+      healthcheck:
+        test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+        interval: 10s
+        timeout: 5s
+        retries: 10
+
+    ollama-pull:
+      image: ollama/ollama
+      depends_on:
+        ollama:
+          condition: service_healthy
+      volumes:
+        - ollama-data:/root/.ollama
+      entrypoint: ["/bin/sh", "-c", "ollama pull llama3.1 && ollama pull nomic-embed-text"]
+      restart: "no"
+    ```
+  - Backend `depends_on` updated to include `ollama` healthy
 - **Acceptance criteria**:
-  - Kernel registered in DI with `IChatCompletionService`
-  - Model name, endpoint, API key come from configuration (never hard-coded)
+  - Kernel registered in DI with `IChatCompletionService` backed by Ollama
+  - `ITextEmbeddingGenerationService` registered for embedding operations
+  - Model names and endpoint come from configuration (never hard-coded)
   - Kernel is injectable into handlers and plugins
+  - `docker compose up` starts Ollama and pulls models automatically
+  - Health check endpoint reports Ollama status
   - `dotnet build` succeeds
+
+**Recommended Ollama Models:**
+| Purpose | Model | Size | Notes |
+|---------|-------|------|-------|
+| Chat / Architecture Analysis | `llama3.1` (8B) | ~4.7 GB | Best balance of quality and speed for code understanding |
+| Chat / Alternative | `deepseek-coder-v2` | ~8.9 GB | Stronger on code-specific tasks, larger footprint |
+| Chat / Lightweight | `phi3` (3.8B) | ~2.3 GB | Faster but less capable; good for dev/CI |
+| Embeddings | `nomic-embed-text` | ~274 MB | Best embedding model available in Ollama |
+| Embeddings / Alternative | `mxbai-embed-large` | ~670 MB | Higher quality but larger |
 
 #### 5.2 – Create SK Logging Filters
 - **Files to create**:
@@ -343,6 +402,7 @@ Goal: Configure Semantic Kernel in the Host, create ArchitectureAnalysis and Thr
   - `SuggestImprovementsAsync` returns actionable architecture recommendations
   - Plugin registered in Graph module DI
   - Uses `Temperature = 0` for deterministic output
+  - Prompts designed for local model capabilities (clear instructions, structured output format, avoid relying on multi-step reasoning chains that exceed local model context windows)
 
 #### 5.4 – Create BasicThreatDetection SK Plugin
 - **Files to create**:
@@ -398,12 +458,14 @@ Goal: Configure Semantic Kernel in the Host, create ArchitectureAnalysis and Thr
   - `src/Modules/Graph/Graph.Tests/Fakes/FakeThreatDetector.cs`
   - `src/Modules/Graph/Graph.Tests/Fakes/FakeChatCompletionService.cs`
 - **Test plan (TDD)**:
-  - Unit tests: Handler tests with fake ports (no real AI calls)
-  - Unit tests: Plugin tests with `FakeChatCompletionService` returning deterministic responses
+  - Unit tests: Handler tests with fake ports (no real Ollama calls)
+  - Unit tests: Plugin tests with `FakeChatCompletionService` returning deterministic JSON responses matching the structured output format expected from local models
+  - Optional: Integration tests tagged `[Trait("Category", "OllamaIntegration")]` that call a real local Ollama instance (skipped in CI if Ollama unavailable)
 - **Acceptance criteria**:
-  - All AI handlers tested without requiring real LLM access
-  - Plugin tests verify prompt construction and response parsing
+  - All AI handlers tested without requiring running Ollama instance
+  - Plugin tests verify prompt construction and response parsing (especially JSON structured output parsing since local models may produce less reliable structured output)
   - Tests are fast and deterministic
+  - FakeChatCompletionService simulates Ollama-style responses (no function calling, text-based structured output)
 
 ---
 
@@ -587,15 +649,17 @@ Goal: Establish E2E testing infrastructure, write acceptance tests for all modul
 
 #### 7.9 – Docker Compose Smoke Test
 - **Files to create**:
-  - `tests/smoke/docker-smoke-test.sh` – script that brings up Docker Compose, waits for health, runs basic API calls, tears down
+  - `tests/smoke/docker-smoke-test.sh` – script that brings up Docker Compose, waits for health, runs basic API calls (including AI analysis endpoint), tears down
 - **Files to modify**:
-  - `docker-compose.yml` – ensure health check endpoints are configured
+  - `docker-compose.yml` – ensure health check endpoints are configured for all services including Ollama
   - `src/Host/Dockerfile` – verify multi-stage build works with all new packages
   - `web/Dockerfile` – verify production build works
 - **Acceptance criteria**:
-  - `docker compose up -d` starts all services
-  - Health endpoints return 200 within 60 seconds
+  - `docker compose up -d` starts all services (postgres, ollama, backend, frontend)
+  - Ollama model pull completes successfully (ollama-pull init container exits 0)
+  - Health endpoints return 200 within 120 seconds (longer timeout for model pull on first run)
   - Basic API calls (register org, create project) succeed
+  - AI analysis endpoint responds (verifies Ollama connectivity)
   - `docker compose down` cleans up
 
 #### 7.10 – OpenAPI/Swagger Polish
@@ -629,14 +693,17 @@ Goal: Establish E2E testing infrastructure, write acceptance tests for all modul
 ### Risks
 | # | Risk | Likelihood | Impact | Mitigation |
 |---|------|-----------|--------|------------|
-| R1 | Semantic Kernel package version incompatibility with .NET 9 | Low | High | Pin to known-stable SK 1.x version; verify in 5.1 before proceeding |
+| R1 | Semantic Kernel Ollama connector is pre-release and may have breaking changes | Medium | High | Pin to specific pre-release version; wrap SK calls behind ports so connector can be swapped |
 | R2 | Testcontainers requires Docker daemon running in CI/test environment | Medium | Medium | Fall back to EF Core InMemory provider when Docker unavailable; tag integration tests for conditional skip |
 | R3 | SignalR client/server version mismatch between .NET and @microsoft/signalr npm | Low | Medium | Pin matching versions; verify in 3.4 integration |
 | R4 | Multiple EF Core DbContexts may cause migration naming collisions | Low | Low | Use separate migration history tables per module (`__EFMigrationsHistory_<Module>`) |
-| R5 | AI integration tests depend on deterministic LLM responses | Medium | Medium | Use `FakeChatCompletionService` returning canned responses; never call real LLM in automated tests |
+| R5 | AI integration tests depend on deterministic LLM responses | Medium | Medium | Use `FakeChatCompletionService` returning canned responses; never call real Ollama in automated tests |
 | R6 | Docker Compose build may fail with new .NET 9 SDK requirements | Low | Medium | Update Dockerfile to use correct .NET 9 SDK/runtime images; test in 7.9 |
 | R7 | ArchUnitNET may require assembly scanning that conflicts with test isolation | Low | Low | Run boundary tests in dedicated test class with explicit assembly loading |
 | R8 | .NET 9 SDK not available in package managers (only .NET 8 and 10) | High | High | Install via dotnet-install.sh script; document in README; already mitigated |
+| R9 | Ollama model pull is slow on first start (~5 GB for llama3.1) | Medium | Low | Use Docker volume for model persistence; pull only once; CI can use phi3 (2.3 GB) for speed |
+| R10 | Local model quality insufficient for architecture analysis | Medium | Medium | Design prompts with explicit structured output format (JSON); use few-shot examples; fall back to simpler heuristic analysis if LLM output is unreliable |
+| R11 | Ollama GPU requirements may exceed available hardware | Medium | Medium | All recommended models run on CPU (slower but functional); GPU optional for performance; document minimum RAM: 8 GB for llama3.1, 4 GB for phi3 |
 
 ### Critical Path
 1.1 → 2.1 → 2.2 → 2.3 → 6.3 → 6.7 → 7.1 → 7.4 → 7.7
