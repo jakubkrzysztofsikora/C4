@@ -130,6 +130,49 @@ Use these Claude Code slash commands for common tasks:
 | `/review-pr` | Structured pull request review |
 | `/web-research` | Research a topic and synthesize findings into actionable guidance |
 
+## Coding Subagents
+
+The `.claude/agents/` directory contains specialized subagents that Claude Code can orchestrate as a team. Each agent has a single focused responsibility and can run in parallel or cooperatively.
+
+| Agent | Role | Mode |
+|---|---|---|
+| `csharp-writer` | Writes C# code following all project conventions (vertical slices, records, sealed, no comments) | Implementation |
+| `react-writer` | Writes React/TypeScript code (strict TS, functional components, hooks, co-located features) | Implementation |
+| `test-generator` | Creates tests — unit (xUnit + FluentAssertions + fakes), integration (Testcontainers), acceptance (WAF) | Testing |
+| `arch-validator` | Validates architecture boundaries — module isolation, layer dependencies, port/adapter compliance | Analysis (read-only) |
+| `sk-plugin-builder` | Builds Semantic Kernel plugins, agents, processes with proper DI and observability | Implementation |
+| `build-runner` | Runs builds and tests, interprets errors, provides fix diagnostics | Verification |
+| `code-quality-reviewer` | Reviews code for standards compliance with confidence-based scoring (reports only ≥80) | Analysis (read-only) |
+
+### Orchestration Patterns
+
+**Parallel implementation** — run `csharp-writer` + `react-writer` simultaneously for full-stack features:
+```
+Launch csharp-writer: "Create the PlaceOrder vertical slice in the Ordering module"
+Launch react-writer: "Create the PlaceOrder form page in web/src/features/orders/"
+```
+
+**Sequential quality pipeline** — after implementation, run quality agents in sequence:
+```
+1. build-runner: "Build the solution and run all tests"
+2. arch-validator: "Validate the Ordering module architecture"
+3. code-quality-reviewer: "Review the recent changes"
+```
+
+**TDD workflow** — test-first with the test-generator:
+```
+1. test-generator: "Write tests for PlaceOrderHandler"
+2. csharp-writer: "Implement PlaceOrderHandler to pass the tests"
+3. build-runner: "Run the PlaceOrder tests"
+```
+
+**AI feature development** — use the SK specialist:
+```
+1. sk-plugin-builder: "Create an OrderAnalysis SK plugin"
+2. test-generator: "Write tests for the OrderAnalysis plugin"
+3. build-runner: "Build and test the AI plugin"
+```
+
 ## Agent Behavior Guidelines
 
 When acting as a coding agent in this repository:
