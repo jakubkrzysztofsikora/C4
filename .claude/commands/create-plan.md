@@ -34,7 +34,7 @@ Generate a comprehensive implementation plan for a large-scope initiative (MVP, 
    - Module(s) affected
    - Files to create, modify, or delete
    - Dependencies on other tasks (explicit ordering where needed)
-   - Estimated complexity: `S` (< 1 hour), `M` (1–4 hours), `L` (4–8 hours), `XL` (> 8 hours)
+   - Estimated complexity: `S` (< 1 hour), `M` (1–4 hours), `L` (4–8 hours), `XL` (8–16 hours; consider decomposing further)
 7. Order tasks to maximize safe incremental delivery:
    - Domain model and ports first
    - Application handlers second
@@ -123,7 +123,7 @@ Goal: <one-sentence goal>
 - S tasks: N × ~30 min = ~N h
 - M tasks: N × ~2.5 h = ~N h
 - L tasks: N × ~6 h = ~N h
-- XL tasks: N × ~10 h = ~N h
+- XL tasks: N × ~12 h = ~N h
 - **Total: ~N hours**
 ```
 
