@@ -1,3 +1,4 @@
+using C4.Host;
 using C4.Modules.Discovery.Api;
 using C4.Modules.Graph.Api;
 using C4.Modules.Identity.Api;
@@ -42,6 +43,8 @@ builder.Services
     .AddVisualizationModule(builder.Configuration);
 
 var app = builder.Build();
+
+await SeedDataService.MigrateAndSeedAsync(app);
 
 if (app.Environment.IsDevelopment())
 {
