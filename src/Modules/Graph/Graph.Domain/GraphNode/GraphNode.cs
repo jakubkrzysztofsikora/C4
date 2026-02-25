@@ -4,6 +4,10 @@ namespace C4.Modules.Graph.Domain.GraphNode;
 
 public sealed class GraphNode : Entity<GraphNodeId>
 {
+#pragma warning disable CS8618
+    private GraphNode() : base(default!) { }
+#pragma warning restore CS8618
+
     private GraphNode(GraphNodeId id, string externalResourceId, string name, C4Level level, GraphNodeId? parentId, NodeProperties properties) : base(id)
     {
         ExternalResourceId = externalResourceId;
