@@ -7,6 +7,7 @@ export type DiagramNode = {
   health: 'green' | 'yellow' | 'red';
   drift?: boolean;
   serviceType: ServiceType;
+  position?: { x: number; y: number };
 };
 
 export type DiagramEdge = { id: string; from: string; to: string; traffic: number };
