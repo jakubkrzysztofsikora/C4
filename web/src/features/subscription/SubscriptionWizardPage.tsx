@@ -8,9 +8,11 @@ export function SubscriptionWizardPage() {
   return (
     <section>
       <h2>Azure Subscription Wizard</h2>
-      <input placeholder="Subscription Id" value={subscriptionId} onChange={e => setSubscriptionId(e.target.value)} />
-      <input placeholder="Display Name" value={displayName} onChange={e => setDisplayName(e.target.value)} />
-      <button onClick={() => setConnected(Boolean(subscriptionId && displayName))}>Connect</button>
+      <label htmlFor="subscription-id-input">Subscription Id</label>
+      <input id="subscription-id-input" placeholder="Subscription Id" value={subscriptionId} onChange={e => setSubscriptionId(e.target.value)} />
+      <label htmlFor="display-name-input">Display Name</label>
+      <input id="display-name-input" placeholder="Display Name" value={displayName} onChange={e => setDisplayName(e.target.value)} />
+      <button type="button" onClick={() => setConnected(Boolean(subscriptionId && displayName))}>Connect</button>
       {connected ? <p>Connected: {displayName}</p> : <p>Pending connection</p>}
     </section>
   );

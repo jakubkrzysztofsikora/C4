@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Discovery.Api", "src/Module
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Discovery.Application", "src/Modules/Discovery/Discovery.Application/Discovery.Application.csproj", "{C5E9A0E1-4E8A-590E-8727-6921889B500A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Discovery.Contracts", "src/Modules/Discovery/Discovery.Contracts/Discovery.Contracts.csproj", "{D1E9B0A2-5F9B-6C1E-9838-7032979C601B}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Discovery.Domain", "src/Modules/Discovery/Discovery.Domain/Discovery.Domain.csproj", "{E000BFBB-76A4-530A-82C4-E90B70260BC8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Discovery.Infrastructure", "src/Modules/Discovery/Discovery.Infrastructure/Discovery.Infrastructure.csproj", "{9F3C5A93-1C88-5100-ADBE-3675779E951F}"

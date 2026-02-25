@@ -21,18 +21,18 @@ public sealed class TelemetryRepository(TelemetryDbContext dbContext) : ITelemet
 
     public async Task<ServiceHealth?> GetServiceHealthAsync(Guid projectId, string service, CancellationToken cancellationToken)
     {
-        var points = await dbContext.Metrics
+        IQueryable<double> query = dbContext.Metrics
             .AsNoTracking()
             .Where(m => m.ProjectId == projectId && m.Service == service)
-            .Select(m => m.Value)
-            .ToArrayAsync(cancellationToken);
+            .Select(m => m.Value);
 
-        if (points.Length == 0)
+        bool hasAny = await query.AnyAsync(cancellationToken);
+        if (!hasAny)
         {
             return null;
         }
 
-        var avg = points.Average();
+        double avg = await query.AverageAsync(cancellationToken);
         var status = avg >= .8 ? ServiceHealthStatus.Green : avg >= .5 ? ServiceHealthStatus.Yellow : ServiceHealthStatus.Red;
         return new ServiceHealth(projectId, service, avg, status, DateTime.UtcNow);
     }
