@@ -1,5 +1,6 @@
 import { DiagramCanvas } from './components/DiagramCanvas';
 import { useDiagram } from './hooks/useDiagram';
+import { useDiagramExport } from './hooks/useDiagramExport';
 import { useGraphLayout } from './hooks/useGraphLayout';
 import { usePanZoom } from './hooks/usePanZoom';
 import './diagram.css';
@@ -8,16 +9,7 @@ export function DiagramPage() {
   const { data, level, setLevel, search, setSearch, timeline, setTimeline } = useDiagram();
   const layouted = useGraphLayout(data);
   const { zoom, setZoom } = usePanZoom();
-
-  const exportDiagram = (format: 'svg' | 'pdf') => {
-    const blob = new Blob([JSON.stringify(layouted)], { type: format === 'svg' ? 'image/svg+xml' : 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `architecture-diagram.${format}`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const { exportAs } = useDiagramExport(layouted);
 
   return (
     <section className="diagram-grid">
@@ -46,8 +38,8 @@ export function DiagramPage() {
             <input type="range" min={50} max={150} value={zoom * 100} onChange={(e) => setZoom(Number(e.target.value) / 100)} />
           </label>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn" onClick={() => exportDiagram('svg')}>Export SVG</button>
-            <button className="btn" onClick={() => exportDiagram('pdf')}>Export PDF</button>
+            <button className="btn" onClick={() => exportAs('svg')}>Export SVG</button>
+            <button className="btn" onClick={() => exportAs('pdf')}>Export PDF</button>
           </div>
         </div>
         <div className="legend">
