@@ -22,7 +22,7 @@ dotnet build
 dotnet build src/Modules/<Module>/<Module>.<Layer>/
 
 # Build with detailed errors
-dotnet build --verbosity detailed 2>&1 | head -100
+dotnet build --verbosity detailed 2>&1 | tail -200
 ```
 
 ### React Frontend

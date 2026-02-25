@@ -101,8 +101,8 @@ grep -rn "using.*<OtherModule>\.Application" src/Modules/<Module>/
 # Find infrastructure leaks
 grep -rn "DbContext\|HttpClient\|SqlConnection" src/Modules/*/Application/ src/Modules/*/Domain/
 
-# Find missing sealed
-grep -rn "class " src/Modules/ | grep -v "sealed\|abstract\|static\|interface\|record"
+# Find missing sealed (match class declarations only)
+grep -rn "\bclass [A-Z]" src/Modules/ --include="*.cs" | grep -v "sealed\|abstract\|static\|interface\|record"
 
 # Find .Result/.Wait() usage
 grep -rn "\.Result\b\|\.Wait()\|\.GetAwaiter().GetResult()" src/
