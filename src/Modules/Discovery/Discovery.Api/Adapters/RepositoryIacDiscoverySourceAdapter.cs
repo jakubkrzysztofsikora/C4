@@ -8,6 +8,6 @@ public sealed class RepositoryIacDiscoverySourceAdapter : IDiscoverySourceAdapte
 
     public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
     {
-        return Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>([]);
+        return Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(Array.Empty<DiscoveryResourceDescriptor>());
     }
 }

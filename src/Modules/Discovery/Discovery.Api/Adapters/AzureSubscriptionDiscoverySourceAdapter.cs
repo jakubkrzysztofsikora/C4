@@ -9,7 +9,7 @@ public sealed class AzureSubscriptionDiscoverySourceAdapter(IAzureResourceGraphC
     public async Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.ExternalSubscriptionId))
-            return [];
+            return Array.Empty<DiscoveryResourceDescriptor>();
 
         var records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
         return records

@@ -8,10 +8,16 @@ public sealed class CompositeDiscoveryInputProvider(IEnumerable<IDiscoverySource
     {
         var requestedSources = request.Sources.Distinct().ToHashSet();
 
+        var tasks = sourceAdapters
+            .Where(adapter => requestedSources.Contains(adapter.Source))
+            .Select(adapter => adapter.GetResourcesAsync(request, cancellationToken))
+            .ToArray();
+
+        var results = await Task.WhenAll(tasks);
+
         var resources = new Dictionary<string, DiscoveryResourceDescriptor>(StringComparer.OrdinalIgnoreCase);
-        foreach (var sourceAdapter in sourceAdapters.Where(adapter => requestedSources.Contains(adapter.Source)))
+        foreach (var discovered in results)
         {
-            var discovered = await sourceAdapter.GetResourcesAsync(request, cancellationToken);
             foreach (var resource in discovered)
             {
                 resources[resource.ResourceId] = resource;

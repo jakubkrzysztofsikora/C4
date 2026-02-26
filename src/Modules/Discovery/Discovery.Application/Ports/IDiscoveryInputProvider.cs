@@ -20,12 +20,7 @@ public enum DiscoverySourceKind
 
 public static class DiscoverySourceKindDefaults
 {
-    public static readonly IReadOnlyCollection<DiscoverySourceKind> All =
-    [
-        DiscoverySourceKind.AzureSubscription,
-        DiscoverySourceKind.RepositoryIac,
-        DiscoverySourceKind.RemoteMcp,
-    ];
+    public static readonly IReadOnlyCollection<DiscoverySourceKind> All = (IReadOnlyCollection<DiscoverySourceKind>)Enum.GetValues<DiscoverySourceKind>();
 }
 
 public sealed record DiscoveryResourceDescriptor(
