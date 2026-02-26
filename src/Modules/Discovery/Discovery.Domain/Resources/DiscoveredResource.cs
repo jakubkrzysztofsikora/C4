@@ -17,6 +17,18 @@ public sealed class DiscoveredResource : Entity<DiscoveredResourceId>
 
     public string Name { get; }
 
+    public AzureResourceClassification? Classification { get; private set; }
+
     public static DiscoveredResource Create(string resourceId, string resourceType, string name) =>
         new(DiscoveredResourceId.New(), resourceId.Trim(), resourceType.Trim(), name.Trim());
+
+    public static DiscoveredResource Create(string resourceId, string resourceType, string name, AzureResourceClassification classification)
+    {
+        var resource = Create(resourceId, resourceType, name);
+        resource.Classification = classification;
+        return resource;
+    }
+
+    public void SetClassification(AzureResourceClassification classification) =>
+        Classification = classification;
 }
