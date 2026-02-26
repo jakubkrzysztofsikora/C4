@@ -7,26 +7,24 @@ using MediatR;
 namespace C4.Modules.Discovery.Application.DiscoverResources;
 
 public sealed class DiscoverResourcesHandler(
-    IDiscoveryInputPlanner planner,
-    IAzureResourceGraphClient resourceGraphClient,
+    IDiscoveryInputProvider discoveryInputProvider,
     IDiscoveredResourceRepository discoveredResourceRepository,
     IResourceClassifier classifier,
     IMediator mediator,
     IUnitOfWork unitOfWork) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
-    private const string DiscoveryUserIntent = "Discover Azure resources for connected subscription";
-
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
-        var plan = await planner.BuildPlanAsync(
-            DiscoveryUserIntent,
-            $"SubscriptionId={request.SubscriptionId}; ExternalSubscriptionId={request.ExternalSubscriptionId}; ProjectId={request.ProjectId}",
-            cancellationToken);
+        var normalizedRequest = new NormalizedDiscoveryRequest(
+            request.ProjectId,
+            request.OrganizationId,
+            request.ExternalSubscriptionId,
+            request.Sources ?? DiscoverySourceKindDefaults.All);
 
-        IReadOnlyCollection<AzureResourceRecord> records;
+        IReadOnlyCollection<DiscoveryResourceDescriptor> records;
         try
         {
-            records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
+            records = await discoveryInputProvider.GetResourcesAsync(normalizedRequest, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -34,7 +32,7 @@ public sealed class DiscoverResourcesHandler(
             return Result<DiscoverResourcesResponse>.Failure(error);
         }
 
-        var classifiedPairs = new List<(AzureResourceRecord Record, DiscoveredResource Resource)>();
+        var classifiedPairs = new List<(DiscoveryResourceDescriptor Record, DiscoveredResource Resource)>();
         var dataQualityFailures = 0;
         foreach (var record in records)
         {
@@ -81,7 +79,6 @@ public sealed class DiscoverResourcesHandler(
                 escalation.Status,
                 escalation.EscalationLevel,
                 escalation.UserActionHint,
-                dataQualityFailures,
-                plan));
+                dataQualityFailures));
     }
 }
