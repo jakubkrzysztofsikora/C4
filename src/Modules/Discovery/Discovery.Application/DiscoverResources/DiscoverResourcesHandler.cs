@@ -10,6 +10,7 @@ public sealed class DiscoverResourcesHandler(
     IDiscoveryInputProvider discoveryInputProvider,
     IDiscoveredResourceRepository discoveredResourceRepository,
     IResourceClassifier classifier,
+    IDiscoveryDataPreparer discoveryDataPreparer,
     IMediator mediator,
     IUnitOfWork unitOfWork) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
@@ -22,12 +23,20 @@ public sealed class DiscoverResourcesHandler(
             request.Sources ?? DiscoverySourceKindDefaults.All);
 
         var records = await discoveryInputProvider.GetResourcesAsync(normalizedRequest, cancellationToken);
+        var preparedRecords = discoveryDataPreparer.Prepare(records
+            .Select(record => new RawDiscoveryRecord(
+                record.ResourceId,
+                record.ResourceType,
+                record.Name,
+                MapSourceProvenance(record.Source),
+                record.ParentResourceId))
+            .ToArray());
 
-        var classifiedPairs = new List<(DiscoveryResourceDescriptor Record, DiscoveredResource Resource)>();
-        foreach (var record in records)
+        var classifiedPairs = new List<(PreparedDiscoveryRecord Record, DiscoveredResource Resource)>();
+        foreach (var record in preparedRecords)
         {
             var classification = await classifier.ClassifyAsync(record.ResourceType, record.Name, cancellationToken);
-            var resource = DiscoveredResource.Create(record.ResourceId, record.ResourceType, record.Name, classification);
+            var resource = DiscoveredResource.Create(record.StableResourceId, record.ResourceType, record.Name, classification);
             classifiedPairs.Add((record, resource));
         }
 
@@ -44,7 +53,12 @@ public sealed class DiscoverResourcesHandler(
                 p.Resource.Classification?.ServiceType,
                 p.Resource.Classification?.C4Level,
                 p.Resource.Classification?.IncludeInDiagram ?? true,
-                p.Record.ParentResourceId))
+                p.Record.RawParentResourceId,
+                p.Record.SourceProvenance,
+                p.Record.ConfidenceScore,
+                p.Record.Relationships.FirstOrDefault()?.RelationshipType,
+                p.Record.Relationships.FirstOrDefault()?.RelatedStableResourceId,
+                p.Record.StableResourceId))
             .ToArray();
 
         await mediator.Publish(new ResourcesDiscoveredIntegrationEvent(request.ProjectId, diagramItems), cancellationToken);
@@ -53,4 +67,12 @@ public sealed class DiscoverResourcesHandler(
 
         return Result<DiscoverResourcesResponse>.Success(new DiscoverResourcesResponse(request.SubscriptionId, resources.Count));
     }
+
+    private static string MapSourceProvenance(DiscoverySourceKind source) => source switch
+    {
+        DiscoverySourceKind.AzureSubscription => "azure",
+        DiscoverySourceKind.RepositoryIac => "repo",
+        DiscoverySourceKind.RemoteMcp => "mcp",
+        _ => source.ToString().ToLowerInvariant()
+    };
 }

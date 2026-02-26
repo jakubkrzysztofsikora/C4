@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IIacStateParser, CompositeIacStateParser>();
 
         services.AddSingleton<IUnitOfWork, NoOpDiscoveryUnitOfWork>();
+        services.AddSingleton<IDiscoveryDataPreparer, DiscoveryDataPreparer>();
         services.AddSingleton<MultiSourceDiscoveryPlanner>();
         services.AddSingleton<IDiscoveryTelemetryEventSink, DiscoveryStructuredTelemetryEventSink>();
         services.AddSingleton<DiscoveryPromptRenderFilter>();
