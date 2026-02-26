@@ -12,10 +12,29 @@ public sealed class DiscoverResourcesEndpoint : IEndpoint
         app.MapPost("/api/discovery/subscriptions/{subscriptionId:guid}/discover", async (Guid subscriptionId, DiscoverResourcesRequest request, ISender sender, CancellationToken ct) =>
         {
             var result = await sender.Send(new DiscoverResourcesCommand(subscriptionId, request.ExternalSubscriptionId, request.ProjectId, request.OrganizationId, request.Sources), ct);
-            return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
+
+            if (result.IsSuccess)
+            {
+                return Results.Ok(result.Value);
+            }
+
+            var escalation = DiscoveryEscalationMapper.ForFailure(result.Error);
+            return Results.BadRequest(new DiscoverResourcesErrorResponse(
+                result.Error.Code,
+                result.Error.Message,
+                escalation.Status,
+                escalation.EscalationLevel,
+                escalation.UserActionHint));
         })
         .RequireAuthorization();
     }
 
     public sealed record DiscoverResourcesRequest(string ExternalSubscriptionId, Guid ProjectId, string? OrganizationId, IReadOnlyCollection<DiscoverySourceKind>? Sources);
+
+    public sealed record DiscoverResourcesErrorResponse(
+        string ErrorCode,
+        string ErrorMessage,
+        DiscoveryExecutionStatus Status,
+        DiscoveryEscalationLevel EscalationLevel,
+        string? UserActionHint);
 }

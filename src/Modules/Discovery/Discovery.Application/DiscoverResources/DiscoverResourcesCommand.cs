@@ -12,4 +12,10 @@ public sealed record DiscoverResourcesCommand(
     IReadOnlyCollection<DiscoverySourceKind>? Sources = null)
     : IRequest<Result<DiscoverResourcesResponse>>;
 
-public sealed record DiscoverResourcesResponse(Guid SubscriptionId, int ResourcesCount);
+public sealed record DiscoverResourcesResponse(
+    Guid SubscriptionId,
+    int ResourcesCount,
+    DiscoveryExecutionStatus Status,
+    DiscoveryEscalationLevel EscalationLevel,
+    string? UserActionHint,
+    int DataQualityFailures);

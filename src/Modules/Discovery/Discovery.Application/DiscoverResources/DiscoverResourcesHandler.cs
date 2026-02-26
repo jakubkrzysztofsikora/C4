@@ -22,22 +22,31 @@ public sealed class DiscoverResourcesHandler(
             request.ExternalSubscriptionId,
             request.Sources ?? DiscoverySourceKindDefaults.All);
 
-        var records = await discoveryInputProvider.GetResourcesAsync(normalizedRequest, cancellationToken);
-        var preparedRecords = discoveryDataPreparer.Prepare(records
-            .Select(record => new RawDiscoveryRecord(
-                record.ResourceId,
-                record.ResourceType,
-                record.Name,
-                MapSourceProvenance(record.Source),
-                record.ParentResourceId))
-            .ToArray());
-
-        var classifiedPairs = new List<(PreparedDiscoveryRecord Record, DiscoveredResource Resource)>();
-        foreach (var record in preparedRecords)
+        IReadOnlyCollection<DiscoveryResourceDescriptor> records;
+        try
         {
-            var classification = await classifier.ClassifyAsync(record.ResourceType, record.Name, cancellationToken);
-            var resource = DiscoveredResource.Create(record.StableResourceId, record.ResourceType, record.Name, classification);
-            classifiedPairs.Add((record, resource));
+            records = await discoveryInputProvider.GetResourcesAsync(normalizedRequest, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            var error = DiscoveryEscalationMapper.MapExternalFailure(ex);
+            return Result<DiscoverResourcesResponse>.Failure(error);
+        }
+
+        var classifiedPairs = new List<(DiscoveryResourceDescriptor Record, DiscoveredResource Resource)>();
+        var dataQualityFailures = 0;
+        foreach (var record in records)
+        {
+            try
+            {
+                var classification = await classifier.ClassifyAsync(record.ResourceType, record.Name, cancellationToken);
+                var resource = DiscoveredResource.Create(record.ResourceId, record.ResourceType, record.Name, classification);
+                classifiedPairs.Add((record, resource));
+            }
+            catch
+            {
+                dataQualityFailures++;
+            }
         }
 
         var resources = classifiedPairs.Select(p => p.Resource).ToList();
@@ -65,7 +74,18 @@ public sealed class DiscoverResourcesHandler(
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result<DiscoverResourcesResponse>.Success(new DiscoverResourcesResponse(request.SubscriptionId, resources.Count));
+        var escalation = dataQualityFailures > 0
+            ? DiscoveryEscalationMapper.ForPartialDataQuality()
+            : DiscoveryEscalationMapper.ForSuccess();
+
+        return Result<DiscoverResourcesResponse>.Success(
+            new DiscoverResourcesResponse(
+                request.SubscriptionId,
+                resources.Count,
+                escalation.Status,
+                escalation.EscalationLevel,
+                escalation.UserActionHint,
+                dataQualityFailures));
     }
 
     private static string MapSourceProvenance(DiscoverySourceKind source) => source switch

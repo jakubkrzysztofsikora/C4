@@ -1,5 +1,6 @@
 using C4.Modules.Discovery.Application.DiscoverResources;
 using C4.Modules.Discovery.Application.Ports;
+using C4.Modules.Discovery.Domain.Errors;
 using C4.Modules.Discovery.Domain.Resources;
 using C4.Shared.Kernel;
 using C4.Shared.Kernel.IntegrationEvents;
@@ -14,14 +15,48 @@ public sealed class DiscoverResourcesHandlerTests
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
+<<<<<<< codex/add-error-taxonomy-and-extend-contracts
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
+=======
         var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork());
+>>>>>>> main
         var subscriptionId = Guid.NewGuid();
 
         var result = await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value.ResourcesCount.Should().Be(2);
+        result.Value.Status.Should().Be(DiscoveryExecutionStatus.Success);
+        result.Value.EscalationLevel.Should().Be(DiscoveryEscalationLevel.RetrySilently);
         (await repo.GetBySubscriptionAsync(subscriptionId, CancellationToken.None)).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Handle_ClassificationFailure_ReturnsPartialWithNotifyEscalation()
+    {
+        var repo = new FakeDiscoveredResourceRepository();
+        var classifier = new FaultyResourceClassifier();
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
+
+        var result = await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Status.Should().Be(DiscoveryExecutionStatus.Partial);
+        result.Value.EscalationLevel.Should().Be(DiscoveryEscalationLevel.NotifyUser);
+        result.Value.DataQualityFailures.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Handle_ConnectorUnavailable_ReturnsFailureWithRetryableError()
+    {
+        var repo = new FakeDiscoveredResourceRepository();
+        var classifier = new FakeResourceClassifier();
+        var handler = new DiscoverResourcesHandler(new UnavailableDiscoveryInputProvider(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
+
+        var result = await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Be(DiscoveryErrors.ConnectorUnavailable("azure-resource-graph"));
     }
 
     [Fact]
@@ -30,7 +65,11 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
+<<<<<<< codex/add-error-taxonomy-and-extend-contracts
+        var handler = new DiscoverResourcesHandler(new MixedDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
+=======
         var handler = new DiscoverResourcesHandler(new MixedDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
+>>>>>>> main
         var subscriptionId = Guid.NewGuid();
 
         await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
@@ -45,7 +84,11 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
+<<<<<<< codex/add-error-taxonomy-and-extend-contracts
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
+=======
         var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
+>>>>>>> main
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -59,7 +102,11 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
+<<<<<<< codex/add-error-taxonomy-and-extend-contracts
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
+=======
         var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
+>>>>>>> main
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -69,6 +116,8 @@ public sealed class DiscoverResourcesHandlerTests
         childItem.NormalizedRelatedResourceId.Should().Be("/r1");
     }
 
+<<<<<<< codex/add-error-taxonomy-and-extend-contracts
+=======
     [Fact]
     public async Task Handle_EmitsProvenanceAndConfidenceMetadata()
     {
@@ -88,6 +137,7 @@ public sealed class DiscoverResourcesHandlerTests
         });
     }
 
+>>>>>>> main
     private sealed class FakeDiscoveryInputProvider : IDiscoveryInputProvider
     {
         public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
@@ -115,6 +165,25 @@ public sealed class DiscoverResourcesHandlerTests
             var classification = AzureResourceTypeCatalog.Classify(armResourceType);
             return Task.FromResult(classification);
         }
+    }
+
+    private sealed class FaultyResourceClassifier : IResourceClassifier
+    {
+        public Task<AzureResourceClassification> ClassifyAsync(string armResourceType, string resourceName, CancellationToken cancellationToken)
+        {
+            if (resourceName == "api")
+            {
+                throw new InvalidOperationException("Bad resource payload");
+            }
+
+            return Task.FromResult(AzureResourceTypeCatalog.Classify(armResourceType));
+        }
+    }
+
+    private sealed class UnavailableDiscoveryInputProvider : IDiscoveryInputProvider
+    {
+        public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
+            => throw new HttpRequestException("Connector unavailable");
     }
 
     private sealed class FakeDiscoveredResourceRepository : IDiscoveredResourceRepository
