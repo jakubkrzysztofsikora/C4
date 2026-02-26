@@ -8,7 +8,7 @@ namespace C4.Modules.Discovery.Application.DiscoverResources;
 
 public sealed class DiscoverResourcesHandler(
     IDiscoveryInputPlanner planner,
-    IAzureResourceGraphClient resourceGraphClient,
+    IDiscoveryInputProvider discoveryInputProvider,
     IDiscoveredResourceRepository discoveredResourceRepository,
     IResourceClassifier classifier,
     IMediator mediator,
@@ -23,9 +23,15 @@ public sealed class DiscoverResourcesHandler(
             $"SubscriptionId={request.SubscriptionId}; ExternalSubscriptionId={request.ExternalSubscriptionId}; ProjectId={request.ProjectId}",
             cancellationToken);
 
-        var records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
+        var normalizedRequest = new NormalizedDiscoveryRequest(
+            request.ProjectId,
+            request.OrganizationId,
+            request.ExternalSubscriptionId,
+            request.Sources ?? DiscoverySourceKindDefaults.All);
 
-        var classifiedPairs = new List<(AzureResourceRecord Record, DiscoveredResource Resource)>();
+        var records = await discoveryInputProvider.GetResourcesAsync(normalizedRequest, cancellationToken);
+
+        var classifiedPairs = new List<(DiscoveryResourceDescriptor Record, DiscoveredResource Resource)>();
         foreach (var record in records)
         {
             var classification = await classifier.ClassifyAsync(record.ResourceType, record.Name, cancellationToken);
