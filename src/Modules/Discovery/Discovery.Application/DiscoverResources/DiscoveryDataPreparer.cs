@@ -8,6 +8,11 @@ public sealed class DiscoveryDataPreparer : IDiscoveryDataPreparer
     {
         var stableIdMap = rawRecords.ToDictionary(r => r, CreateStableResourceId);
 
+        var stableIdByNormalizedId = rawRecords
+            .Where(r => r.ResourceId is not null)
+            .GroupBy(r => NormalizeRawResourceId(r.ResourceId!))
+            .ToDictionary(g => g.Key, g => stableIdMap[g.First()]);
+
         return rawRecords
             .Select(raw =>
             {
@@ -15,10 +20,8 @@ public sealed class DiscoveryDataPreparer : IDiscoveryDataPreparer
                 if (!string.IsNullOrWhiteSpace(raw.ParentResourceId))
                 {
                     var normalizedParentId = NormalizeRawResourceId(raw.ParentResourceId);
-                    var parentStableId = stableIdMap
-                        .Where(pair => string.Equals(NormalizeRawResourceId(pair.Key.ResourceId), normalizedParentId, StringComparison.Ordinal))
-                        .Select(pair => pair.Value)
-                        .FirstOrDefault() ?? CreateStableResourceId(
+                    var parentStableId = stableIdByNormalizedId.GetValueOrDefault(normalizedParentId)
+                        ?? CreateStableResourceId(
                             raw with
                             {
                                 ResourceId = raw.ParentResourceId,
