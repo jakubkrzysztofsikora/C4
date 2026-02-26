@@ -1,24 +1,34 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getJson, ApiError } from '../../../shared/api/client';
 import { DiagramData, DiagramNode, DiagramEdge } from '../types';
+import { useSignalR } from './useSignalR';
 
 type GraphNodeDto = {
   id: string;
   name: string;
   externalResourceId: string;
   level: string;
+  health?: string;
+  healthScore?: number;
+  parentNodeId?: string;
 };
 
 type GraphEdgeDto = {
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
+  traffic?: number;
 };
 
 type GraphDto = {
   projectId: string;
   nodes: ReadonlyArray<GraphNodeDto>;
   edges: ReadonlyArray<GraphEdgeDto>;
+};
+
+type NodeHealthEntry = {
+  nodeId: string;
+  health: DiagramNode['health'];
 };
 
 function mapLevel(level: string): DiagramNode['level'] {
@@ -38,20 +48,26 @@ function inferServiceType(name: string): DiagramNode['serviceType'] {
   return 'app';
 }
 
+function resolveHealth(value: string | undefined): DiagramNode['health'] {
+  if (isValidHealth(value)) return value;
+  return 'green';
+}
+
 function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
   const nodes: DiagramNode[] = dto.nodes.map((node) => ({
     id: node.id,
     label: node.name,
     level: mapLevel(node.level),
-    health: 'green' as const,
+    health: resolveHealth(node.health),
     serviceType: inferServiceType(node.name),
+    ...(node.parentNodeId !== undefined && { parentId: node.parentNodeId }),
   }));
 
   const edges: DiagramEdge[] = dto.edges.map((edge) => ({
     id: edge.id,
     from: edge.sourceNodeId,
     to: edge.targetNodeId,
-    traffic: 1,
+    traffic: edge.traffic ?? 1,
   }));
 
   return { nodes, edges };
@@ -61,7 +77,7 @@ const seed: DiagramData = {
   nodes: [
     { id: 'n1', label: 'Frontend SPA', level: 'Container', health: 'green', serviceType: 'app' },
     { id: 'n2', label: 'Identity API', level: 'Container', health: 'green', serviceType: 'api' },
-    { id: 'n3', label: 'Discovery Worker', level: 'Component', health: 'yellow', serviceType: 'queue' },
+    { id: 'n3', label: 'Discovery Worker', level: 'Component', health: 'yellow', serviceType: 'queue', parentId: 'n4' },
     { id: 'n4', label: 'Graph Service', level: 'Container', health: 'green', serviceType: 'api' },
     { id: 'n5', label: 'PostgreSQL', level: 'Container', health: 'green', serviceType: 'database' },
     { id: 'n6', label: 'Redis Cache', level: 'Container', health: 'yellow', drift: true, serviceType: 'cache' },
@@ -88,6 +104,35 @@ function extractErrorMessage(err: unknown): string {
     return err.message;
   }
   return 'An unexpected error occurred';
+}
+
+function isValidHealth(value: unknown): value is DiagramNode['health'] {
+  return value === 'green' || value === 'yellow' || value === 'red';
+}
+
+function parseHealthOverlay(healthJson: string): NodeHealthEntry[] {
+  try {
+    const parsed: unknown = JSON.parse(healthJson);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is NodeHealthEntry =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as Record<string, unknown>)['nodeId'] === 'string' &&
+        isValidHealth((item as Record<string, unknown>)['health']),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function applyHealthOverlay(nodes: DiagramNode[], overlay: NodeHealthEntry[]): DiagramNode[] {
+  if (overlay.length === 0) return nodes;
+  const healthMap = new Map(overlay.map((e) => [e.nodeId, e.health]));
+  return nodes.map((node) => {
+    const updatedHealth = healthMap.get(node.id);
+    return updatedHealth !== undefined ? { ...node, health: updatedHealth } : node;
+  });
 }
 
 export function useDiagram(projectId?: string) {
@@ -120,6 +165,26 @@ export function useDiagram(projectId?: string) {
       void fetchGraph(projectId, level);
     }
   }, [projectId, level, fetchGraph]);
+
+  const handleHealthOverlayChanged = useCallback((_receivedProjectId: string, healthJson: string) => {
+    setApiData((current) => {
+      if (current === undefined) return current;
+      const overlay = parseHealthOverlay(healthJson);
+      const updatedNodes = applyHealthOverlay(current.nodes, overlay);
+      return { ...current, nodes: updatedNodes };
+    });
+  }, []);
+
+  const handleDiagramUpdated = useCallback(() => {
+    if (projectId !== undefined) {
+      void fetchGraph(projectId, level);
+    }
+  }, [projectId, level, fetchGraph]);
+
+  useSignalR(projectId, {
+    onHealthOverlayChanged: handleHealthOverlayChanged,
+    onDiagramUpdated: handleDiagramUpdated,
+  });
 
   const sourceData = apiData ?? seed;
 

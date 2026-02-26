@@ -1,4 +1,4 @@
-using C4.Modules.Telemetry.Application.IntegrationEvents;
+using C4.Shared.Kernel.IntegrationEvents;
 using C4.Modules.Telemetry.Application.Ports;
 using C4.Modules.Telemetry.Application.SyncApplicationInsightsTelemetry;
 using C4.Modules.Telemetry.Domain.Metrics;

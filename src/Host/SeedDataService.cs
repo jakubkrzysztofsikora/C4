@@ -1,5 +1,6 @@
 using C4.Modules.Discovery.Infrastructure.Persistence;
 using C4.Modules.Graph.Infrastructure.Persistence;
+using C4.Modules.Identity.Application.Ports;
 using C4.Modules.Identity.Infrastructure.Persistence;
 using C4.Modules.Telemetry.Infrastructure.Persistence;
 using C4.Modules.Visualization.Infrastructure.Persistence;
@@ -36,21 +37,32 @@ public static class SeedDataService
     {
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
 
-        if (await context.Organizations.AnyAsync())
-            return;
+        if (!await context.Organizations.AnyAsync())
+        {
+            var orgResult = C4.Modules.Identity.Domain.Organization.Organization.Create("C4 Demo Organization");
+            if (orgResult.IsSuccess)
+            {
+                var org = orgResult.Value;
+                context.Organizations.Add(org);
+                await context.SaveChangesAsync();
 
-        var orgResult = C4.Modules.Identity.Domain.Organization.Organization.Create("C4 Demo Organization");
-        if (!orgResult.IsSuccess) return;
+                var projectResult = C4.Modules.Identity.Domain.Project.Project.Create(org.Id, "Sample Cloud Project");
+                if (projectResult.IsSuccess)
+                {
+                    context.Projects.Add(projectResult.Value);
+                    await context.SaveChangesAsync();
+                }
+            }
+        }
 
-        var org = orgResult.Value;
-        context.Organizations.Add(org);
-        await context.SaveChangesAsync();
-
-        var projectResult = C4.Modules.Identity.Domain.Project.Project.Create(org.Id, "Sample Cloud Project");
-        if (!projectResult.IsSuccess) return;
-
-        context.Projects.Add(projectResult.Value);
-        await context.SaveChangesAsync();
+        if (!await context.Users.AnyAsync())
+        {
+            var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+            string passwordHash = passwordHasher.Hash("Password123!");
+            var demoUser = C4.Modules.Identity.Domain.User.User.Create("demo@c4.local", passwordHash, "Demo User");
+            context.Users.Add(demoUser);
+            await context.SaveChangesAsync();
+        }
     }
 
     private static async Task SeedVisualizationAsync(IServiceScope scope)

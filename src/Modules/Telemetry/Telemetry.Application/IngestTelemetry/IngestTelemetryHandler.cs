@@ -1,4 +1,4 @@
-using C4.Modules.Telemetry.Application.IntegrationEvents;
+using C4.Shared.Kernel.IntegrationEvents;
 using C4.Modules.Telemetry.Application.Ports;
 using C4.Modules.Telemetry.Domain.Metrics;
 using C4.Shared.Kernel;
@@ -16,7 +16,7 @@ public sealed class IngestTelemetryHandler(ITelemetryRepository repository, IMed
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var health = await repository.GetServiceHealthAsync(request.ProjectId, request.Service.Trim(), cancellationToken)
-            ?? new ServiceHealth(request.ProjectId, request.Service.Trim(), request.Value, ToStatus(request.Value), DateTime.UtcNow);
+            ?? new ServiceHealth(request.ProjectId, request.Service.Trim(), request.Value, ServiceHealthStatusExtensions.FromScore(request.Value), DateTime.UtcNow);
 
         await mediator.Publish(
             new TelemetryUpdatedIntegrationEvent(
@@ -26,11 +26,4 @@ public sealed class IngestTelemetryHandler(ITelemetryRepository repository, IMed
 
         return Result<IngestTelemetryResponse>.Success(new IngestTelemetryResponse(health.ProjectId, health.Service, health.Score, health.Status.ToString()));
     }
-
-    private static ServiceHealthStatus ToStatus(double value) => value switch
-    {
-        >= 0.8 => ServiceHealthStatus.Green,
-        >= 0.5 => ServiceHealthStatus.Yellow,
-        _ => ServiceHealthStatus.Red
-    };
 }

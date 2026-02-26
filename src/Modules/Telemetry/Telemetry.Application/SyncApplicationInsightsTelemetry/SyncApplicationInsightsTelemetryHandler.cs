@@ -1,4 +1,4 @@
-using C4.Modules.Telemetry.Application.IntegrationEvents;
+using C4.Shared.Kernel.IntegrationEvents;
 using C4.Modules.Telemetry.Application.Ports;
 using C4.Modules.Telemetry.Domain.Metrics;
 using C4.Shared.Kernel;
@@ -23,7 +23,7 @@ public sealed class SyncApplicationInsightsTelemetryHandler(
         }
 
         var updates = records
-            .Select(record => new TelemetryUpdatedServiceItem(record.Service, record.Score, ToStatus(record.Score).ToString()))
+            .Select(record => new TelemetryUpdatedServiceItem(record.Service, record.Score, ServiceHealthStatusExtensions.FromScore(record.Score).ToString()))
             .ToArray();
 
         await mediator.Publish(new TelemetryUpdatedIntegrationEvent(request.ProjectId, updates), cancellationToken);
@@ -31,11 +31,4 @@ public sealed class SyncApplicationInsightsTelemetryHandler(
 
         return Result<SyncApplicationInsightsTelemetryResponse>.Success(new SyncApplicationInsightsTelemetryResponse(request.ProjectId, records.Count));
     }
-
-    private static ServiceHealthStatus ToStatus(double value) => value switch
-    {
-        >= 0.8 => ServiceHealthStatus.Green,
-        >= 0.5 => ServiceHealthStatus.Yellow,
-        _ => ServiceHealthStatus.Red
-    };
 }

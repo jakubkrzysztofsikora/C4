@@ -20,7 +20,7 @@ public sealed class GraphNode : Entity<GraphNodeId>
     public string ExternalResourceId { get; }
     public string Name { get; private set; }
     public C4Level Level { get; }
-    public GraphNodeId? ParentId { get; }
+    public GraphNodeId? ParentId { get; private set; }
     public NodeProperties Properties { get; private set; }
 
     public static GraphNode Create(string externalResourceId, string name, C4Level level, GraphNodeId? parentId, NodeProperties properties) =>
@@ -30,5 +30,10 @@ public sealed class GraphNode : Entity<GraphNodeId>
     {
         Name = name;
         Properties = properties;
+    }
+
+    public void SetParent(GraphNodeId parentId)
+    {
+        ParentId = parentId;
     }
 }

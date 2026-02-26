@@ -1,6 +1,6 @@
 using MediatR;
 
-namespace C4.Modules.Discovery.Application.IntegrationEvents;
+namespace C4.Shared.Kernel.IntegrationEvents;
 
 public sealed record DriftDetectedIntegrationEvent(Guid SubscriptionId, IReadOnlyCollection<DriftDetectedEventItem> Items) : INotification;
 

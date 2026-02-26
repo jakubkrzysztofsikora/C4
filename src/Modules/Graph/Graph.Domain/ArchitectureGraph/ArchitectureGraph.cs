@@ -39,6 +39,17 @@ public sealed class ArchitectureGraph : AggregateRoot<ArchitectureGraphId>
         return created;
     }
 
+    public void ResolveNodeParents(IReadOnlyDictionary<string, string> parentExternalIdByChildExternalId)
+    {
+        foreach (var (childExternalId, parentExternalId) in parentExternalIdByChildExternalId)
+        {
+            var child = _nodes.FirstOrDefault(n => n.ExternalResourceId == childExternalId);
+            var parent = _nodes.FirstOrDefault(n => n.ExternalResourceId == parentExternalId);
+            if (child is not null && parent is not null)
+                child.SetParent(parent.Id);
+        }
+    }
+
     public void AddEdge(C4.Modules.Graph.Domain.GraphNode.GraphNode source, C4.Modules.Graph.Domain.GraphNode.GraphNode target)
     {
         if (_edges.Any(e => e.SourceNodeId == source.Id && e.TargetNodeId == target.Id)) return;

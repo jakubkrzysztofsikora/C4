@@ -14,15 +14,31 @@ public sealed class ResourcesDiscoveredHandler(IArchitectureGraphRepository repo
         var graph = await repository.GetByProjectIdAsync(notification.ProjectId, cancellationToken)
             ?? Domain.ArchitectureGraph.ArchitectureGraph.Create(notification.ProjectId);
 
-        foreach (var resource in notification.Resources)
+        var includedResources = notification.Resources.Where(r => r.IncludeInDiagram).ToArray();
+
+        foreach (var resource in includedResources)
         {
-            graph.AddOrUpdateNode(resource.ResourceId, resource.Name, MapLevel(resource.ResourceType));
+            var level = ParseC4Level(resource.C4Level);
+            var displayName = resource.FriendlyName ?? resource.Name;
+            graph.AddOrUpdateNode(resource.ResourceId, displayName, level);
         }
+
+        var parentMappings = includedResources
+            .Where(r => r.ParentResourceId is not null)
+            .ToDictionary(r => r.ResourceId, r => r.ParentResourceId!);
+
+        graph.ResolveNodeParents(parentMappings);
 
         graph.CreateSnapshot();
         await repository.UpsertAsync(graph, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 
-    private static C4Level MapLevel(string type) => type.Contains("function", StringComparison.OrdinalIgnoreCase) ? C4Level.Component : C4Level.Container;
+    private static C4Level ParseC4Level(string? c4LevelValue)
+    {
+        if (Enum.TryParse<C4Level>(c4LevelValue, ignoreCase: true, out var parsed))
+            return parsed;
+
+        return C4Level.Container;
+    }
 }

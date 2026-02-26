@@ -1,6 +1,7 @@
 using C4.Modules.Identity.Domain.Member;
 using C4.Modules.Identity.Domain.Organization;
 using C4.Modules.Identity.Domain.Project;
+using C4.Modules.Identity.Domain.User;
 using C4.Shared.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -12,12 +13,14 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Member> Members => Set<Member>();
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new OrganizationConfiguration());
         modelBuilder.ApplyConfiguration(new ProjectConfiguration());
         modelBuilder.ApplyConfiguration(new MemberConfiguration());
+        modelBuilder.ApplyConfiguration(new UserConfiguration());
     }
 }
 
@@ -67,5 +70,21 @@ file sealed class MemberConfiguration : IEntityTypeConfiguration<Member>
         builder.Property(m => m.ExternalUserId).HasMaxLength(200).IsRequired();
         builder.Property(m => m.Role).HasConversion<int>().IsRequired();
         builder.HasIndex(m => new { m.ProjectId, m.ExternalUserId }).IsUnique();
+    }
+}
+
+file sealed class UserConfiguration : IEntityTypeConfiguration<User>
+{
+    public void Configure(EntityTypeBuilder<User> builder)
+    {
+        builder.ToTable("users");
+        builder.HasKey(u => u.Id);
+        builder.Property(u => u.Id)
+            .HasConversion(id => id.Value, value => new UserId(value))
+            .ValueGeneratedNever();
+        builder.Property(u => u.Email).HasMaxLength(256).IsRequired();
+        builder.HasIndex(u => u.Email).IsUnique();
+        builder.Property(u => u.PasswordHash).IsRequired();
+        builder.Property(u => u.DisplayName).HasMaxLength(150).IsRequired();
     }
 }

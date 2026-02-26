@@ -1,18 +1,11 @@
 import { useCallback } from 'react';
 import { fetchBlob, ApiError } from '../../../shared/api/client';
-import { DiagramData, DiagramNode } from '../types';
+import { DiagramData } from '../types';
+import { healthColor, trafficColor } from '../utils';
 
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 80;
 const PADDING = 80;
-
-function healthColor(health: DiagramNode['health']): string {
-  return health === 'green' ? '#2e8f5e' : health === 'yellow' ? '#9d7c35' : '#9e3a3a';
-}
-
-function trafficColor(traffic: number): string {
-  return traffic >= 0.8 ? '#2e8f5e' : traffic >= 0.5 ? '#9d7c35' : '#9e3a3a';
-}
 
 function escapeXml(value: string): string {
   return value
