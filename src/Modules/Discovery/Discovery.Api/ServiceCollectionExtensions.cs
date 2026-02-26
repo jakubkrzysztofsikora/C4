@@ -33,6 +33,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDiscoveredResourceRepository, InMemoryDiscoveredResourceRepository>();
         services.AddSingleton<IDriftResultRepository, InMemoryDriftResultRepository>();
         services.AddSingleton<IAzureResourceGraphClient, FakeAzureResourceGraphClient>();
+        services.AddSingleton<IDiscoverySourceAdapter, AzureSubscriptionDiscoverySourceAdapter>();
+        services.AddSingleton<IDiscoverySourceAdapter, RepositoryIacDiscoverySourceAdapter>();
+        services.AddSingleton<IDiscoverySourceAdapter, RemoteMcpDiscoverySourceAdapter>();
+        services.AddSingleton<IDiscoveryInputProvider, CompositeDiscoveryInputProvider>();
 
         services.AddSingleton<BicepParser>();
         services.AddSingleton<TerraformParser>();
