@@ -15,7 +15,7 @@ public sealed class DiscoverResourcesHandlerTests
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork());
 
         var subscriptionId = Guid.NewGuid();
 
@@ -33,7 +33,7 @@ public sealed class DiscoverResourcesHandlerTests
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FaultyResourceClassifier();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -48,7 +48,7 @@ public sealed class DiscoverResourcesHandlerTests
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
-        var handler = new DiscoverResourcesHandler(new UnavailableDiscoveryInputProvider(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new UnavailableDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -62,7 +62,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new MixedDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new MixedDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
 
         var subscriptionId = Guid.NewGuid();
 
@@ -78,7 +78,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -92,7 +92,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -108,7 +108,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -122,16 +122,6 @@ public sealed class DiscoverResourcesHandlerTests
     }
 
     private sealed class FakeDiscoveryInputProvider : IDiscoveryInputProvider
-    {
-        public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(
-            [
-                new("/r1", "Microsoft.Web/sites", "frontend", null, DiscoverySourceKind.AzureSubscription),
-                new("/r2", "Microsoft.Web/sites", "api", "/r1", DiscoverySourceKind.AzureSubscription),
-            ]);
-    }
-
-    private sealed class MixedDiscoveryInputProvider : IDiscoveryInputProvider
     {
         public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(
@@ -189,9 +179,11 @@ public sealed class DiscoverResourcesHandlerTests
                 new("/r1", "Microsoft.Web/sites", "frontend", null, DiscoverySourceKind.AzureSubscription),
             ]);
         }
+    }
+
     private sealed class FaultyResourceClassifier : IResourceClassifier
     {
-        public Task<AzureResourceClassification> ClassifyAsync(string armResourceType, string resourceName, CancellationToken cancellationToken)
+        public Task<AzureResourceClassification> ClassifyAsync(Guid projectId, string armResourceType, string resourceName, CancellationToken cancellationToken)
         {
             if (resourceName == "api")
             {

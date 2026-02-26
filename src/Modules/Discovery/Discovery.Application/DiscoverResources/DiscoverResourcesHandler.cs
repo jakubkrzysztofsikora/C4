@@ -19,7 +19,7 @@ public sealed class DiscoverResourcesHandler(
 
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
-        var plan = await planner.BuildPlanAsync(
+        await planner.BuildPlanAsync(
             DefaultUserIntent,
             $"SubscriptionId={request.SubscriptionId}; ExternalSubscriptionId={request.ExternalSubscriptionId}; ProjectId={request.ProjectId}",
             cancellationToken);
@@ -30,15 +30,28 @@ public sealed class DiscoverResourcesHandler(
             request.ExternalSubscriptionId,
             request.Sources ?? DiscoverySourceKindDefaults.All);
 
-        var records = await discoveryInputProvider.GetResourcesAsync(normalizedRequest, cancellationToken);
+        IReadOnlyCollection<DiscoveryResourceDescriptor> descriptors;
+        try
+        {
+            descriptors = await discoveryInputProvider.GetResourcesAsync(normalizedRequest, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            return Result<DiscoverResourcesResponse>.Failure(DiscoveryEscalationMapper.MapExternalFailure(ex));
+        }
 
-        var classifiedPairs = new List<(DiscoveryResourceDescriptor Record, DiscoveredResource Resource)>();
-        foreach (var record in records)
+        var rawRecords = descriptors.Select(d => new RawDiscoveryRecord(
+            d.ResourceId, d.ResourceType, d.Name, MapSourceProvenance(d.Source), d.ParentResourceId)).ToArray();
+        var preparedRecords = discoveryDataPreparer.Prepare(rawRecords);
+
+        int dataQualityFailures = 0;
+        var classifiedPairs = new List<(PreparedDiscoveryRecord Record, DiscoveredResource Resource)>();
+        foreach (var record in preparedRecords)
         {
             try
             {
-                var classification = await classifier.ClassifyAsync(record.ResourceType, record.Name, cancellationToken);
-                var resource = DiscoveredResource.Create(record.ResourceId, record.ResourceType, record.Name, classification);
+                var classification = await classifier.ClassifyAsync(request.ProjectId, record.ResourceType, record.Name, cancellationToken);
+                var resource = DiscoveredResource.Create(record.RawResourceId ?? record.StableResourceId, record.ResourceType, record.Name, classification);
                 classifiedPairs.Add((record, resource));
             }
             catch
