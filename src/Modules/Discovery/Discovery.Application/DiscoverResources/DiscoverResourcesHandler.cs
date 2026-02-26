@@ -15,14 +15,31 @@ public sealed class DiscoverResourcesHandler(
 {
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
-        var records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
+        IReadOnlyCollection<AzureResourceRecord> records;
+        try
+        {
+            records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            var error = DiscoveryEscalationMapper.MapExternalFailure(ex);
+            return Result<DiscoverResourcesResponse>.Failure(error);
+        }
 
         var classifiedPairs = new List<(AzureResourceRecord Record, DiscoveredResource Resource)>();
+        var dataQualityFailures = 0;
         foreach (var record in records)
         {
-            var classification = await classifier.ClassifyAsync(record.ResourceType, record.Name, cancellationToken);
-            var resource = DiscoveredResource.Create(record.ResourceId, record.ResourceType, record.Name, classification);
-            classifiedPairs.Add((record, resource));
+            try
+            {
+                var classification = await classifier.ClassifyAsync(record.ResourceType, record.Name, cancellationToken);
+                var resource = DiscoveredResource.Create(record.ResourceId, record.ResourceType, record.Name, classification);
+                classifiedPairs.Add((record, resource));
+            }
+            catch
+            {
+                dataQualityFailures++;
+            }
         }
 
         var resources = classifiedPairs.Select(p => p.Resource).ToList();
@@ -45,6 +62,17 @@ public sealed class DiscoverResourcesHandler(
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result<DiscoverResourcesResponse>.Success(new DiscoverResourcesResponse(request.SubscriptionId, resources.Count));
+        var escalation = dataQualityFailures > 0
+            ? DiscoveryEscalationMapper.ForPartialDataQuality()
+            : DiscoveryEscalationMapper.ForSuccess();
+
+        return Result<DiscoverResourcesResponse>.Success(
+            new DiscoverResourcesResponse(
+                request.SubscriptionId,
+                resources.Count,
+                escalation.Status,
+                escalation.EscalationLevel,
+                escalation.UserActionHint,
+                dataQualityFailures));
     }
 }
