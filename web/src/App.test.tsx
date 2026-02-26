@@ -35,4 +35,15 @@ describe('AuthPage', () => {
     const rendered = renderToString(<AuthPageHarness />);
     expect(rendered).toContain('C4 Platform');
   });
+
+  it('renders display name field on register tab', () => {
+    const rendered = renderToString(
+      <MemoryRouter>
+        <AuthProvider>
+          <AuthPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+    expect(rendered).not.toContain('auth-display-name');
+  });
 });

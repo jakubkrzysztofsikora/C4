@@ -10,6 +10,7 @@ export function AuthPage() {
   const [activeTab, setActiveTab] = useState<AuthTab>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
 
@@ -18,6 +19,7 @@ export function AuthPage() {
     setErrorMessage(undefined);
     setEmail('');
     setPassword('');
+    setDisplayName('');
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -33,7 +35,7 @@ export function AuthPage() {
           setErrorMessage('Password must be at least 8 characters.');
           return;
         }
-        await register(email, password);
+        await register(email, password, displayName);
       }
       navigate('/', { replace: true });
     } catch (err: unknown) {
@@ -70,6 +72,23 @@ export function AuthPage() {
         </div>
 
         <form className="auth-form" onSubmit={(e) => void handleSubmit(e)}>
+          {activeTab === 'register' && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="auth-display-name">Display Name</label>
+              <input
+                className="input"
+                id="auth-display-name"
+                type="text"
+                placeholder="Your display name"
+                value={displayName}
+                onChange={e => setDisplayName(e.target.value)}
+                disabled={isLoading}
+                required
+                autoComplete="name"
+              />
+            </div>
+          )}
+
           <div className="form-group">
             <label className="form-label" htmlFor="auth-email">Email</label>
             <input
@@ -115,7 +134,7 @@ export function AuthPage() {
           <button
             className="btn btn-primary auth-submit"
             type="submit"
-            disabled={isLoading || email.length === 0 || password.length === 0}
+            disabled={isLoading || email.length === 0 || password.length === 0 || (activeTab === 'register' && displayName.length === 0)}
           >
             {isLoading ? (
               <>
