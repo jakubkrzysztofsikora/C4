@@ -37,6 +37,9 @@ public sealed class IngestTelemetryHandlerTests
 
         public Task<ServiceHealth?> GetServiceHealthAsync(Guid projectId, string service, CancellationToken cancellationToken)
             => Task.FromResult<ServiceHealth?>(new ServiceHealth(projectId, service, 0.92, ServiceHealthStatus.Green, DateTime.UtcNow));
+
+        public Task<IReadOnlyCollection<ServiceHealth>> GetAllServiceHealthAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<ServiceHealth>>([]);
     }
 
     private sealed class FakeMediator : IMediator

@@ -1,4 +1,7 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("Identity.Api")]
 
 namespace C4.Modules.Identity.Infrastructure;
 
