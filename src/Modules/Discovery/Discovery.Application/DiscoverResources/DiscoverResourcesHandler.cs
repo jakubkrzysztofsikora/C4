@@ -7,7 +7,7 @@ using MediatR;
 namespace C4.Modules.Discovery.Application.DiscoverResources;
 
 public sealed class DiscoverResourcesHandler(
-    IAzureResourceGraphClient resourceGraphClient,
+    IDiscoveryInputProvider discoveryInputProvider,
     IDiscoveredResourceRepository discoveredResourceRepository,
     IResourceClassifier classifier,
     IDiscoveryDataPreparer discoveryDataPreparer,
@@ -16,13 +16,19 @@ public sealed class DiscoverResourcesHandler(
 {
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
-        var records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
+        var normalizedRequest = new NormalizedDiscoveryRequest(
+            request.ProjectId,
+            request.OrganizationId,
+            request.ExternalSubscriptionId,
+            request.Sources ?? DiscoverySourceKindDefaults.All);
+
+        var records = await discoveryInputProvider.GetResourcesAsync(normalizedRequest, cancellationToken);
         var preparedRecords = discoveryDataPreparer.Prepare(records
             .Select(record => new RawDiscoveryRecord(
                 record.ResourceId,
                 record.ResourceType,
                 record.Name,
-                "azure",
+                MapSourceProvenance(record.Source),
                 record.ParentResourceId))
             .ToArray());
 
@@ -61,4 +67,12 @@ public sealed class DiscoverResourcesHandler(
 
         return Result<DiscoverResourcesResponse>.Success(new DiscoverResourcesResponse(request.SubscriptionId, resources.Count));
     }
+
+    private static string MapSourceProvenance(DiscoverySourceKind source) => source switch
+    {
+        DiscoverySourceKind.AzureSubscription => "azure",
+        DiscoverySourceKind.RepositoryIac => "repo",
+        DiscoverySourceKind.RemoteMcp => "mcp",
+        _ => source.ToString().ToLowerInvariant()
+    };
 }
