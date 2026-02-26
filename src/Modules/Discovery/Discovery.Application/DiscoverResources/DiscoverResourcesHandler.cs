@@ -11,11 +11,43 @@ public sealed class DiscoverResourcesHandler(
     IDiscoveredResourceRepository discoveredResourceRepository,
     IResourceClassifier classifier,
     IMediator mediator,
-    IUnitOfWork unitOfWork) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
+    IUnitOfWork unitOfWork,
+    MultiSourceDiscoveryPlanner? planner = null,
+    IDiscoveryTelemetryEventSink? telemetryEventSink = null) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
-        var records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
+        var azureAvailable = true;
+        IReadOnlyCollection<AzureResourceRecord> records;
+
+        try
+        {
+            records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
+        }
+        catch
+        {
+            azureAvailable = false;
+            records = [];
+        }
+
+        var discoveryPlan = (planner ?? new MultiSourceDiscoveryPlanner()).BuildPlan(azureAvailable, records.Count, mcpResultCount: 0);
+
+        if (telemetryEventSink is not null)
+        {
+            await telemetryEventSink.EmitAsync(
+                new DiscoveryTelemetryEvent(
+                    "discovery.plan.generated",
+                    new Dictionary<string, object?>
+                    {
+                        ["chosenTools"] = discoveryPlan.ChosenTools.ToArray(),
+                        ["planSteps"] = discoveryPlan.PlanSteps.ToArray(),
+                        ["retriesOrFallbackPaths"] = discoveryPlan.RetriesOrFallbackPaths.ToArray(),
+                        ["finalEscalationDecision"] = discoveryPlan.FinalEscalationDecision.ToString(),
+                        ["normalization"] = discoveryPlan.NormalizationContract,
+                    },
+                    DateTime.UtcNow),
+                cancellationToken);
+        }
 
         var classifiedPairs = new List<(AzureResourceRecord Record, DiscoveredResource Resource)>();
         foreach (var record in records)

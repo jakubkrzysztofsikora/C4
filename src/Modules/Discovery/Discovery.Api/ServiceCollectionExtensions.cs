@@ -1,4 +1,5 @@
 using C4.Modules.Discovery.Api.Adapters;
+using C4.Modules.Discovery.Application.DiscoverResources;
 using C4.Modules.Discovery.Application.Adapters;
 using C4.Modules.Discovery.Application.Ports;
 using C4.Modules.Discovery.Infrastructure.AI;
@@ -39,6 +40,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IIacStateParser, CompositeIacStateParser>();
 
         services.AddSingleton<IUnitOfWork, NoOpDiscoveryUnitOfWork>();
+        services.AddSingleton<MultiSourceDiscoveryPlanner>();
+        services.AddSingleton<IDiscoveryTelemetryEventSink, DiscoveryStructuredTelemetryEventSink>();
+        services.AddSingleton<DiscoveryPromptRenderFilter>();
+        services.AddSingleton<DiscoveryFunctionInvocationFilter>();
 
         var ollamaEndpoint = configuration["Ollama:Endpoint"] ?? "http://localhost:11434";
         var chatModel = configuration["Ollama:ChatModel"] ?? "mistral-large-3:675b-cloud";
@@ -47,8 +52,16 @@ public static class ServiceCollectionExtensions
 #pragma warning disable SKEXP0070
         kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
 #pragma warning restore SKEXP0070
+        kernelBuilder.Services.AddLogging();
+        kernelBuilder.Services.AddSingleton<IDiscoveryTelemetryEventSink, DiscoveryStructuredTelemetryEventSink>();
+        kernelBuilder.Services.AddSingleton<DiscoveryPromptRenderFilter>();
+        kernelBuilder.Services.AddSingleton<DiscoveryFunctionInvocationFilter>();
 
         var kernel = kernelBuilder.Build();
+
+        kernel.PromptRenderFilters.Add(kernel.Services.GetRequiredService<DiscoveryPromptRenderFilter>());
+        kernel.FunctionInvocationFilters.Add(kernel.Services.GetRequiredService<DiscoveryFunctionInvocationFilter>());
+
         services.AddSingleton(kernel);
         services.AddSingleton<IResourceClassifier, ResourceClassifierPlugin>();
 
