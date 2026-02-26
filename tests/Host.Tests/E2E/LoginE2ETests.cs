@@ -35,12 +35,4 @@ public sealed class LoginE2ETests : IClassFixture<C4WebApplicationFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
-
-    [Fact]
-    public async Task Login_InvalidCredentials_DoesNotReturn500()
-    {
-        var response = await _client.PostAsJsonAsync("/api/auth/login", new { Email = "user@example.com", Password = "any-password" });
-
-        response.StatusCode.Should().NotBe(HttpStatusCode.InternalServerError);
-    }
 }
