@@ -53,6 +53,21 @@ public sealed class DiscoverResourcesHandlerTests
         mediator.PublishedEvent!.Resources.Should().AllSatisfy(r => r.FriendlyName.Should().NotBeNullOrEmpty());
     }
 
+    [Fact]
+    public async Task Handle_ResourceWithParent_ParentIdInEvent()
+    {
+        var repo = new FakeDiscoveredResourceRepository();
+        var classifier = new FakeResourceClassifier();
+        var mediator = new CapturingMediator();
+        var handler = new DiscoverResourcesHandler(new FakeResourceGraphClient(), repo, classifier, mediator, new FakeUnitOfWork());
+
+        await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
+
+        mediator.PublishedEvent.Should().NotBeNull();
+        var childItem = mediator.PublishedEvent!.Resources.Single(r => r.ResourceId == "/r2");
+        childItem.ParentResourceId.Should().Be("/r1");
+    }
+
     private sealed class FakeResourceGraphClient : IAzureResourceGraphClient
     {
         public Task<IReadOnlyCollection<AzureResourceRecord>> GetResourcesAsync(string externalSubscriptionId, CancellationToken cancellationToken)
