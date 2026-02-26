@@ -2,9 +2,11 @@ using C4.Modules.Telemetry.Api.Adapters;
 using C4.Modules.Telemetry.Application.Ports;
 using C4.Modules.Telemetry.Infrastructure.Persistence;
 using C4.Modules.Telemetry.Infrastructure.Repositories;
+using C4.Modules.Telemetry.Infrastructure.Services;
 using C4.Shared.Infrastructure.Behaviors;
 using C4.Shared.Infrastructure.Endpoints;
 using C4.Shared.Kernel;
+using C4.Shared.Kernel.Contracts;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -36,6 +38,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<ITelemetryRepository, TelemetryRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<TelemetryDbContext>());
+        services.AddScoped<ITelemetryQueryService, TelemetryQueryService>();
         services.AddSingleton<IApplicationInsightsClient, FakeApplicationInsightsClient>();
 
         services.AddEndpoints(AssemblyReference.Assembly);
