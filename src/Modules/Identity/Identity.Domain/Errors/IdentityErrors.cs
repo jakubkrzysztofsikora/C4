@@ -27,4 +27,13 @@ public static class IdentityErrors
 
     public static Error EmptyName(string field) =>
         new("identity.validation.empty_name", $"{field} cannot be empty.");
+
+    public static Error DuplicateEmail(string email) =>
+        new("identity.user.duplicate_email", $"Email '{email}' is already registered.");
+
+    public static Error InvalidCredentials() =>
+        new("identity.user.invalid_credentials", "Invalid email or password.");
+
+    public static Error WeakPassword() =>
+        new("identity.user.weak_password", "Password must be at least 8 characters.");
 }
