@@ -3,56 +3,27 @@ using C4.Shared.Kernel.IntegrationEvents;
 using C4.Modules.Discovery.Domain.Resources;
 using C4.Shared.Kernel;
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 namespace C4.Modules.Discovery.Application.DiscoverResources;
 
 public sealed class DiscoverResourcesHandler(
-    IAzureResourceGraphClient resourceGraphClient,
+    IDiscoveryInputProvider discoveryInputProvider,
     IDiscoveredResourceRepository discoveredResourceRepository,
     IResourceClassifier classifier,
     IMediator mediator,
-    IUnitOfWork unitOfWork,
-    ILogger<DiscoverResourcesHandler> logger,
-    MultiSourceDiscoveryPlanner? planner = null,
-    IDiscoveryTelemetryEventSink? telemetryEventSink = null) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
+    IUnitOfWork unitOfWork) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
-        var azureAvailable = true;
-        IReadOnlyCollection<AzureResourceRecord> records;
+        var normalizedRequest = new NormalizedDiscoveryRequest(
+            request.ProjectId,
+            request.OrganizationId,
+            request.ExternalSubscriptionId,
+            request.Sources ?? DiscoverySourceKindDefaults.All);
 
-        try
-        {
-            records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to retrieve resources from Azure Resource Graph; proceeding without Azure results.");
-            azureAvailable = false;
-            records = [];
-        }
+        var records = await discoveryInputProvider.GetResourcesAsync(normalizedRequest, cancellationToken);
 
-        var discoveryPlan = (planner ?? new MultiSourceDiscoveryPlanner()).BuildPlan(azureAvailable, records.Count, mcpResultCount: 0);
-
-        if (telemetryEventSink is not null)
-        {
-            await telemetryEventSink.EmitAsync(
-                new DiscoveryTelemetryEvent(
-                    "discovery.plan.generated",
-                    new Dictionary<string, object?>
-                    {
-                        ["chosenTools"] = discoveryPlan.ChosenTools.ToArray(),
-                        ["planSteps"] = discoveryPlan.PlanSteps.ToArray(),
-                        ["retriesOrFallbackPaths"] = discoveryPlan.RetriesOrFallbackPaths.ToArray(),
-                        ["finalEscalationDecision"] = discoveryPlan.FinalEscalationDecision.ToString(),
-                        ["normalization"] = discoveryPlan.NormalizationContract,
-                    },
-                    DateTime.UtcNow),
-                cancellationToken);
-        }
-
-        var classifiedPairs = new List<(AzureResourceRecord Record, DiscoveredResource Resource)>();
+        var classifiedPairs = new List<(DiscoveryResourceDescriptor Record, DiscoveredResource Resource)>();
         foreach (var record in records)
         {
             var classification = await classifier.ClassifyAsync(record.ResourceType, record.Name, cancellationToken);
