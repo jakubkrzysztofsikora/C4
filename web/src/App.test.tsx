@@ -36,7 +36,7 @@ describe('AuthPage', () => {
     expect(rendered).toContain('C4 Platform');
   });
 
-  it('renders display name field on register tab', () => {
+  it('does not render display name field on sign in tab', () => {
     const rendered = renderToString(
       <MemoryRouter>
         <AuthProvider>

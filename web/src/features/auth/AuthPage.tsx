@@ -46,6 +46,8 @@ export function AuthPage() {
     }
   }
 
+  const isSubmitDisabled = isLoading || email.length === 0 || password.length === 0 || (activeTab === 'register' && displayName.length === 0);
+
   return (
     <div className="auth-page">
       <div className="auth-card">
@@ -134,7 +136,7 @@ export function AuthPage() {
           <button
             className="btn btn-primary auth-submit"
             type="submit"
-            disabled={isLoading || email.length === 0 || password.length === 0 || (activeTab === 'register' && displayName.length === 0)}
+            disabled={isSubmitDisabled}
           >
             {isLoading ? (
               <>
