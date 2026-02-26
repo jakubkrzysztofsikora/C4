@@ -48,21 +48,20 @@ public static class ServiceCollectionExtensions
         var ollamaEndpoint = configuration["Ollama:Endpoint"] ?? "http://localhost:11434";
         var chatModel = configuration["Ollama:ChatModel"] ?? "mistral-large-3:675b-cloud";
 
-        var kernelBuilder = Kernel.CreateBuilder();
+        services.AddSingleton(sp =>
+        {
+            var kernelBuilder = Kernel.CreateBuilder();
 #pragma warning disable SKEXP0070
-        kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
+            kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
 #pragma warning restore SKEXP0070
-        kernelBuilder.Services.AddLogging();
-        kernelBuilder.Services.AddSingleton<IDiscoveryTelemetryEventSink, DiscoveryStructuredTelemetryEventSink>();
-        kernelBuilder.Services.AddSingleton<DiscoveryPromptRenderFilter>();
-        kernelBuilder.Services.AddSingleton<DiscoveryFunctionInvocationFilter>();
 
-        var kernel = kernelBuilder.Build();
+            var kernel = kernelBuilder.Build();
 
-        kernel.PromptRenderFilters.Add(kernel.Services.GetRequiredService<DiscoveryPromptRenderFilter>());
-        kernel.FunctionInvocationFilters.Add(kernel.Services.GetRequiredService<DiscoveryFunctionInvocationFilter>());
+            kernel.PromptRenderFilters.Add(sp.GetRequiredService<DiscoveryPromptRenderFilter>());
+            kernel.FunctionInvocationFilters.Add(sp.GetRequiredService<DiscoveryFunctionInvocationFilter>());
 
-        services.AddSingleton(kernel);
+            return kernel;
+        });
         services.AddSingleton<IResourceClassifier, ResourceClassifierPlugin>();
 
         services.AddEndpoints(AssemblyReference.Assembly);
