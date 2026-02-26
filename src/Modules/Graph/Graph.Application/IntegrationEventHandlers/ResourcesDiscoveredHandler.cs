@@ -31,12 +31,10 @@ public sealed class ResourcesDiscoveredHandler(IArchitectureGraphRepository repo
         }
 
         var parentMappings = includedResources
-            .Where(r => r.NormalizedRelationshipType == "parent" || r.ParentResourceId is not null)
+            .Where(r => r.NormalizedRelatedResourceId is not null || r.ParentResourceId is not null)
             .ToDictionary(
                 r => r.StableResourceId ?? r.ResourceId,
-                r => r.NormalizedRelationshipType == "parent"
-                    ? (r.NormalizedRelatedResourceId ?? r.ParentResourceId!)
-                    : r.ParentResourceId!);
+                r => r.NormalizedRelatedResourceId ?? r.ParentResourceId!);
 
         graph.ResolveNodeParents(parentMappings);
 
