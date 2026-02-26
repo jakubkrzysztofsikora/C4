@@ -1,0 +1,36 @@
+namespace C4.Modules.Discovery.Application.Ports;
+
+public interface IDiscoveryInputProvider
+{
+    Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken);
+}
+
+public sealed record NormalizedDiscoveryRequest(
+    Guid ProjectId,
+    string? OrganizationId,
+    string? ExternalSubscriptionId,
+    IReadOnlyCollection<DiscoverySourceKind> Sources);
+
+public enum DiscoverySourceKind
+{
+    AzureSubscription,
+    RepositoryIac,
+    RemoteMcp
+}
+
+public static class DiscoverySourceKindDefaults
+{
+    public static readonly IReadOnlyCollection<DiscoverySourceKind> All =
+    [
+        DiscoverySourceKind.AzureSubscription,
+        DiscoverySourceKind.RepositoryIac,
+        DiscoverySourceKind.RemoteMcp,
+    ];
+}
+
+public sealed record DiscoveryResourceDescriptor(
+    string ResourceId,
+    string ResourceType,
+    string Name,
+    string? ParentResourceId,
+    DiscoverySourceKind Source);

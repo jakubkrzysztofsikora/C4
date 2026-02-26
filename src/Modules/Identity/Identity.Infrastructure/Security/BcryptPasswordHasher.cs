@@ -2,7 +2,7 @@ using C4.Modules.Identity.Application.Ports;
 
 namespace C4.Modules.Identity.Infrastructure.Security;
 
-internal sealed class BcryptPasswordHasher : IPasswordHasher
+public sealed class BcryptPasswordHasher : IPasswordHasher
 {
     public string Hash(string password) => BCrypt.Net.BCrypt.HashPassword(password);
 
