@@ -12,4 +12,9 @@ public sealed record DiscoveredResourceEventItem(
     string? ServiceType,
     string? C4Level,
     bool IncludeInDiagram,
-    string? ParentResourceId);
+    string? ParentResourceId,
+    string SourceProvenance = "azure",
+    double ConfidenceScore = 1.0,
+    string? NormalizedRelationshipType = null,
+    string? NormalizedRelatedResourceId = null,
+    string? StableResourceId = null);

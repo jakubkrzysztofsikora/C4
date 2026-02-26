@@ -160,6 +160,48 @@ public sealed class ResourcesDiscoveredHandlerTests
         repository.Graph!.Nodes.Single().ParentId.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Handle_DuplicateStableResources_PrefersHigherConfidenceRecord()
+    {
+        var projectId = Guid.NewGuid();
+        var repository = new FakeRepository();
+        var unitOfWork = new FakeUnitOfWork();
+        var handler = new ResourcesDiscoveredHandler(repository, unitOfWork);
+
+        await handler.Handle(
+            new ResourcesDiscoveredIntegrationEvent(
+                projectId,
+                [
+                    new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "Web Repo", "app", "Container", true, null, "repo", 0.8, null, null, "resource:web"),
+                    new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "Web Azure", "app", "Container", true, null, "azure", 0.95, null, null, "resource:web")
+                ]),
+            CancellationToken.None);
+
+        repository.Graph!.Nodes.Should().HaveCount(1);
+        repository.Graph.Nodes.Single().Name.Should().Be("Web Azure");
+    }
+
+    [Fact]
+    public async Task Handle_SameConfidencePrefersAzureSource()
+    {
+        var projectId = Guid.NewGuid();
+        var repository = new FakeRepository();
+        var unitOfWork = new FakeUnitOfWork();
+        var handler = new ResourcesDiscoveredHandler(repository, unitOfWork);
+
+        await handler.Handle(
+            new ResourcesDiscoveredIntegrationEvent(
+                projectId,
+                [
+                    new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "Repo Name", "app", "Container", true, null, "repo", 0.95, null, null, "resource:web"),
+                    new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "Azure Name", "app", "Container", true, null, "azure", 0.95, null, null, "resource:web")
+                ]),
+            CancellationToken.None);
+
+        repository.Graph!.Nodes.Should().HaveCount(1);
+        repository.Graph.Nodes.Single().Name.Should().Be("Azure Name");
+    }
+
     private sealed class FakeRepository : IArchitectureGraphRepository
     {
         public ArchitectureGraph? Graph { get; private set; }
