@@ -4,5 +4,5 @@ namespace C4.Modules.Discovery.Application.Ports;
 
 public interface IResourceClassifier
 {
-    Task<AzureResourceClassification> ClassifyAsync(string armResourceType, string resourceName, CancellationToken cancellationToken);
+    Task<AzureResourceClassification> ClassifyAsync(Guid projectId, string armResourceType, string resourceName, CancellationToken cancellationToken);
 }

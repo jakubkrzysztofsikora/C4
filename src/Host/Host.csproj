@@ -6,6 +6,7 @@
     <ProjectReference Include="../Modules/Graph/Graph.Api/Graph.Api.csproj" />
     <ProjectReference Include="../Modules/Telemetry/Telemetry.Api/Telemetry.Api.csproj" />
     <ProjectReference Include="../Modules/Visualization/Visualization.Api/Visualization.Api.csproj" />
+    <ProjectReference Include="../Modules/Feedback/Feedback.Api/Feedback.Api.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />

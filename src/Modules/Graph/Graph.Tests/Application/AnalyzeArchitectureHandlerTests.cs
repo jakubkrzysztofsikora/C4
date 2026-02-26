@@ -65,7 +65,7 @@ public sealed class AnalyzeArchitectureHandlerTests
 
     private sealed class FakeAnalyzer(ArchitectureAnalysisResult result) : IArchitectureAnalyzer
     {
-        public Task<ArchitectureAnalysisResult> AnalyzeAsync(string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
+        public Task<ArchitectureAnalysisResult> AnalyzeAsync(Guid projectId, string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
             => Task.FromResult(result);
     }
 
@@ -74,7 +74,7 @@ public sealed class AnalyzeArchitectureHandlerTests
         public string CapturedNodesDescription { get; private set; } = string.Empty;
         public string CapturedEdgesDescription { get; private set; } = string.Empty;
 
-        public Task<ArchitectureAnalysisResult> AnalyzeAsync(string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
+        public Task<ArchitectureAnalysisResult> AnalyzeAsync(Guid projectId, string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
         {
             CapturedNodesDescription = nodesDescription;
             CapturedEdgesDescription = edgesDescription;

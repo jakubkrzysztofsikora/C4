@@ -77,7 +77,7 @@ public sealed class GetThreatAssessmentHandlerTests
 
     private sealed class FakeThreatDetector(ThreatDetectionResult result) : IThreatDetector
     {
-        public Task<ThreatDetectionResult> DetectThreatsAsync(string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
+        public Task<ThreatDetectionResult> DetectThreatsAsync(Guid projectId, string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
             => Task.FromResult(result);
     }
 
@@ -86,7 +86,7 @@ public sealed class GetThreatAssessmentHandlerTests
         public string CapturedNodesDescription { get; private set; } = string.Empty;
         public string CapturedEdgesDescription { get; private set; } = string.Empty;
 
-        public Task<ThreatDetectionResult> DetectThreatsAsync(string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
+        public Task<ThreatDetectionResult> DetectThreatsAsync(Guid projectId, string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
         {
             CapturedNodesDescription = nodesDescription;
             CapturedEdgesDescription = edgesDescription;

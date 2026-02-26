@@ -153,7 +153,7 @@ public sealed class DiscoverResourcesHandlerTests
 
     private sealed class FakeResourceClassifier : IResourceClassifier
     {
-        public Task<AzureResourceClassification> ClassifyAsync(string armResourceType, string resourceName, CancellationToken cancellationToken)
+        public Task<AzureResourceClassification> ClassifyAsync(Guid projectId, string armResourceType, string resourceName, CancellationToken cancellationToken)
         {
             var classification = AzureResourceTypeCatalog.Classify(armResourceType);
             return Task.FromResult(classification);

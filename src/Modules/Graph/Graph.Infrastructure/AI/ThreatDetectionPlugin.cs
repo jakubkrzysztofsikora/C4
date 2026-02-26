@@ -1,19 +1,24 @@
+using System.Text;
 using C4.Modules.Graph.Application.GetThreatAssessment;
 using C4.Modules.Graph.Application.Ports;
+using C4.Shared.Kernel.Contracts;
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Graph.Infrastructure.AI;
 
-public sealed class ThreatDetectionPlugin(Kernel kernel) : IThreatDetector
+public sealed class ThreatDetectionPlugin(Kernel kernel, ILearningProvider? learningProvider = null, ILogger<ThreatDetectionPlugin>? logger = null) : IThreatDetector
 {
-    public async Task<ThreatDetectionResult> DetectThreatsAsync(string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
+    public async Task<ThreatDetectionResult> DetectThreatsAsync(Guid projectId, string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
     {
+        var learningsSection = await BuildLearningsSectionAsync(projectId, cancellationToken);
+
         var prompt = $$"""
             Analyze the following architecture for security threats using STRIDE methodology.
 
             Nodes: {{nodesDescription}}
             Edges: {{edgesDescription}}
-
+            {{learningsSection}}
             For each threat found, provide:
             - Component affected
             - Threat type (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege)
@@ -30,6 +35,33 @@ public sealed class ThreatDetectionPlugin(Kernel kernel) : IThreatDetector
         var text = result.GetValue<string>() ?? string.Empty;
 
         return ParseThreatResult(text);
+    }
+
+    private async Task<string> BuildLearningsSectionAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        if (learningProvider is null)
+            return string.Empty;
+
+        try
+        {
+            var learnings = await learningProvider.GetActiveLearningsAsync(projectId, "ThreatAssessment", cancellationToken);
+            if (learnings.Count == 0)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.AppendLine();
+            sb.AppendLine("Previous user feedback learnings to incorporate:");
+            foreach (var learning in learnings.Take(10))
+            {
+                sb.AppendLine($"- [{learning.InsightType}] {learning.Description} (confidence: {learning.Confidence:F2})");
+            }
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to fetch learnings for prompt augmentation");
+            return string.Empty;
+        }
     }
 
     private static ThreatDetectionResult ParseThreatResult(string text)

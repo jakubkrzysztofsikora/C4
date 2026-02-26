@@ -16,7 +16,7 @@ public sealed class GetThreatAssessmentHandler(IArchitectureGraphRepository repo
         var nodesDescription = string.Join(", ", graph.Nodes.Select(n => $"{n.Name} ({n.Level})"));
         var edgesDescription = string.Join(", ", graph.Edges.Select(e => $"{e.SourceNodeId} -> {e.TargetNodeId}"));
 
-        var result = await threatDetector.DetectThreatsAsync(nodesDescription, edgesDescription, cancellationToken);
+        var result = await threatDetector.DetectThreatsAsync(request.ProjectId, nodesDescription, edgesDescription, cancellationToken);
 
         return Result<ThreatAssessmentResponse>.Success(
             new ThreatAssessmentResponse(request.ProjectId, result.RiskLevel, result.Threats));
