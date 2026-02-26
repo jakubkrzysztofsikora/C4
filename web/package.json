@@ -12,6 +12,7 @@
   "dependencies": {
     "@dagrejs/dagre": "^2.0.4",
     "@fontsource/inter": "^5.0.20",
+    "@microsoft/signalr": "^10.0.0",
     "@xyflow/react": "^12.3.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
