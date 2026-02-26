@@ -15,11 +15,8 @@ public sealed class DiscoverResourcesHandlerTests
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
-<<<<<<< codex/add-error-taxonomy-and-extend-contracts
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
-=======
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork());
->>>>>>> main
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
+
         var subscriptionId = Guid.NewGuid();
 
         var result = await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
@@ -65,11 +62,8 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-<<<<<<< codex/add-error-taxonomy-and-extend-contracts
-        var handler = new DiscoverResourcesHandler(new MixedDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
-=======
-        var handler = new DiscoverResourcesHandler(new MixedDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
->>>>>>> main
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new MixedDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
+
         var subscriptionId = Guid.NewGuid();
 
         await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
@@ -84,11 +78,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-<<<<<<< codex/add-error-taxonomy-and-extend-contracts
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
-=======
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
->>>>>>> main
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -102,11 +92,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-<<<<<<< codex/add-error-taxonomy-and-extend-contracts
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
-=======
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
->>>>>>> main
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -116,8 +102,6 @@ public sealed class DiscoverResourcesHandlerTests
         childItem.NormalizedRelatedResourceId.Should().Be("/r1");
     }
 
-<<<<<<< codex/add-error-taxonomy-and-extend-contracts
-=======
     [Fact]
     public async Task Handle_EmitsProvenanceAndConfidenceMetadata()
     {
@@ -137,8 +121,17 @@ public sealed class DiscoverResourcesHandlerTests
         });
     }
 
->>>>>>> main
     private sealed class FakeDiscoveryInputProvider : IDiscoveryInputProvider
+    {
+        public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(
+            [
+                new("/r1", "Microsoft.Web/sites", "frontend", null, DiscoverySourceKind.AzureSubscription),
+                new("/r2", "Microsoft.Web/sites", "api", "/r1", DiscoverySourceKind.AzureSubscription),
+            ]);
+    }
+
+    private sealed class MixedDiscoveryInputProvider : IDiscoveryInputProvider
     {
         public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(
@@ -167,6 +160,35 @@ public sealed class DiscoverResourcesHandlerTests
         }
     }
 
+    private sealed class FakeDiscoveryInputPlanner(PlannerState? state = null) : IDiscoveryInputPlanner
+    {
+        public Task<DiscoveryPlan> BuildPlanAsync(string userIntent, string inputContext, CancellationToken cancellationToken)
+        {
+            if (state is not null)
+                state.PlannerCalled = true;
+
+            return Task.FromResult(new DiscoveryPlan(
+                userIntent,
+                inputContext,
+                [new PlannedToolInvocation("t1", 1, "azure.resource_graph", "Discover resources", [], ["repo.bicep_parser"])]));
+        }
+    }
+
+    private sealed class PlannerState
+    {
+        public bool PlannerCalled { get; set; }
+    }
+
+    private sealed class OrderAwareDiscoveryInputProvider(PlannerState state) : IDiscoveryInputProvider
+    {
+        public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
+        {
+            state.PlannerCalled.Should().BeTrue("planner must run before resource discovery");
+            return Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(
+            [
+                new("/r1", "Microsoft.Web/sites", "frontend", null, DiscoverySourceKind.AzureSubscription),
+            ]);
+        }
     private sealed class FaultyResourceClassifier : IResourceClassifier
     {
         public Task<AzureResourceClassification> ClassifyAsync(string armResourceType, string resourceName, CancellationToken cancellationToken)

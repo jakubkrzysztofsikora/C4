@@ -70,6 +70,7 @@ public static class ServiceCollectionExtensions
                     $"{nameof(ResourceClassifierPlugin)} is required but disabled by the tool filter. " +
                     $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");
         });
+        services.AddSingleton<IDiscoveryInputPlanner, DiscoveryInputPlanner>();
 
         services.AddEndpoints(AssemblyReference.Assembly);
 

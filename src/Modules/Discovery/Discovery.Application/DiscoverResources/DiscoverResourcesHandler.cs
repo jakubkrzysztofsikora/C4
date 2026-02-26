@@ -7,6 +7,7 @@ using MediatR;
 namespace C4.Modules.Discovery.Application.DiscoverResources;
 
 public sealed class DiscoverResourcesHandler(
+    IDiscoveryInputPlanner planner,
     IDiscoveryInputProvider discoveryInputProvider,
     IDiscoveredResourceRepository discoveredResourceRepository,
     IResourceClassifier classifier,
@@ -14,27 +15,24 @@ public sealed class DiscoverResourcesHandler(
     IMediator mediator,
     IUnitOfWork unitOfWork) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
+    private const string DefaultUserIntent = "Discover Azure resources for connected subscription";
+
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
+        var plan = await planner.BuildPlanAsync(
+            DefaultUserIntent,
+            $"SubscriptionId={request.SubscriptionId}; ExternalSubscriptionId={request.ExternalSubscriptionId}; ProjectId={request.ProjectId}",
+            cancellationToken);
+
         var normalizedRequest = new NormalizedDiscoveryRequest(
             request.ProjectId,
             request.OrganizationId,
             request.ExternalSubscriptionId,
             request.Sources ?? DiscoverySourceKindDefaults.All);
 
-        IReadOnlyCollection<DiscoveryResourceDescriptor> records;
-        try
-        {
-            records = await discoveryInputProvider.GetResourcesAsync(normalizedRequest, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            var error = DiscoveryEscalationMapper.MapExternalFailure(ex);
-            return Result<DiscoverResourcesResponse>.Failure(error);
-        }
+        var records = await discoveryInputProvider.GetResourcesAsync(normalizedRequest, cancellationToken);
 
         var classifiedPairs = new List<(DiscoveryResourceDescriptor Record, DiscoveredResource Resource)>();
-        var dataQualityFailures = 0;
         foreach (var record in records)
         {
             try

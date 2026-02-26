@@ -3,7 +3,7 @@ using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Discovery.Infrastructure.AI;
 
-internal sealed class DiscoveryPlannerToolsPlugin
+public sealed class DiscoveryPlannerToolsPlugin
 {
     [KernelFunction("list_azure_connectors")]
     [Description("Lists Azure connector capabilities available for resource discovery.")]
