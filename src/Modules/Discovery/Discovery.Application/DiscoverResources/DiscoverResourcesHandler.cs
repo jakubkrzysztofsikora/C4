@@ -7,14 +7,22 @@ using MediatR;
 namespace C4.Modules.Discovery.Application.DiscoverResources;
 
 public sealed class DiscoverResourcesHandler(
+    IDiscoveryInputPlanner planner,
     IAzureResourceGraphClient resourceGraphClient,
     IDiscoveredResourceRepository discoveredResourceRepository,
     IResourceClassifier classifier,
     IMediator mediator,
     IUnitOfWork unitOfWork) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
+    private const string DiscoveryUserIntent = "Discover Azure resources for connected subscription";
+
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
+        var plan = await planner.BuildPlanAsync(
+            DiscoveryUserIntent,
+            $"SubscriptionId={request.SubscriptionId}; ExternalSubscriptionId={request.ExternalSubscriptionId}; ProjectId={request.ProjectId}",
+            cancellationToken);
+
         IReadOnlyCollection<AzureResourceRecord> records;
         try
         {
@@ -73,6 +81,7 @@ public sealed class DiscoverResourcesHandler(
                 escalation.Status,
                 escalation.EscalationLevel,
                 escalation.UserActionHint,
-                dataQualityFailures));
+                dataQualityFailures,
+                plan));
     }
 }

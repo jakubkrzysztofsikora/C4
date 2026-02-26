@@ -12,4 +12,5 @@ public sealed record DiscoverResourcesResponse(
     DiscoveryExecutionStatus Status,
     DiscoveryEscalationLevel EscalationLevel,
     string? UserActionHint,
-    int DataQualityFailures);
+    int DataQualityFailures,
+    DiscoveryPlan Plan);
