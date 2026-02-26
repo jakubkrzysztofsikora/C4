@@ -14,7 +14,7 @@ public sealed class DiscoverResourcesHandlerTests
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
-        var handler = new DiscoverResourcesHandler(new FakeResourceGraphClient(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeResourceGraphClient(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
         var subscriptionId = Guid.NewGuid();
 
         var result = await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
@@ -30,7 +30,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new MixedResourceGraphClient(), repo, classifier, mediator, new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new MixedResourceGraphClient(), repo, classifier, mediator, new FakeUnitOfWork());
         var subscriptionId = Guid.NewGuid();
 
         await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
@@ -45,7 +45,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new FakeResourceGraphClient(), repo, classifier, mediator, new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeResourceGraphClient(), repo, classifier, mediator, new FakeUnitOfWork());
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -59,13 +59,27 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new FakeResourceGraphClient(), repo, classifier, mediator, new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeResourceGraphClient(), repo, classifier, mediator, new FakeUnitOfWork());
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
         mediator.PublishedEvent.Should().NotBeNull();
         var childItem = mediator.PublishedEvent!.Resources.Single(r => r.ResourceId == "/r2");
         childItem.ParentResourceId.Should().Be("/r1");
+    }
+
+    [Fact]
+    public async Task Handle_PlannerInvokedBeforeDiscovery_SetsPlanOnResponse()
+    {
+        var state = new PlannerState();
+        var planner = new FakeDiscoveryInputPlanner(state);
+        var handler = new DiscoverResourcesHandler(planner, new OrderAwareResourceGraphClient(state), new FakeDiscoveredResourceRepository(), new FakeResourceClassifier(), new FakeMediator(), new FakeUnitOfWork());
+
+        var result = await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Plan.Tasks.Should().NotBeEmpty();
+        state.PlannerCalled.Should().BeTrue();
     }
 
     private sealed class FakeResourceGraphClient : IAzureResourceGraphClient
@@ -91,6 +105,34 @@ public sealed class DiscoverResourcesHandlerTests
         {
             var classification = AzureResourceTypeCatalog.Classify(armResourceType);
             return Task.FromResult(classification);
+        }
+    }
+
+    private sealed class FakeDiscoveryInputPlanner(PlannerState? state = null) : IDiscoveryInputPlanner
+    {
+        public Task<DiscoveryPlan> BuildPlanAsync(string userIntent, string inputContext, CancellationToken cancellationToken)
+        {
+            if (state is not null)
+                state.PlannerCalled = true;
+
+            return Task.FromResult(new DiscoveryPlan(
+                userIntent,
+                inputContext,
+                [new PlannedToolInvocation("t1", 1, "azure.resource_graph", "Discover resources", [], ["repo.bicep_parser"])]));
+        }
+    }
+
+    private sealed class PlannerState
+    {
+        public bool PlannerCalled { get; set; }
+    }
+
+    private sealed class OrderAwareResourceGraphClient(PlannerState state) : IAzureResourceGraphClient
+    {
+        public Task<IReadOnlyCollection<AzureResourceRecord>> GetResourcesAsync(string externalSubscriptionId, CancellationToken cancellationToken)
+        {
+            state.PlannerCalled.Should().BeTrue("planner must run before resource graph discovery");
+            return Task.FromResult<IReadOnlyCollection<AzureResourceRecord>>([new("/r1", "Microsoft.Web/sites", "frontend", null)]);
         }
     }
 

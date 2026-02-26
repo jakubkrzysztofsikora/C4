@@ -7,6 +7,7 @@ using MediatR;
 namespace C4.Modules.Discovery.Application.DiscoverResources;
 
 public sealed class DiscoverResourcesHandler(
+    IDiscoveryInputPlanner planner,
     IAzureResourceGraphClient resourceGraphClient,
     IDiscoveredResourceRepository discoveredResourceRepository,
     IResourceClassifier classifier,
@@ -15,6 +16,11 @@ public sealed class DiscoverResourcesHandler(
 {
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
+        var plan = await planner.BuildPlanAsync(
+            "Discover Azure resources for connected subscription",
+            $"SubscriptionId={request.SubscriptionId}; ExternalSubscriptionId={request.ExternalSubscriptionId}; ProjectId={request.ProjectId}",
+            cancellationToken);
+
         var records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
 
         var classifiedPairs = new List<(AzureResourceRecord Record, DiscoveredResource Resource)>();
@@ -45,6 +51,6 @@ public sealed class DiscoverResourcesHandler(
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result<DiscoverResourcesResponse>.Success(new DiscoverResourcesResponse(request.SubscriptionId, resources.Count));
+        return Result<DiscoverResourcesResponse>.Success(new DiscoverResourcesResponse(request.SubscriptionId, resources.Count, plan));
     }
 }
