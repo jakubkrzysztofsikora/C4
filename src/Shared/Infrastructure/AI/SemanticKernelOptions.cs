@@ -16,18 +16,23 @@ public sealed class OllamaOptions
     public string ChatModel { get; init; } = "mistral-large-3:675b-cloud";
 }
 
+public enum RemoteMcpServerAuthMode
+{
+    None
+}
+
 public sealed class RemoteMcpServerOptions
 {
     public string Name { get; init; } = string.Empty;
     public string Endpoint { get; init; } = string.Empty;
-    public string AuthMode { get; init; } = "None";
+    public RemoteMcpServerAuthMode AuthMode { get; init; } = RemoteMcpServerAuthMode.None;
     public int TimeoutSeconds { get; init; } = 30;
 }
 
 public sealed class ToolFilterOptions
 {
-    public List<string> AllowList { get; init; } = [];
-    public List<string> DenyList { get; init; } = [];
+    public HashSet<string> AllowList { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> DenyList { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class PlannerExecutionLimitsOptions
