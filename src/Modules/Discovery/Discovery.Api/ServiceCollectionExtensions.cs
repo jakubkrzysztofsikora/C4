@@ -51,6 +51,7 @@ public static class ServiceCollectionExtensions
         var kernel = kernelBuilder.Build();
         services.AddSingleton(kernel);
         services.AddSingleton<IResourceClassifier, ResourceClassifierPlugin>();
+        services.AddSingleton<IDiscoveryInputPlanner, DiscoveryInputPlanner>();
 
         services.AddEndpoints(AssemblyReference.Assembly);
 
