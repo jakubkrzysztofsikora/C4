@@ -1,4 +1,5 @@
 using C4.Modules.Discovery.Api.Adapters;
+using C4.Modules.Discovery.Application.DiscoverResources;
 using C4.Modules.Discovery.Application.Adapters;
 using C4.Modules.Discovery.Application.Ports;
 using C4.Modules.Discovery.Infrastructure.AI;
@@ -39,6 +40,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IIacStateParser, CompositeIacStateParser>();
 
         services.AddSingleton<IUnitOfWork, NoOpDiscoveryUnitOfWork>();
+        services.AddSingleton<IDiscoveryDataPreparer, DiscoveryDataPreparer>();
 
         var ollamaEndpoint = configuration["Ollama:Endpoint"] ?? "http://localhost:11434";
         var chatModel = configuration["Ollama:ChatModel"] ?? "mistral-large-3:675b-cloud";
