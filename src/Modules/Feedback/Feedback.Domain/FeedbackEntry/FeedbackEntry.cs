@@ -8,6 +8,7 @@ public sealed class FeedbackEntry : AggregateRoot<FeedbackEntryId>
 {
     private FeedbackEntry(
         FeedbackEntryId id,
+        Guid projectId,
         Guid userId,
         FeedbackTarget target,
         FeedbackCategory category,
@@ -17,6 +18,7 @@ public sealed class FeedbackEntry : AggregateRoot<FeedbackEntryId>
         EdgeCorrection? edgeCorrection,
         ClassificationCorrection? classificationCorrection) : base(id)
     {
+        ProjectId = projectId;
         UserId = userId;
         Target = target;
         Category = category;
@@ -28,6 +30,7 @@ public sealed class FeedbackEntry : AggregateRoot<FeedbackEntryId>
         SubmittedAtUtc = DateTime.UtcNow;
     }
 
+    public Guid ProjectId { get; }
     public Guid UserId { get; }
     public FeedbackTarget Target { get; }
     public FeedbackCategory Category { get; }
@@ -40,6 +43,7 @@ public sealed class FeedbackEntry : AggregateRoot<FeedbackEntryId>
 
     public static FeedbackEntry Submit(
         Guid userId,
+        Guid projectId,
         FeedbackTarget target,
         FeedbackCategory category,
         FeedbackRating rating,
@@ -50,7 +54,7 @@ public sealed class FeedbackEntry : AggregateRoot<FeedbackEntryId>
     {
         FeedbackEntryId id = FeedbackEntryId.New();
 
-        FeedbackEntry entry = new(id, userId, target, category, rating, comment, nodeCorrection, edgeCorrection, classificationCorrection);
+        FeedbackEntry entry = new(id, projectId, userId, target, category, rating, comment, nodeCorrection, edgeCorrection, classificationCorrection);
 
         entry.Raise(new FeedbackSubmittedEvent(id, userId, category));
 

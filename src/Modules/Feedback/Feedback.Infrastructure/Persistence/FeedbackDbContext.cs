@@ -28,6 +28,8 @@ file sealed class FeedbackEntryConfiguration : IEntityTypeConfiguration<Feedback
             .HasConversion(id => id.Value, value => new FeedbackEntryId(value))
             .ValueGeneratedNever();
         builder.Property(e => e.UserId).IsRequired();
+        builder.Property(e => e.ProjectId).IsRequired();
+        builder.HasIndex(e => e.ProjectId);
         builder.OwnsOne(e => e.Target, target =>
         {
             target.Property(t => t.TargetType).HasConversion<int>().HasColumnName("target_type").IsRequired();

@@ -2,15 +2,16 @@ using System.Text;
 using C4.Modules.Graph.Application.GetThreatAssessment;
 using C4.Modules.Graph.Application.Ports;
 using C4.Shared.Kernel.Contracts;
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Graph.Infrastructure.AI;
 
-public sealed class ThreatDetectionPlugin(Kernel kernel, ILearningProvider? learningProvider = null) : IThreatDetector
+public sealed class ThreatDetectionPlugin(Kernel kernel, ILearningProvider? learningProvider = null, ILogger<ThreatDetectionPlugin>? logger = null) : IThreatDetector
 {
-    public async Task<ThreatDetectionResult> DetectThreatsAsync(string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
+    public async Task<ThreatDetectionResult> DetectThreatsAsync(Guid projectId, string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
     {
-        var learningsSection = await BuildLearningsSectionAsync(cancellationToken);
+        var learningsSection = await BuildLearningsSectionAsync(projectId, cancellationToken);
 
         var prompt = $$"""
             Analyze the following architecture for security threats using STRIDE methodology.
@@ -36,14 +37,14 @@ public sealed class ThreatDetectionPlugin(Kernel kernel, ILearningProvider? lear
         return ParseThreatResult(text);
     }
 
-    private async Task<string> BuildLearningsSectionAsync(CancellationToken cancellationToken)
+    private async Task<string> BuildLearningsSectionAsync(Guid projectId, CancellationToken cancellationToken)
     {
         if (learningProvider is null)
             return string.Empty;
 
         try
         {
-            var learnings = await learningProvider.GetActiveLearningsAsync(Guid.Empty, "ThreatAssessment", cancellationToken);
+            var learnings = await learningProvider.GetActiveLearningsAsync(projectId, "ThreatAssessment", cancellationToken);
             if (learnings.Count == 0)
                 return string.Empty;
 
@@ -56,8 +57,9 @@ public sealed class ThreatDetectionPlugin(Kernel kernel, ILearningProvider? lear
             }
             return sb.ToString();
         }
-        catch
+        catch (Exception ex)
         {
+            logger?.LogWarning(ex, "Failed to fetch learnings for prompt augmentation");
             return string.Empty;
         }
     }

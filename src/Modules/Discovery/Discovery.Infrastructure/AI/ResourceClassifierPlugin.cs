@@ -2,19 +2,20 @@ using System.Text;
 using C4.Modules.Discovery.Application.Ports;
 using C4.Modules.Discovery.Domain.Resources;
 using C4.Shared.Kernel.Contracts;
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Discovery.Infrastructure.AI;
 
-public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? learningProvider = null) : IResourceClassifier
+public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? learningProvider = null, ILogger<ResourceClassifierPlugin>? logger = null) : IResourceClassifier
 {
-    public async Task<AzureResourceClassification> ClassifyAsync(string armResourceType, string resourceName, CancellationToken cancellationToken)
+    public async Task<AzureResourceClassification> ClassifyAsync(Guid projectId, string armResourceType, string resourceName, CancellationToken cancellationToken)
     {
         var catalogResult = AzureResourceTypeCatalog.Classify(armResourceType);
         if (IsKnownType(armResourceType))
             return catalogResult;
 
-        var learningsSection = await BuildLearningsSectionAsync(cancellationToken);
+        var learningsSection = await BuildLearningsSectionAsync(projectId, cancellationToken);
 
         var prompt = $"""
             Classify the following Azure resource for an architecture diagram.
@@ -40,14 +41,14 @@ public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? l
         }
     }
 
-    private async Task<string> BuildLearningsSectionAsync(CancellationToken cancellationToken)
+    private async Task<string> BuildLearningsSectionAsync(Guid projectId, CancellationToken cancellationToken)
     {
         if (learningProvider is null)
             return string.Empty;
 
         try
         {
-            var learnings = await learningProvider.GetActiveLearningsAsync(Guid.Empty, "ResourceClassification", cancellationToken);
+            var learnings = await learningProvider.GetActiveLearningsAsync(projectId, "ResourceClassification", cancellationToken);
             if (learnings.Count == 0)
                 return string.Empty;
 
@@ -60,8 +61,9 @@ public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? l
             }
             return sb.ToString();
         }
-        catch
+        catch (Exception ex)
         {
+            logger?.LogWarning(ex, "Failed to fetch learnings for prompt augmentation");
             return string.Empty;
         }
     }

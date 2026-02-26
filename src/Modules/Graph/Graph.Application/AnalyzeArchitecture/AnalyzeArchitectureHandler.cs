@@ -16,7 +16,7 @@ public sealed class AnalyzeArchitectureHandler(IArchitectureGraphRepository repo
         var nodesDescription = string.Join(", ", graph.Nodes.Select(n => $"{n.Name} ({n.Level})"));
         var edgesDescription = string.Join(", ", graph.Edges.Select(e => $"{e.SourceNodeId} -> {e.TargetNodeId}"));
 
-        var analysis = await analyzer.AnalyzeAsync(nodesDescription, edgesDescription, cancellationToken);
+        var analysis = await analyzer.AnalyzeAsync(request.ProjectId, nodesDescription, edgesDescription, cancellationToken);
 
         return Result<ArchitectureAnalysisResponse>.Success(
             new ArchitectureAnalysisResponse(request.ProjectId, analysis.Summary, analysis.Recommendations));

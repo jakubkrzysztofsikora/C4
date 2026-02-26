@@ -1,15 +1,16 @@
 using System.Text;
 using C4.Modules.Graph.Application.Ports;
 using C4.Shared.Kernel.Contracts;
+using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Graph.Infrastructure.AI;
 
-public sealed class ArchitectureAnalysisPlugin(Kernel kernel, ILearningProvider? learningProvider = null) : IArchitectureAnalyzer
+public sealed class ArchitectureAnalysisPlugin(Kernel kernel, ILearningProvider? learningProvider = null, ILogger<ArchitectureAnalysisPlugin>? logger = null) : IArchitectureAnalyzer
 {
-    public async Task<ArchitectureAnalysisResult> AnalyzeAsync(string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
+    public async Task<ArchitectureAnalysisResult> AnalyzeAsync(Guid projectId, string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
     {
-        var learningsSection = await BuildLearningsSectionAsync(cancellationToken);
+        var learningsSection = await BuildLearningsSectionAsync(projectId, cancellationToken);
 
         var prompt = $$"""
             Analyze the following architecture and provide a brief summary and recommendations.
@@ -34,14 +35,14 @@ public sealed class ArchitectureAnalysisPlugin(Kernel kernel, ILearningProvider?
         return ParseAnalysisResult(text);
     }
 
-    private async Task<string> BuildLearningsSectionAsync(CancellationToken cancellationToken)
+    private async Task<string> BuildLearningsSectionAsync(Guid projectId, CancellationToken cancellationToken)
     {
         if (learningProvider is null)
             return string.Empty;
 
         try
         {
-            var learnings = await learningProvider.GetActiveLearningsAsync(Guid.Empty, "ArchitectureAnalysis", cancellationToken);
+            var learnings = await learningProvider.GetActiveLearningsAsync(projectId, "ArchitectureAnalysis", cancellationToken);
             if (learnings.Count == 0)
                 return string.Empty;
 
@@ -54,8 +55,9 @@ public sealed class ArchitectureAnalysisPlugin(Kernel kernel, ILearningProvider?
             }
             return sb.ToString();
         }
-        catch
+        catch (Exception ex)
         {
+            logger?.LogWarning(ex, "Failed to fetch learnings for prompt augmentation");
             return string.Empty;
         }
     }

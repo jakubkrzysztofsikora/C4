@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using C4.Modules.Feedback.Application.Ports;
 using C4.Modules.Feedback.Domain.FeedbackEntry;
 using C4.Modules.Feedback.Domain.Learning;
@@ -78,18 +79,18 @@ public sealed class LearningAggregatorPlugin(Kernel kernel) : ILearningAggregato
             if (!trimmed.StartsWith("INSIGHT|", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var parts = trimmed.Split('|');
-            if (parts.Length < 5)
+            var match = Regex.Match(trimmed, @"^INSIGHT\|([^|]+)\|(.+)\|([0-9.]+)\|(\d+)$");
+            if (!match.Success)
                 continue;
 
-            if (!Enum.TryParse<InsightType>(parts[1].Trim(), true, out var insightType))
+            if (!Enum.TryParse<InsightType>(match.Groups[1].Value.Trim(), true, out var insightType))
                 continue;
 
-            var description = parts[2].Trim();
-            if (!double.TryParse(parts[3].Trim(), out var confidence) || confidence < 0.5)
+            var description = match.Groups[2].Value.Trim();
+            if (!double.TryParse(match.Groups[3].Value.Trim(), out var confidence) || confidence < 0.5)
                 continue;
 
-            if (!int.TryParse(parts[4].Trim(), out var feedbackCount))
+            if (!int.TryParse(match.Groups[4].Value.Trim(), out var feedbackCount))
                 feedbackCount = 1;
 
             insights.Add(LearningInsight.Aggregate(projectId, category, insightType, description, confidence, feedbackCount));

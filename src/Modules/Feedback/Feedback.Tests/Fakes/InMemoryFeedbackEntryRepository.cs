@@ -31,7 +31,7 @@ internal sealed class InMemoryFeedbackEntryRepository : IFeedbackEntryRepository
     public Task<IReadOnlyCollection<FeedbackEntry>> GetByProjectAsync(
         Guid projectId, int skip, int take, FeedbackCategory? category, CancellationToken cancellationToken)
     {
-        IEnumerable<FeedbackEntry> query = _entries;
+        IEnumerable<FeedbackEntry> query = _entries.Where(e => e.ProjectId == projectId);
 
         if (category.HasValue)
         {
@@ -55,7 +55,7 @@ internal sealed class InMemoryFeedbackEntryRepository : IFeedbackEntryRepository
     public Task<IReadOnlyCollection<FeedbackEntry>> GetByProjectForAggregationAsync(
         Guid projectId, FeedbackCategory? category, CancellationToken cancellationToken)
     {
-        IEnumerable<FeedbackEntry> query = _entries;
+        IEnumerable<FeedbackEntry> query = _entries.Where(e => e.ProjectId == projectId);
 
         if (category.HasValue)
         {
@@ -69,17 +69,17 @@ internal sealed class InMemoryFeedbackEntryRepository : IFeedbackEntryRepository
     }
 
     public Task<int> CountByProjectAsync(Guid projectId, CancellationToken cancellationToken) =>
-        Task.FromResult(_entries.Count);
+        Task.FromResult(_entries.Count(e => e.ProjectId == projectId));
 
     public Task<int> CountWithCorrectionsAsync(Guid projectId, CancellationToken cancellationToken) =>
         Task.FromResult(_entries.Count(e =>
-            e.NodeCorrection is not null || e.EdgeCorrection is not null || e.ClassificationCorrection is not null));
+            e.ProjectId == projectId && (e.NodeCorrection is not null || e.EdgeCorrection is not null || e.ClassificationCorrection is not null)));
 
     public Task<IReadOnlyCollection<FeedbackEntry>> GetByProjectAndDateRangeAsync(
         Guid projectId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken)
     {
         IReadOnlyCollection<FeedbackEntry> result = _entries
-            .Where(e => e.SubmittedAtUtc >= fromUtc && e.SubmittedAtUtc <= toUtc)
+            .Where(e => e.ProjectId == projectId && e.SubmittedAtUtc >= fromUtc && e.SubmittedAtUtc <= toUtc)
             .OrderByDescending(e => e.SubmittedAtUtc)
             .ToList();
         return Task.FromResult(result);

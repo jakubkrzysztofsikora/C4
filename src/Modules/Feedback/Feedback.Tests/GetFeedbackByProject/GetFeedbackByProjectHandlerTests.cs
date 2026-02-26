@@ -17,10 +17,10 @@ public sealed class GetFeedbackByProjectHandlerTests
         var rating = FeedbackRating.Create(4).Value;
         var target = new FeedbackTarget(FeedbackTargetType.GraphNode, Guid.NewGuid());
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.NodeClassification, rating, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.NodeClassification, rating, null, null, null, null),
             CancellationToken.None);
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.EdgeRelationship, rating, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.EdgeRelationship, rating, null, null, null, null),
             CancellationToken.None);
 
         var result = await CreateHandler().Handle(new GetFeedbackByProjectQuery(_projectId, 0, 10, null), CancellationToken.None);
@@ -44,10 +44,10 @@ public sealed class GetFeedbackByProjectHandlerTests
         var rating = FeedbackRating.Create(3).Value;
         var target = new FeedbackTarget(FeedbackTargetType.GraphNode, Guid.NewGuid());
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.NodeClassification, rating, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.NodeClassification, rating, null, null, null, null),
             CancellationToken.None);
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.EdgeRelationship, rating, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.EdgeRelationship, rating, null, null, null, null),
             CancellationToken.None);
 
         var result = await CreateHandler().Handle(
@@ -67,7 +67,7 @@ public sealed class GetFeedbackByProjectHandlerTests
         for (int i = 0; i < 5; i++)
         {
             await _repository.AddAsync(
-                FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.General, rating, null, null, null, null),
+                FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.General, rating, null, null, null, null),
                 CancellationToken.None);
         }
 

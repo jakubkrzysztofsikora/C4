@@ -30,10 +30,10 @@ public sealed class GetEvalMetricsHandlerTests
     {
         var target = new FeedbackTarget(FeedbackTargetType.Diagram, Guid.NewGuid());
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.DiagramLayout, FeedbackRating.Create(4).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.DiagramLayout, FeedbackRating.Create(4).Value, null, null, null, null),
             CancellationToken.None);
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.DiagramLayout, FeedbackRating.Create(2).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.DiagramLayout, FeedbackRating.Create(2).Value, null, null, null, null),
             CancellationToken.None);
 
         var result = await CreateHandler().Handle(new GetEvalMetricsQuery(_projectId), CancellationToken.None);
@@ -49,10 +49,10 @@ public sealed class GetEvalMetricsHandlerTests
         var target = new FeedbackTarget(FeedbackTargetType.GraphNode, Guid.NewGuid());
         var correction = new NodeCorrection("Old", "New", null, null, null, null, null, null);
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.NodeClassification, FeedbackRating.Create(3).Value, null, correction, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.NodeClassification, FeedbackRating.Create(3).Value, null, correction, null, null),
             CancellationToken.None);
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.NodeClassification, FeedbackRating.Create(4).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.NodeClassification, FeedbackRating.Create(4).Value, null, null, null, null),
             CancellationToken.None);
 
         var result = await CreateHandler().Handle(new GetEvalMetricsQuery(_projectId), CancellationToken.None);
@@ -66,13 +66,13 @@ public sealed class GetEvalMetricsHandlerTests
     {
         var target = new FeedbackTarget(FeedbackTargetType.Diagram, Guid.NewGuid());
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.ArchitectureAnalysis, FeedbackRating.Create(5).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.ArchitectureAnalysis, FeedbackRating.Create(5).Value, null, null, null, null),
             CancellationToken.None);
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.ArchitectureAnalysis, FeedbackRating.Create(3).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.ArchitectureAnalysis, FeedbackRating.Create(3).Value, null, null, null, null),
             CancellationToken.None);
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.ThreatAssessment, FeedbackRating.Create(4).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.ThreatAssessment, FeedbackRating.Create(4).Value, null, null, null, null),
             CancellationToken.None);
 
         var result = await CreateHandler().Handle(new GetEvalMetricsQuery(_projectId), CancellationToken.None);

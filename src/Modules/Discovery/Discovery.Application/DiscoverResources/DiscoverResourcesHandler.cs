@@ -26,7 +26,7 @@ public sealed class DiscoverResourcesHandler(
         var classifiedPairs = new List<(DiscoveryResourceDescriptor Record, DiscoveredResource Resource)>();
         foreach (var record in records)
         {
-            var classification = await classifier.ClassifyAsync(record.ResourceType, record.Name, cancellationToken);
+            var classification = await classifier.ClassifyAsync(request.ProjectId, record.ResourceType, record.Name, cancellationToken);
             var resource = DiscoveredResource.Create(record.ResourceId, record.ResourceType, record.Name, classification);
             classifiedPairs.Add((record, resource));
         }

@@ -30,6 +30,7 @@ public sealed class SubmitFeedbackHandler(
 
         var entry = FeedbackEntry.Submit(
             request.UserId,
+            request.ProjectId,
             target,
             request.Category,
             ratingResult.Value,

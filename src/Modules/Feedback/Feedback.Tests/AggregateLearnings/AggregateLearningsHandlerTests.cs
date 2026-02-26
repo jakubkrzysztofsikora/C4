@@ -23,7 +23,7 @@ public sealed class AggregateLearningsHandlerTests
     {
         var target = new FeedbackTarget(FeedbackTargetType.GraphNode, Guid.NewGuid());
         await _feedbackRepository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.NodeClassification, FeedbackRating.Create(3).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.NodeClassification, FeedbackRating.Create(3).Value, null, null, null, null),
             CancellationToken.None);
         var insight = LearningInsight.Aggregate(_projectId, FeedbackCategory.NodeClassification, InsightType.ClassificationPattern, "Users prefer Container level", 0.85, 5);
         _aggregator.SetInsights(insight);
@@ -49,10 +49,10 @@ public sealed class AggregateLearningsHandlerTests
     {
         var target = new FeedbackTarget(FeedbackTargetType.GraphNode, Guid.NewGuid());
         await _feedbackRepository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.NodeClassification, FeedbackRating.Create(4).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.NodeClassification, FeedbackRating.Create(4).Value, null, null, null, null),
             CancellationToken.None);
         await _feedbackRepository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.EdgeRelationship, FeedbackRating.Create(2).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.EdgeRelationship, FeedbackRating.Create(2).Value, null, null, null, null),
             CancellationToken.None);
         var insight = LearningInsight.Aggregate(_projectId, FeedbackCategory.NodeClassification, InsightType.NamingConvention, "Consistent naming", 0.9, 3);
         _aggregator.SetInsights(insight);
@@ -70,7 +70,7 @@ public sealed class AggregateLearningsHandlerTests
     {
         var target = new FeedbackTarget(FeedbackTargetType.Diagram, Guid.NewGuid());
         await _feedbackRepository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.DiagramLayout, FeedbackRating.Create(3).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.DiagramLayout, FeedbackRating.Create(3).Value, null, null, null, null),
             CancellationToken.None);
         var insight1 = LearningInsight.Aggregate(_projectId, FeedbackCategory.DiagramLayout, InsightType.LayoutPreference, "Left-to-right preferred", 0.8, 10);
         var insight2 = LearningInsight.Aggregate(_projectId, FeedbackCategory.DiagramLayout, InsightType.LayoutPreference, "Group by domain", 0.7, 8);

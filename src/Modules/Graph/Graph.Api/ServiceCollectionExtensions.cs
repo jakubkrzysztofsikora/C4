@@ -10,6 +10,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace C4.Modules.Graph.Api;
 
@@ -46,7 +47,7 @@ public static class ServiceCollectionExtensions
         {
             var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Graph");
             return result.EnabledTools.Contains(nameof(ArchitectureAnalysisPlugin))
-                ? new ArchitectureAnalysisPlugin(result.Kernel, sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>())
+                ? new ArchitectureAnalysisPlugin(result.Kernel, sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>(), sp.GetService<ILogger<ArchitectureAnalysisPlugin>>())
                 : throw new InvalidOperationException(
                     $"{nameof(ArchitectureAnalysisPlugin)} is required but disabled by the tool filter. " +
                     $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");
@@ -55,7 +56,7 @@ public static class ServiceCollectionExtensions
         {
             var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Graph");
             return result.EnabledTools.Contains(nameof(ThreatDetectionPlugin))
-                ? new ThreatDetectionPlugin(result.Kernel, sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>())
+                ? new ThreatDetectionPlugin(result.Kernel, sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>(), sp.GetService<ILogger<ThreatDetectionPlugin>>())
                 : throw new InvalidOperationException(
                     $"{nameof(ThreatDetectionPlugin)} is required but disabled by the tool filter. " +
                     $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");

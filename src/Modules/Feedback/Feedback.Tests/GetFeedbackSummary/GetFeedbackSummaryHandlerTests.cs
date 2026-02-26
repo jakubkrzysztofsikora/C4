@@ -27,10 +27,10 @@ public sealed class GetFeedbackSummaryHandlerTests
     {
         var target = new FeedbackTarget(FeedbackTargetType.GraphNode, Guid.NewGuid());
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.NodeClassification, FeedbackRating.Create(4).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.NodeClassification, FeedbackRating.Create(4).Value, null, null, null, null),
             CancellationToken.None);
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.NodeClassification, FeedbackRating.Create(2).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.NodeClassification, FeedbackRating.Create(2).Value, null, null, null, null),
             CancellationToken.None);
 
         var result = await CreateHandler().Handle(new GetFeedbackSummaryQuery(_projectId), CancellationToken.None);
@@ -45,13 +45,13 @@ public sealed class GetFeedbackSummaryHandlerTests
     {
         var target = new FeedbackTarget(FeedbackTargetType.GraphNode, Guid.NewGuid());
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.NodeClassification, FeedbackRating.Create(5).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.NodeClassification, FeedbackRating.Create(5).Value, null, null, null, null),
             CancellationToken.None);
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.EdgeRelationship, FeedbackRating.Create(3).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.EdgeRelationship, FeedbackRating.Create(3).Value, null, null, null, null),
             CancellationToken.None);
         await _repository.AddAsync(
-            FeedbackEntry.Submit(Guid.NewGuid(), target, FeedbackCategory.ThreatAssessment, FeedbackRating.Create(1).Value, null, null, null, null),
+            FeedbackEntry.Submit(Guid.NewGuid(), _projectId, target, FeedbackCategory.ThreatAssessment, FeedbackRating.Create(1).Value, null, null, null, null),
             CancellationToken.None);
 
         var result = await CreateHandler().Handle(new GetFeedbackSummaryQuery(_projectId), CancellationToken.None);

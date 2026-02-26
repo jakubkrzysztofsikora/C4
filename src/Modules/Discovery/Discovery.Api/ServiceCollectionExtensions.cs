@@ -12,6 +12,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace C4.Modules.Discovery.Api;
 
@@ -54,7 +55,7 @@ public static class ServiceCollectionExtensions
         {
             var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Discovery");
             return result.EnabledTools.Contains(nameof(ResourceClassifierPlugin))
-                ? new ResourceClassifierPlugin(result.Kernel, sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>())
+                ? new ResourceClassifierPlugin(result.Kernel, sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>(), sp.GetService<ILogger<ResourceClassifierPlugin>>())
                 : throw new InvalidOperationException(
                     $"{nameof(ResourceClassifierPlugin)} is required but disabled by the tool filter. " +
                     $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");

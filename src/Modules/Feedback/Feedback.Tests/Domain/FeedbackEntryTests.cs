@@ -7,6 +7,7 @@ namespace C4.Modules.Feedback.Tests.Domain;
 public sealed class FeedbackEntryTests
 {
     private static readonly Guid TestUserId = Guid.NewGuid();
+    private static readonly Guid TestProjectId = Guid.NewGuid();
     private static readonly Guid TestTargetId = Guid.NewGuid();
     private static readonly FeedbackTarget TestTarget = new(FeedbackTargetType.GraphNode, TestTargetId);
     private static readonly FeedbackRating ValidRating = FeedbackRating.Create(4).Value;
@@ -15,7 +16,7 @@ public sealed class FeedbackEntryTests
     public void Submit_ValidInput_CreatesFeedbackEntry()
     {
         var entry = FeedbackEntry.Submit(
-            TestUserId, TestTarget, FeedbackCategory.NodeClassification, ValidRating, "test comment", null, null, null);
+            TestUserId, TestProjectId, TestTarget, FeedbackCategory.NodeClassification, ValidRating, "test comment", null, null, null);
 
         entry.Should().NotBeNull();
         entry.Id.Should().NotBeNull();
@@ -32,7 +33,7 @@ public sealed class FeedbackEntryTests
         var before = DateTime.UtcNow;
 
         var entry = FeedbackEntry.Submit(
-            TestUserId, TestTarget, FeedbackCategory.General, ValidRating, null, null, null, null);
+            TestUserId, TestProjectId, TestTarget, FeedbackCategory.General, ValidRating, null, null, null, null);
 
         var after = DateTime.UtcNow;
         entry.SubmittedAtUtc.Should().BeOnOrAfter(before).And.BeOnOrBefore(after);
@@ -42,7 +43,7 @@ public sealed class FeedbackEntryTests
     public void Submit_RaisesFeedbackSubmittedEvent()
     {
         var entry = FeedbackEntry.Submit(
-            TestUserId, TestTarget, FeedbackCategory.DiagramLayout, ValidRating, null, null, null, null);
+            TestUserId, TestProjectId, TestTarget, FeedbackCategory.DiagramLayout, ValidRating, null, null, null, null);
 
         entry.DomainEvents.Should().ContainSingle()
             .Which.Should().BeOfType<FeedbackSubmittedEvent>()
@@ -53,7 +54,7 @@ public sealed class FeedbackEntryTests
     public void Submit_FeedbackSubmittedEvent_ContainsUserId()
     {
         var entry = FeedbackEntry.Submit(
-            TestUserId, TestTarget, FeedbackCategory.General, ValidRating, null, null, null, null);
+            TestUserId, TestProjectId, TestTarget, FeedbackCategory.General, ValidRating, null, null, null, null);
 
         entry.DomainEvents.Should().ContainSingle()
             .Which.Should().BeOfType<FeedbackSubmittedEvent>()
@@ -66,7 +67,7 @@ public sealed class FeedbackEntryTests
         var correction = new NodeCorrection("OldName", "NewName", "Container", "Component", null, null, null, null);
 
         var entry = FeedbackEntry.Submit(
-            TestUserId, TestTarget, FeedbackCategory.NodeClassification, ValidRating, null, correction, null, null);
+            TestUserId, TestProjectId, TestTarget, FeedbackCategory.NodeClassification, ValidRating, null, correction, null, null);
 
         entry.NodeCorrection.Should().Be(correction);
     }
@@ -77,7 +78,7 @@ public sealed class FeedbackEntryTests
         var correction = new EdgeCorrection("http", "https", true);
 
         var entry = FeedbackEntry.Submit(
-            TestUserId, TestTarget, FeedbackCategory.EdgeRelationship, ValidRating, null, null, correction, null);
+            TestUserId, TestProjectId, TestTarget, FeedbackCategory.EdgeRelationship, ValidRating, null, null, correction, null);
 
         entry.EdgeCorrection.Should().Be(correction);
     }
@@ -89,7 +90,7 @@ public sealed class FeedbackEntryTests
             "Microsoft.Web/sites", "Web App", "App Service", null, "app", "Container", "Container", true, true);
 
         var entry = FeedbackEntry.Submit(
-            TestUserId, TestTarget, FeedbackCategory.ResourceClassification, ValidRating, null, null, null, correction);
+            TestUserId, TestProjectId, TestTarget, FeedbackCategory.ResourceClassification, ValidRating, null, null, null, correction);
 
         entry.ClassificationCorrection.Should().Be(correction);
     }
@@ -98,7 +99,7 @@ public sealed class FeedbackEntryTests
     public void Submit_WithoutCorrections_CorrectionsAreNull()
     {
         var entry = FeedbackEntry.Submit(
-            TestUserId, TestTarget, FeedbackCategory.General, ValidRating, "general comment", null, null, null);
+            TestUserId, TestProjectId, TestTarget, FeedbackCategory.General, ValidRating, "general comment", null, null, null);
 
         entry.NodeCorrection.Should().BeNull();
         entry.EdgeCorrection.Should().BeNull();
@@ -109,10 +110,10 @@ public sealed class FeedbackEntryTests
     public void Submit_GeneratesUniqueIds()
     {
         var entry1 = FeedbackEntry.Submit(
-            TestUserId, TestTarget, FeedbackCategory.General, ValidRating, null, null, null, null);
+            TestUserId, TestProjectId, TestTarget, FeedbackCategory.General, ValidRating, null, null, null, null);
 
         var entry2 = FeedbackEntry.Submit(
-            TestUserId, TestTarget, FeedbackCategory.General, ValidRating, null, null, null, null);
+            TestUserId, TestProjectId, TestTarget, FeedbackCategory.General, ValidRating, null, null, null, null);
 
         entry1.Id.Should().NotBe(entry2.Id);
     }

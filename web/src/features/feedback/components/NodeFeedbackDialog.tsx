@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useSubmitFeedback } from '../hooks/useSubmitFeedback';
 import type { NodeCorrection } from '../feedback.types';
+import type { ServiceType } from '../../diagram/types';
 import { StarRating } from './StarRating';
 
-const C4_LEVELS = ['Context', 'Container', 'Component'] as const;
-const SERVICE_TYPES = ['app', 'api', 'database', 'queue', 'cache', 'external'] as const;
+const C4_LEVELS: readonly ('Context' | 'Container' | 'Component')[] = ['Context', 'Container', 'Component'];
+const SERVICE_TYPE_OPTIONS: readonly ServiceType[] = ['app', 'api', 'database', 'queue', 'cache', 'external'];
 
 type C4Level = (typeof C4_LEVELS)[number];
-type ServiceType = (typeof SERVICE_TYPES)[number];
 
 interface NodeFeedbackNode {
   id: string;
@@ -180,7 +180,7 @@ export function NodeFeedbackDialog({
                 disabled={isSubmitting}
               >
                 <option value="">No change</option>
-                {SERVICE_TYPES.filter((t): t is ServiceType => t !== node.serviceType).map((type) => (
+                {SERVICE_TYPE_OPTIONS.filter((t) => t !== node.serviceType).map((type) => (
                   <option key={type} value={type}>
                     {type}
                   </option>

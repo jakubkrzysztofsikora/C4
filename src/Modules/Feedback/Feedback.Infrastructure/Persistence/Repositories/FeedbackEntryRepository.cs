@@ -23,7 +23,7 @@ internal sealed class FeedbackEntryRepository(FeedbackDbContext dbContext) : IFe
         Guid projectId, int skip, int take, FeedbackCategory? category, CancellationToken cancellationToken)
     {
         IQueryable<FeedbackEntry> query = dbContext.FeedbackEntries
-            .Where(e => e.Target.TargetId == projectId || e.UserId != Guid.Empty);
+            .Where(e => e.ProjectId == projectId);
 
         if (category.HasValue)
         {
@@ -45,7 +45,8 @@ internal sealed class FeedbackEntryRepository(FeedbackDbContext dbContext) : IFe
     public async Task<IReadOnlyCollection<FeedbackEntry>> GetByProjectForAggregationAsync(
         Guid projectId, FeedbackCategory? category, CancellationToken cancellationToken)
     {
-        IQueryable<FeedbackEntry> query = dbContext.FeedbackEntries;
+        IQueryable<FeedbackEntry> query = dbContext.FeedbackEntries
+            .Where(e => e.ProjectId == projectId);
 
         if (category.HasValue)
         {
@@ -58,16 +59,16 @@ internal sealed class FeedbackEntryRepository(FeedbackDbContext dbContext) : IFe
     }
 
     public async Task<int> CountByProjectAsync(Guid projectId, CancellationToken cancellationToken) =>
-        await dbContext.FeedbackEntries.CountAsync(cancellationToken);
+        await dbContext.FeedbackEntries.CountAsync(e => e.ProjectId == projectId, cancellationToken);
 
     public async Task<int> CountWithCorrectionsAsync(Guid projectId, CancellationToken cancellationToken) =>
         await dbContext.FeedbackEntries
-            .CountAsync(e => e.NodeCorrection != null || e.EdgeCorrection != null || e.ClassificationCorrection != null, cancellationToken);
+            .CountAsync(e => e.ProjectId == projectId && (e.NodeCorrection != null || e.EdgeCorrection != null || e.ClassificationCorrection != null), cancellationToken);
 
     public async Task<IReadOnlyCollection<FeedbackEntry>> GetByProjectAndDateRangeAsync(
         Guid projectId, DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken) =>
         await dbContext.FeedbackEntries
-            .Where(e => e.SubmittedAtUtc >= fromUtc && e.SubmittedAtUtc <= toUtc)
+            .Where(e => e.ProjectId == projectId && e.SubmittedAtUtc >= fromUtc && e.SubmittedAtUtc <= toUtc)
             .OrderByDescending(e => e.SubmittedAtUtc)
             .ToListAsync(cancellationToken);
 }
