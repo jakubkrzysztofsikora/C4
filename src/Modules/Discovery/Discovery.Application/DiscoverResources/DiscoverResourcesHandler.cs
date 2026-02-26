@@ -14,10 +14,12 @@ public sealed class DiscoverResourcesHandler(
     IMediator mediator,
     IUnitOfWork unitOfWork) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
+    private const string DefaultUserIntent = "Discover Azure resources for connected subscription";
+
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
         var plan = await planner.BuildPlanAsync(
-            "Discover Azure resources for connected subscription",
+            DefaultUserIntent,
             $"SubscriptionId={request.SubscriptionId}; ExternalSubscriptionId={request.ExternalSubscriptionId}; ProjectId={request.ProjectId}",
             cancellationToken);
 

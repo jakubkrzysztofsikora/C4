@@ -39,8 +39,8 @@ public sealed class DiscoveryInputPlanner(Kernel kernel) : IDiscoveryInputPlanne
 
     public async Task<DiscoveryPlan> BuildPlanAsync(string userIntent, string inputContext, CancellationToken cancellationToken)
     {
-        if (!kernel.Plugins.Any(plugin => string.Equals(plugin.Name, "discovery_tools", StringComparison.Ordinal)))
-            kernel.Plugins.AddFromObject(new DiscoveryPlannerToolsPlugin(), "discovery_tools");
+        if (!kernel.Plugins.Contains(DiscoveryToolNames.PluginName))
+            kernel.Plugins.AddFromObject(new DiscoveryPlannerToolsPlugin(), DiscoveryToolNames.PluginName);
 
         var arguments = new KernelArguments(new PromptExecutionSettings
         {
@@ -71,19 +71,28 @@ public sealed class DiscoveryInputPlanner(Kernel kernel) : IDiscoveryInputPlanne
             var tasks = new List<PlannedToolInvocation>();
             foreach (var element in tasksElement.EnumerateArray())
             {
-                var taskId = element.GetProperty("taskId").GetString() ?? string.Empty;
-                var order = element.GetProperty("order").GetInt32();
-                var toolName = element.GetProperty("toolName").GetString() ?? string.Empty;
-                var action = element.GetProperty("action").GetString() ?? string.Empty;
+                if (!element.TryGetProperty("taskId", out var taskIdElement) ||
+                    !element.TryGetProperty("order", out var orderElement) ||
+                    !element.TryGetProperty("toolName", out var toolNameElement) ||
+                    !element.TryGetProperty("action", out var actionElement) ||
+                    !orderElement.TryGetInt32(out var order))
+                {
+                    continue;
+                }
+
+                var taskId = taskIdElement.GetString() ?? string.Empty;
+                var toolName = toolNameElement.GetString() ?? string.Empty;
+                var action = actionElement.GetString() ?? string.Empty;
+
+                if (string.IsNullOrWhiteSpace(taskId) || string.IsNullOrWhiteSpace(toolName) || string.IsNullOrWhiteSpace(action))
+                    continue;
+
                 var dependencies = element.TryGetProperty("dependsOnTaskIds", out var deps)
                     ? deps.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Where(x => !string.IsNullOrWhiteSpace(x)).ToArray()
                     : [];
                 var fallbacks = element.TryGetProperty("fallbackToolNames", out var fallback)
                     ? fallback.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Where(x => !string.IsNullOrWhiteSpace(x)).ToArray()
                     : [];
-
-                if (string.IsNullOrWhiteSpace(taskId) || string.IsNullOrWhiteSpace(toolName) || string.IsNullOrWhiteSpace(action))
-                    continue;
 
                 tasks.Add(new PlannedToolInvocation(taskId, order, toolName, action, dependencies, fallbacks));
             }
@@ -102,9 +111,9 @@ public sealed class DiscoveryInputPlanner(Kernel kernel) : IDiscoveryInputPlanne
     {
         var tasks = new[]
         {
-            new PlannedToolInvocation("t1", 1, "azure.resource_graph", "Collect live Azure resources for the target subscription", [], ["repo.bicep_parser", "repo.terraform_parser"]),
-            new PlannedToolInvocation("t2", 2, "repo.bicep_parser", "Parse repository Bicep templates to enrich architecture intent", ["t1"], ["repo.terraform_parser"]),
-            new PlannedToolInvocation("t3", 3, "mcp.remote_discovery", "Enrich model with remote MCP tools for supplemental metadata", ["t1"], ["azure.resource_graph"])
+            new PlannedToolInvocation("t1", 1, DiscoveryToolNames.AzureResourceGraph, "Collect live Azure resources for the target subscription", [], [DiscoveryToolNames.RepoBicepParser, DiscoveryToolNames.RepoTerraformParser]),
+            new PlannedToolInvocation("t2", 2, DiscoveryToolNames.RepoBicepParser, "Parse repository Bicep templates to enrich architecture intent", ["t1"], [DiscoveryToolNames.RepoTerraformParser]),
+            new PlannedToolInvocation("t3", 3, DiscoveryToolNames.McpRemoteDiscovery, "Enrich model with remote MCP tools for supplemental metadata", ["t1"], [DiscoveryToolNames.AzureResourceGraph])
         };
 
         return new DiscoveryPlan(userIntent, inputContext, tasks);
