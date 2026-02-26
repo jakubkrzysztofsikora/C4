@@ -2,7 +2,7 @@ namespace C4.Modules.Discovery.Application.DiscoverResources;
 
 public sealed class MultiSourceDiscoveryPlanner
 {
-    public DiscoveryPlan BuildPlan(bool azureAvailable, int azureResultCount, int mcpResultCount)
+    public MultiSourceDiscoveryPlan BuildPlan(bool azureAvailable, int azureResultCount, int mcpResultCount)
     {
         var chosenTools = new List<string>();
         var steps = new List<string>();
@@ -35,11 +35,11 @@ public sealed class MultiSourceDiscoveryPlanner
                 new DiscoveryProvenanceItem("mcp-discovery", mcpResultCount),
             ]);
 
-        return new DiscoveryPlan(chosenTools, steps, retriesOrFallbacks, escalation, provenance);
+        return new MultiSourceDiscoveryPlan(chosenTools, steps, retriesOrFallbacks, escalation, provenance);
     }
 }
 
-public sealed record DiscoveryPlan(
+public sealed record MultiSourceDiscoveryPlan(
     IReadOnlyCollection<string> ChosenTools,
     IReadOnlyCollection<string> PlanSteps,
     IReadOnlyCollection<string> RetriesOrFallbackPaths,
