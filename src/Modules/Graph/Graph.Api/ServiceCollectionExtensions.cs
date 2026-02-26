@@ -2,6 +2,7 @@ using C4.Modules.Graph.Application.Ports;
 using C4.Modules.Graph.Infrastructure.AI;
 using C4.Modules.Graph.Infrastructure.Persistence;
 using C4.Modules.Graph.Infrastructure.Persistence.Repositories;
+using C4.Shared.Infrastructure.AI;
 using C4.Shared.Infrastructure.Behaviors;
 using C4.Shared.Infrastructure.Endpoints;
 using C4.Shared.Kernel;
@@ -9,7 +10,6 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Graph.Api;
 
@@ -25,6 +25,8 @@ public static class ServiceCollectionExtensions
             cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
         });
 
+        services.AddSharedSemanticKernel(configuration);
+
         var connectionString = configuration.GetConnectionString("Graph");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -35,20 +37,29 @@ public static class ServiceCollectionExtensions
             services.AddDbContext<GraphDbContext>(options => options.UseNpgsql(connectionString));
         }
 
-        var ollamaEndpoint = configuration["Ollama:Endpoint"] ?? "http://localhost:11434";
-        var chatModel = configuration["Ollama:ChatModel"] ?? "mistral-large-3:675b-cloud";
-
-        var kernelBuilder = Kernel.CreateBuilder();
-#pragma warning disable SKEXP0070
-        kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
-#pragma warning restore SKEXP0070
-
-        var kernel = kernelBuilder.Build();
-        services.AddSingleton(kernel);
+        services.AddKeyedSingleton<SemanticKernelCreationResult>("Graph", (sp, _) =>
+            sp.GetRequiredService<ISemanticKernelFactory>().Create("Graph",
+                [nameof(ArchitectureAnalysisPlugin), nameof(ThreatDetectionPlugin)]));
+        services.AddSingleton(sp =>
+            sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Graph").Kernel);
         services.AddSingleton<IArchitectureAnalyzer>(sp =>
-            new ArchitectureAnalysisPlugin(sp.GetRequiredService<Kernel>(), sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>()));
+        {
+            var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Graph");
+            return result.EnabledTools.Contains(nameof(ArchitectureAnalysisPlugin))
+                ? new ArchitectureAnalysisPlugin(result.Kernel, sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>())
+                : throw new InvalidOperationException(
+                    $"{nameof(ArchitectureAnalysisPlugin)} is required but disabled by the tool filter. " +
+                    $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");
+        });
         services.AddSingleton<IThreatDetector>(sp =>
-            new ThreatDetectionPlugin(sp.GetRequiredService<Kernel>(), sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>()));
+        {
+            var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Graph");
+            return result.EnabledTools.Contains(nameof(ThreatDetectionPlugin))
+                ? new ThreatDetectionPlugin(result.Kernel, sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>())
+                : throw new InvalidOperationException(
+                    $"{nameof(ThreatDetectionPlugin)} is required but disabled by the tool filter. " +
+                    $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");
+        });
 
         services.AddScoped<IArchitectureGraphRepository, ArchitectureGraphRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<GraphDbContext>());

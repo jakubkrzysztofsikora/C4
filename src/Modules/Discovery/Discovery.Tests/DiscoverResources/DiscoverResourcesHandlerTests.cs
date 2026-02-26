@@ -14,7 +14,7 @@ public sealed class DiscoverResourcesHandlerTests
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
-        var handler = new DiscoverResourcesHandler(new FakeResourceGraphClient(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
         var subscriptionId = Guid.NewGuid();
 
         var result = await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
@@ -30,7 +30,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new MixedResourceGraphClient(), repo, classifier, mediator, new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new MixedDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
         var subscriptionId = Guid.NewGuid();
 
         await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
@@ -45,7 +45,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new FakeResourceGraphClient(), repo, classifier, mediator, new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -59,7 +59,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new FakeResourceGraphClient(), repo, classifier, mediator, new FakeUnitOfWork());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -68,20 +68,23 @@ public sealed class DiscoverResourcesHandlerTests
         childItem.ParentResourceId.Should().Be("/r1");
     }
 
-    private sealed class FakeResourceGraphClient : IAzureResourceGraphClient
+    private sealed class FakeDiscoveryInputProvider : IDiscoveryInputProvider
     {
-        public Task<IReadOnlyCollection<AzureResourceRecord>> GetResourcesAsync(string externalSubscriptionId, CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyCollection<AzureResourceRecord>>(
-            [new("/r1", "Microsoft.Web/sites", "frontend", null), new("/r2", "Microsoft.Web/sites", "api", "/r1")]);
+        public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(
+            [
+                new("/r1", "Microsoft.Web/sites", "frontend", null, DiscoverySourceKind.AzureSubscription),
+                new("/r2", "Microsoft.Web/sites", "api", "/r1", DiscoverySourceKind.AzureSubscription),
+            ]);
     }
 
-    private sealed class MixedResourceGraphClient : IAzureResourceGraphClient
+    private sealed class MixedDiscoveryInputProvider : IDiscoveryInputProvider
     {
-        public Task<IReadOnlyCollection<AzureResourceRecord>> GetResourcesAsync(string externalSubscriptionId, CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyCollection<AzureResourceRecord>>(
+        public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(
             [
-                new("/r1", "Microsoft.Web/sites", "frontend", null),
-                new("/r2", "Microsoft.Network/networkSecurityGroups", "nsg", null),
+                new("/r1", "Microsoft.Web/sites", "frontend", null, DiscoverySourceKind.AzureSubscription),
+                new("/r2", "Microsoft.Network/networkSecurityGroups", "nsg", null, DiscoverySourceKind.AzureSubscription),
             ]);
     }
 

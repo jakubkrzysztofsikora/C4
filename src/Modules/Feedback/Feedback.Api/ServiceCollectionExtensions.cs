@@ -2,6 +2,7 @@ using C4.Modules.Feedback.Application.Ports;
 using C4.Modules.Feedback.Infrastructure.AI;
 using C4.Modules.Feedback.Infrastructure.Persistence;
 using C4.Modules.Feedback.Infrastructure.Persistence.Repositories;
+using C4.Shared.Infrastructure.AI;
 using C4.Shared.Infrastructure.Behaviors;
 using C4.Shared.Infrastructure.Endpoints;
 using C4.Shared.Kernel;
@@ -10,7 +11,6 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Feedback.Api;
 
@@ -36,18 +36,16 @@ public static class ServiceCollectionExtensions
             services.AddDbContext<FeedbackDbContext>(options => options.UseNpgsql(connectionString));
         }
 
-        var ollamaEndpoint = configuration["Ollama:Endpoint"] ?? "http://localhost:11434";
-        var chatModel = configuration["Ollama:ChatModel"] ?? "mistral-large-3:675b-cloud";
+        services.AddSharedSemanticKernel(configuration);
 
-        var kernelBuilder = Kernel.CreateBuilder();
-#pragma warning disable SKEXP0070
-        kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
-#pragma warning restore SKEXP0070
-
-        var feedbackKernel = kernelBuilder.Build();
-        services.AddKeyedSingleton("feedback", feedbackKernel);
+        services.AddKeyedSingleton<SemanticKernelCreationResult>("Feedback", (sp, _) =>
+            sp.GetRequiredService<ISemanticKernelFactory>().Create("Feedback",
+                [nameof(LearningAggregatorPlugin)]));
         services.AddSingleton<ILearningAggregator>(sp =>
-            new LearningAggregatorPlugin(sp.GetRequiredKeyedService<Kernel>("feedback")));
+        {
+            var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Feedback");
+            return new LearningAggregatorPlugin(result.Kernel);
+        });
 
         services.AddScoped<IFeedbackEntryRepository, FeedbackEntryRepository>();
         services.AddScoped<ILearningInsightRepository, LearningInsightRepository>();
