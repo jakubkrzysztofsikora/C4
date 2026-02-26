@@ -8,6 +8,7 @@ export type DiagramNode = {
   drift?: boolean;
   serviceType: ServiceType;
   position?: { x: number; y: number };
+  parentId?: string;
 };
 
 export type DiagramEdge = { id: string; from: string; to: string; traffic: number };

@@ -14,12 +14,20 @@ public sealed class ResourcesDiscoveredHandler(IArchitectureGraphRepository repo
         var graph = await repository.GetByProjectIdAsync(notification.ProjectId, cancellationToken)
             ?? Domain.ArchitectureGraph.ArchitectureGraph.Create(notification.ProjectId);
 
-        foreach (var resource in notification.Resources.Where(r => r.IncludeInDiagram))
+        var includedResources = notification.Resources.Where(r => r.IncludeInDiagram).ToArray();
+
+        foreach (var resource in includedResources)
         {
             var level = ParseC4Level(resource.C4Level);
             var displayName = resource.FriendlyName ?? resource.Name;
             graph.AddOrUpdateNode(resource.ResourceId, displayName, level);
         }
+
+        var parentMappings = includedResources
+            .Where(r => r.ParentResourceId is not null)
+            .ToDictionary(r => r.ResourceId, r => r.ParentResourceId!);
+
+        graph.ResolveNodeParents(parentMappings);
 
         graph.CreateSnapshot();
         await repository.UpsertAsync(graph, cancellationToken);

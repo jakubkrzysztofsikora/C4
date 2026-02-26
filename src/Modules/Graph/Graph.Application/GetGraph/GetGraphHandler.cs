@@ -34,9 +34,9 @@ public sealed class GetGraphHandler(
         {
             if (healthByService.TryGetValue(n.Name, out var summary))
             {
-                return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), summary.Status.ToLower(), summary.Score);
+                return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), summary.Status.ToLower(), summary.Score, n.ParentId?.Value);
             }
-            return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), "green", 1.0);
+            return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), "green", 1.0, n.ParentId?.Value);
         }).ToArray();
 
         var healthScoreById = nodeDtos.ToDictionary(n => n.Id, n => n.HealthScore);

@@ -17,25 +17,28 @@ public sealed class DiscoverResourcesHandler(
     {
         var records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
 
-        var resources = new List<DiscoveredResource>();
+        var classifiedPairs = new List<(AzureResourceRecord Record, DiscoveredResource Resource)>();
         foreach (var record in records)
         {
             var classification = await classifier.ClassifyAsync(record.ResourceType, record.Name, cancellationToken);
-            resources.Add(DiscoveredResource.Create(record.ResourceId, record.ResourceType, record.Name, classification));
+            var resource = DiscoveredResource.Create(record.ResourceId, record.ResourceType, record.Name, classification);
+            classifiedPairs.Add((record, resource));
         }
 
+        var resources = classifiedPairs.Select(p => p.Resource).ToList();
         await discoveredResourceRepository.UpsertRangeAsync(request.SubscriptionId, resources, cancellationToken);
 
-        var diagramItems = resources
-            .Where(r => r.Classification?.IncludeInDiagram ?? true)
-            .Select(r => new DiscoveredResourceEventItem(
-                r.ResourceId,
-                r.ResourceType,
-                r.Name,
-                r.Classification?.FriendlyName,
-                r.Classification?.ServiceType,
-                r.Classification?.C4Level,
-                r.Classification?.IncludeInDiagram ?? true))
+        var diagramItems = classifiedPairs
+            .Where(p => p.Resource.Classification?.IncludeInDiagram ?? true)
+            .Select(p => new DiscoveredResourceEventItem(
+                p.Resource.ResourceId,
+                p.Resource.ResourceType,
+                p.Resource.Name,
+                p.Resource.Classification?.FriendlyName,
+                p.Resource.Classification?.ServiceType,
+                p.Resource.Classification?.C4Level,
+                p.Resource.Classification?.IncludeInDiagram ?? true,
+                p.Record.ParentResourceId))
             .ToArray();
 
         await mediator.Publish(new ResourcesDiscoveredIntegrationEvent(request.ProjectId, diagramItems), cancellationToken);

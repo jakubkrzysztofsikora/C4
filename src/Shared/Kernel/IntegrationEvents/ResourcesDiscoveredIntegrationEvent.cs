@@ -11,4 +11,5 @@ public sealed record DiscoveredResourceEventItem(
     string? FriendlyName,
     string? ServiceType,
     string? C4Level,
-    bool IncludeInDiagram);
+    bool IncludeInDiagram,
+    string? ParentResourceId);

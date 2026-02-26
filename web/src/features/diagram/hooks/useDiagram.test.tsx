@@ -1,7 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
-import { DiagramData } from '../types';
+import { DiagramData, DiagramNode } from '../types';
 import { useDiagram } from './useDiagram';
+
+declare global {
+  var IS_REACT_ACT_ENVIRONMENT: boolean;
+}
+
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 function DiagramHarness() {
   const diagram = useDiagram();
@@ -118,5 +126,121 @@ describe('useDiagram', () => {
     expect(rendered).toContain('data-level="Container"');
     expect(rendered).toContain('data-loading="false"');
     expect(rendered).toContain('data-has-error="false"');
+  });
+
+  it('seed node with parentId has parentId defined', () => {
+    const rendered = renderToString(<DiagramHarness />);
+    const data = parseData(rendered);
+
+    const discoveryWorker = data.nodes.find((n) => n.label === 'Discovery Worker');
+    expect(discoveryWorker).toBeDefined();
+    expect(discoveryWorker?.parentId).toBe('n4');
+  });
+
+  it('seed nodes without parentId have parentId undefined', () => {
+    const rendered = renderToString(<DiagramHarness />);
+    const data = parseData(rendered);
+
+    const nodesWithoutParent = data.nodes.filter((n) => n.label !== 'Discovery Worker');
+    for (const node of nodesWithoutParent) {
+      expect(node.parentId).toBeUndefined();
+    }
+  });
+});
+
+vi.mock('../../../shared/api/client', () => ({
+  getJson: vi.fn(),
+  ApiError: class ApiError extends Error {
+    public readonly status: number;
+    constructor(status: number, message: string) {
+      super(message);
+      this.status = status;
+      this.name = 'ApiError';
+    }
+  },
+}));
+
+vi.mock('./useSignalR', () => ({
+  useSignalR: vi.fn(),
+}));
+
+import { getJson } from '../../../shared/api/client';
+
+type CapturedNodes = { nodes: DiagramNode[] };
+
+function ApiHarness({ projectId }: { projectId: string }) {
+  const diagram = useDiagram(projectId);
+  return <output>{JSON.stringify({ nodes: diagram.data.nodes })}</output>;
+}
+
+function decodeEntities(html: string): string {
+  return html
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&apos;/g, "'");
+}
+
+function parseNodes(html: string): DiagramNode[] {
+  const decoded = decodeEntities(html);
+  const match = decoded.match(/>(\{"nodes":.*?\})</);
+  if (!match?.[1]) throw new Error('Could not parse nodes from rendered output');
+  return (JSON.parse(match[1]) as CapturedNodes).nodes;
+}
+
+describe('useDiagram parentId mapping from API', () => {
+  let container: HTMLDivElement;
+  let root: ReturnType<typeof createRoot>;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    document.body.removeChild(container);
+  });
+
+  it('maps parentNodeId from API response to parentId on node', async () => {
+    const mockGetJson = vi.mocked(getJson);
+    mockGetJson.mockResolvedValueOnce({
+      projectId: 'proj-1',
+      nodes: [
+        { id: 'parent-1', name: 'Graph Service', externalResourceId: 'r1', level: 'Container' },
+        { id: 'child-1', name: 'Discovery Worker', externalResourceId: 'r2', level: 'Component', parentNodeId: 'parent-1' },
+      ],
+      edges: [],
+    });
+
+    await act(async () => {
+      root.render(createElement(ApiHarness, { projectId: 'proj-1' }));
+    });
+
+    const nodes = parseNodes(container.innerHTML);
+    const child = nodes.find((n) => n.id === 'child-1');
+    expect(child).toBeDefined();
+    expect(child?.parentId).toBe('parent-1');
+  });
+
+  it('maps missing parentNodeId to undefined parentId on node', async () => {
+    const mockGetJson = vi.mocked(getJson);
+    mockGetJson.mockResolvedValueOnce({
+      projectId: 'proj-2',
+      nodes: [
+        { id: 'standalone-1', name: 'Identity API', externalResourceId: 'r3', level: 'Container' },
+      ],
+      edges: [],
+    });
+
+    await act(async () => {
+      root.render(createElement(ApiHarness, { projectId: 'proj-2' }));
+    });
+
+    const nodes = parseNodes(container.innerHTML);
+    const node = nodes.find((n) => n.id === 'standalone-1');
+    expect(node).toBeDefined();
+    expect(node?.parentId).toBeUndefined();
   });
 });

@@ -10,6 +10,7 @@ type GraphNodeDto = {
   level: string;
   health?: string;
   healthScore?: number;
+  parentNodeId?: string;
 };
 
 type GraphEdgeDto = {
@@ -59,6 +60,7 @@ function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
     level: mapLevel(node.level),
     health: resolveHealth(node.health),
     serviceType: inferServiceType(node.name),
+    ...(node.parentNodeId !== undefined && { parentId: node.parentNodeId }),
   }));
 
   const edges: DiagramEdge[] = dto.edges.map((edge) => ({
@@ -75,7 +77,7 @@ const seed: DiagramData = {
   nodes: [
     { id: 'n1', label: 'Frontend SPA', level: 'Container', health: 'green', serviceType: 'app' },
     { id: 'n2', label: 'Identity API', level: 'Container', health: 'green', serviceType: 'api' },
-    { id: 'n3', label: 'Discovery Worker', level: 'Component', health: 'yellow', serviceType: 'queue' },
+    { id: 'n3', label: 'Discovery Worker', level: 'Component', health: 'yellow', serviceType: 'queue', parentId: 'n4' },
     { id: 'n4', label: 'Graph Service', level: 'Container', health: 'green', serviceType: 'api' },
     { id: 'n5', label: 'PostgreSQL', level: 'Container', health: 'green', serviceType: 'database' },
     { id: 'n6', label: 'Redis Cache', level: 'Container', health: 'yellow', drift: true, serviceType: 'cache' },
