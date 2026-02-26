@@ -2,6 +2,7 @@ using C4.Modules.Graph.Application.Ports;
 using C4.Modules.Graph.Infrastructure.AI;
 using C4.Modules.Graph.Infrastructure.Persistence;
 using C4.Modules.Graph.Infrastructure.Persistence.Repositories;
+using C4.Shared.Infrastructure.AI;
 using C4.Shared.Infrastructure.Behaviors;
 using C4.Shared.Infrastructure.Endpoints;
 using C4.Shared.Kernel;
@@ -9,7 +10,6 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Graph.Api;
 
@@ -25,6 +25,8 @@ public static class ServiceCollectionExtensions
             cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
         });
 
+        services.AddSharedSemanticKernel(configuration);
+
         var connectionString = configuration.GetConnectionString("Graph");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -34,17 +36,9 @@ public static class ServiceCollectionExtensions
         {
             services.AddDbContext<GraphDbContext>(options => options.UseNpgsql(connectionString));
         }
-
-        var ollamaEndpoint = configuration["Ollama:Endpoint"] ?? "http://localhost:11434";
-        var chatModel = configuration["Ollama:ChatModel"] ?? "mistral-large-3:675b-cloud";
-
-        var kernelBuilder = Kernel.CreateBuilder();
-#pragma warning disable SKEXP0070
-        kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
-#pragma warning restore SKEXP0070
-
-        var kernel = kernelBuilder.Build();
-        services.AddSingleton(kernel);
+        services.AddSingleton(sp =>
+            sp.GetRequiredService<ISemanticKernelFactory>().Create("Graph",
+                [nameof(ArchitectureAnalysisPlugin), nameof(ThreatDetectionPlugin)]));
         services.AddSingleton<IArchitectureAnalyzer, ArchitectureAnalysisPlugin>();
         services.AddSingleton<IThreatDetector, ThreatDetectionPlugin>();
 
