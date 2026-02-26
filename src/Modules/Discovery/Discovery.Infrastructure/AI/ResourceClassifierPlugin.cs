@@ -1,10 +1,12 @@
+using System.Text;
 using C4.Modules.Discovery.Application.Ports;
 using C4.Modules.Discovery.Domain.Resources;
+using C4.Shared.Kernel.Contracts;
 using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Discovery.Infrastructure.AI;
 
-public sealed class ResourceClassifierPlugin(Kernel kernel) : IResourceClassifier
+public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? learningProvider = null) : IResourceClassifier
 {
     public async Task<AzureResourceClassification> ClassifyAsync(string armResourceType, string resourceName, CancellationToken cancellationToken)
     {
@@ -12,11 +14,13 @@ public sealed class ResourceClassifierPlugin(Kernel kernel) : IResourceClassifie
         if (IsKnownType(armResourceType))
             return catalogResult;
 
+        var learningsSection = await BuildLearningsSectionAsync(cancellationToken);
+
         var prompt = $"""
             Classify the following Azure resource for an architecture diagram.
             Resource Type: {armResourceType}
             Resource Name: {resourceName}
-
+            {learningsSection}
             Respond in this exact format:
             FRIENDLY_NAME: <short friendly name>
             SERVICE_TYPE: <one of: app, api, database, queue, cache, external>
@@ -33,6 +37,32 @@ public sealed class ResourceClassifierPlugin(Kernel kernel) : IResourceClassifie
         catch
         {
             return catalogResult;
+        }
+    }
+
+    private async Task<string> BuildLearningsSectionAsync(CancellationToken cancellationToken)
+    {
+        if (learningProvider is null)
+            return string.Empty;
+
+        try
+        {
+            var learnings = await learningProvider.GetActiveLearningsAsync(Guid.Empty, "ResourceClassification", cancellationToken);
+            if (learnings.Count == 0)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.AppendLine();
+            sb.AppendLine("Previous user feedback learnings about resource classification:");
+            foreach (var learning in learnings.Take(10))
+            {
+                sb.AppendLine($"- [{learning.InsightType}] {learning.Description} (confidence: {learning.Confidence:F2})");
+            }
+            return sb.ToString();
+        }
+        catch
+        {
+            return string.Empty;
         }
     }
 

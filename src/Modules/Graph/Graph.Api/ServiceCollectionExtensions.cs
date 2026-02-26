@@ -45,8 +45,10 @@ public static class ServiceCollectionExtensions
 
         var kernel = kernelBuilder.Build();
         services.AddSingleton(kernel);
-        services.AddSingleton<IArchitectureAnalyzer, ArchitectureAnalysisPlugin>();
-        services.AddSingleton<IThreatDetector, ThreatDetectionPlugin>();
+        services.AddSingleton<IArchitectureAnalyzer>(sp =>
+            new ArchitectureAnalysisPlugin(sp.GetRequiredService<Kernel>(), sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>()));
+        services.AddSingleton<IThreatDetector>(sp =>
+            new ThreatDetectionPlugin(sp.GetRequiredService<Kernel>(), sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>()));
 
         services.AddScoped<IArchitectureGraphRepository, ArchitectureGraphRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<GraphDbContext>());

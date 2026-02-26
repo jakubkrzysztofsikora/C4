@@ -50,7 +50,8 @@ public static class ServiceCollectionExtensions
 
         var kernel = kernelBuilder.Build();
         services.AddSingleton(kernel);
-        services.AddSingleton<IResourceClassifier, ResourceClassifierPlugin>();
+        services.AddSingleton<IResourceClassifier>(sp =>
+            new ResourceClassifierPlugin(sp.GetRequiredService<Kernel>(), sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>()));
 
         services.AddEndpoints(AssemblyReference.Assembly);
 

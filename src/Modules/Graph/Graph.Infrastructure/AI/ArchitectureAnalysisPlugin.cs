@@ -1,18 +1,22 @@
+using System.Text;
 using C4.Modules.Graph.Application.Ports;
+using C4.Shared.Kernel.Contracts;
 using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Graph.Infrastructure.AI;
 
-public sealed class ArchitectureAnalysisPlugin(Kernel kernel) : IArchitectureAnalyzer
+public sealed class ArchitectureAnalysisPlugin(Kernel kernel, ILearningProvider? learningProvider = null) : IArchitectureAnalyzer
 {
     public async Task<ArchitectureAnalysisResult> AnalyzeAsync(string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
     {
+        var learningsSection = await BuildLearningsSectionAsync(cancellationToken);
+
         var prompt = $$"""
             Analyze the following architecture and provide a brief summary and recommendations.
 
             Nodes: {{nodesDescription}}
             Edges: {{edgesDescription}}
-
+            {{learningsSection}}
             Respond with:
             1. A one-paragraph summary of the architecture
             2. Up to 5 specific recommendations for improvement
@@ -28,6 +32,32 @@ public sealed class ArchitectureAnalysisPlugin(Kernel kernel) : IArchitectureAna
         var text = result.GetValue<string>() ?? string.Empty;
 
         return ParseAnalysisResult(text);
+    }
+
+    private async Task<string> BuildLearningsSectionAsync(CancellationToken cancellationToken)
+    {
+        if (learningProvider is null)
+            return string.Empty;
+
+        try
+        {
+            var learnings = await learningProvider.GetActiveLearningsAsync(Guid.Empty, "ArchitectureAnalysis", cancellationToken);
+            if (learnings.Count == 0)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.AppendLine();
+            sb.AppendLine("Previous user feedback learnings to incorporate:");
+            foreach (var learning in learnings.Take(10))
+            {
+                sb.AppendLine($"- [{learning.InsightType}] {learning.Description} (confidence: {learning.Confidence:F2})");
+            }
+            return sb.ToString();
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     private static ArchitectureAnalysisResult ParseAnalysisResult(string text)

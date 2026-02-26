@@ -4,6 +4,7 @@ using C4.Modules.Discovery.Api;
 using C4.Modules.Graph.Api;
 using C4.Modules.Identity.Api;
 using C4.Modules.Telemetry.Api;
+using C4.Modules.Feedback.Api;
 using C4.Modules.Visualization.Api;
 using C4.Modules.Visualization.Api.Hubs;
 using C4.Shared.Infrastructure.Endpoints;
@@ -51,7 +52,8 @@ builder.Services
     .AddDiscoveryModule(builder.Configuration)
     .AddGraphModule(builder.Configuration)
     .AddTelemetryModule(builder.Configuration)
-    .AddVisualizationModule(builder.Configuration);
+    .AddVisualizationModule(builder.Configuration)
+    .AddFeedbackModule(builder.Configuration);
 
 var app = builder.Build();
 
