@@ -1,6 +1,7 @@
 using C4.Modules.Discovery.Api.Adapters;
 using C4.Modules.Discovery.Application.Adapters;
 using C4.Modules.Discovery.Application.Ports;
+using C4.Modules.Discovery.Infrastructure.AI;
 using C4.Modules.Discovery.Infrastructure.Persistence;
 using C4.Modules.Discovery.Infrastructure.Persistence.Repositories;
 using C4.Shared.Infrastructure.Behaviors;
@@ -10,6 +11,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Discovery.Api;
 
@@ -37,6 +39,19 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IIacStateParser, CompositeIacStateParser>();
 
         services.AddSingleton<IUnitOfWork, NoOpDiscoveryUnitOfWork>();
+
+        var ollamaEndpoint = configuration["Ollama:Endpoint"] ?? "http://localhost:11434";
+        var chatModel = configuration["Ollama:ChatModel"] ?? "mistral-large-3:675b-cloud";
+
+        var kernelBuilder = Kernel.CreateBuilder();
+#pragma warning disable SKEXP0070
+        kernelBuilder.AddOllamaChatCompletion(chatModel, new Uri(ollamaEndpoint));
+#pragma warning restore SKEXP0070
+
+        var kernel = kernelBuilder.Build();
+        services.AddSingleton(kernel);
+        services.AddSingleton<IResourceClassifier, ResourceClassifierPlugin>();
+
         services.AddEndpoints(AssemblyReference.Assembly);
 
         return services;

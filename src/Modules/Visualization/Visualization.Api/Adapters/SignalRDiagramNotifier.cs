@@ -8,4 +8,7 @@ public sealed class SignalRDiagramNotifier(IHubContext<DiagramHub, IDiagramClien
 {
     public async Task NotifyDiagramUpdatedAsync(Guid projectId, string diagramJson, CancellationToken cancellationToken) =>
         await hubContext.Clients.Group(projectId.ToString()).DiagramUpdated(projectId, diagramJson);
+
+    public async Task NotifyHealthOverlayChangedAsync(Guid projectId, string healthJson, CancellationToken cancellationToken) =>
+        await hubContext.Clients.Group(projectId.ToString()).HealthOverlayChanged(projectId, healthJson);
 }

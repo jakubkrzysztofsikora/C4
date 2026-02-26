@@ -1,6 +1,6 @@
 using MediatR;
 
-namespace C4.Modules.Telemetry.Application.IntegrationEvents;
+namespace C4.Shared.Kernel.IntegrationEvents;
 
 public sealed record TelemetryUpdatedIntegrationEvent(Guid ProjectId, IReadOnlyCollection<TelemetryUpdatedServiceItem> Services) : INotification;
 

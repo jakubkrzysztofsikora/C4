@@ -9,23 +9,42 @@ namespace C4.Modules.Discovery.Application.DiscoverResources;
 public sealed class DiscoverResourcesHandler(
     IAzureResourceGraphClient resourceGraphClient,
     IDiscoveredResourceRepository discoveredResourceRepository,
+    IResourceClassifier classifier,
     IMediator mediator,
     IUnitOfWork unitOfWork) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
         var records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
-        var resources = records.Select(r => DiscoveredResource.Create(r.ResourceId, r.ResourceType, r.Name)).ToArray();
 
+        var classifiedPairs = new List<(AzureResourceRecord Record, DiscoveredResource Resource)>();
+        foreach (var record in records)
+        {
+            var classification = await classifier.ClassifyAsync(record.ResourceType, record.Name, cancellationToken);
+            var resource = DiscoveredResource.Create(record.ResourceId, record.ResourceType, record.Name, classification);
+            classifiedPairs.Add((record, resource));
+        }
+
+        var resources = classifiedPairs.Select(p => p.Resource).ToList();
         await discoveredResourceRepository.UpsertRangeAsync(request.SubscriptionId, resources, cancellationToken);
 
-        await mediator.Publish(new ResourcesDiscoveredIntegrationEvent(
-            request.ProjectId,
-            resources.Select(r => new DiscoveredResourceEventItem(r.ResourceId, r.ResourceType, r.Name)).ToArray()),
-            cancellationToken);
+        var diagramItems = classifiedPairs
+            .Where(p => p.Resource.Classification?.IncludeInDiagram ?? true)
+            .Select(p => new DiscoveredResourceEventItem(
+                p.Resource.ResourceId,
+                p.Resource.ResourceType,
+                p.Resource.Name,
+                p.Resource.Classification?.FriendlyName,
+                p.Resource.Classification?.ServiceType,
+                p.Resource.Classification?.C4Level,
+                p.Resource.Classification?.IncludeInDiagram ?? true,
+                p.Record.ParentResourceId))
+            .ToArray();
+
+        await mediator.Publish(new ResourcesDiscoveredIntegrationEvent(request.ProjectId, diagramItems), cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result<DiscoverResourcesResponse>.Success(new DiscoverResourcesResponse(request.SubscriptionId, resources.Length));
+        return Result<DiscoverResourcesResponse>.Success(new DiscoverResourcesResponse(request.SubscriptionId, resources.Count));
     }
 }

@@ -6,4 +6,5 @@ public interface ITelemetryRepository
 {
     Task AddMetricAsync(MetricDataPoint metric, CancellationToken cancellationToken);
     Task<ServiceHealth?> GetServiceHealthAsync(Guid projectId, string service, CancellationToken cancellationToken);
+    Task<IReadOnlyCollection<ServiceHealth>> GetAllServiceHealthAsync(Guid projectId, CancellationToken cancellationToken);
 }

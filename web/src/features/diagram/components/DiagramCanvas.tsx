@@ -3,6 +3,7 @@ import '@xyflow/react/dist/style.css';
 import { SiPostgresql, SiRedis, SiDocker } from 'react-icons/si';
 import { LuBoxes, LuCloud, LuGlobe, LuNetwork } from 'react-icons/lu';
 import { DiagramData, DiagramNode } from '../types';
+import { healthColor, trafficColor } from '../utils';
 import '../diagram.css';
 
 function iconFor(type: DiagramNode['serviceType']) {
@@ -17,14 +18,10 @@ function iconFor(type: DiagramNode['serviceType']) {
   }
 }
 
-function nodeColor(health: DiagramNode['health']) {
-  return health === 'green' ? '#2e8f5e' : health === 'yellow' ? '#9d7c35' : '#9e3a3a';
-}
-
 function ServiceNode({ data }: { data: { node: DiagramNode } }) {
   const { node } = data;
   return (
-    <div className="service-node" style={{ borderColor: nodeColor(node.health) }}>
+    <div className="service-node" style={{ borderColor: healthColor(node.health) }}>
       <div className="header">
         <div className="title">{iconFor(node.serviceType)} <span>{node.label}</span></div>
         <span className={`badge ${node.health}`}>{node.health.toUpperCase()}</span>
@@ -51,8 +48,8 @@ export function DiagramCanvas({ data }: { data: DiagramData }) {
     id: edge.id,
     source: edge.from,
     target: edge.to,
-    markerEnd: { type: MarkerType.ArrowClosed, color: edge.traffic >= .8 ? '#2e8f5e' : edge.traffic >= .5 ? '#9d7c35' : '#9e3a3a' },
-    style: { strokeWidth: 2, stroke: edge.traffic >= .8 ? '#2e8f5e' : edge.traffic >= .5 ? '#9d7c35' : '#9e3a3a' },
+    markerEnd: { type: MarkerType.ArrowClosed, color: trafficColor(edge.traffic) },
+    style: { strokeWidth: 2, stroke: trafficColor(edge.traffic) },
     label: `${Math.round(edge.traffic * 100)}%`
   }));
 
@@ -60,7 +57,7 @@ export function DiagramCanvas({ data }: { data: DiagramData }) {
     <div className="diagram-stage">
       <ReactFlow fitView nodes={nodes} edges={edges} nodeTypes={nodeTypes}>
         <Background color="#203357" gap={18} size={1} />
-        <MiniMap nodeColor={(n) => nodeColor((n.data as { node: DiagramNode }).node.health)} />
+        <MiniMap nodeColor={(n) => healthColor((n.data as { node: DiagramNode }).node.health)} />
         <Controls />
       </ReactFlow>
     </div>

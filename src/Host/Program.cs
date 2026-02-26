@@ -1,3 +1,4 @@
+using System.Text;
 using C4.Host;
 using C4.Modules.Discovery.Api;
 using C4.Modules.Graph.Api;
@@ -7,6 +8,7 @@ using C4.Modules.Visualization.Api;
 using C4.Modules.Visualization.Api.Hubs;
 using C4.Shared.Infrastructure.Endpoints;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,9 +20,18 @@ builder.Services.AddSignalR();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.Authority = builder.Configuration["Authentication:Authority"];
-        options.Audience = builder.Configuration["Authentication:Audience"];
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        string signingKey = builder.Configuration["Jwt:SigningKey"] ?? "c4-development-signing-key-min-32-chars!!";
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "c4-api",
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "c4-web",
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
     });
 builder.Services.AddAuthorization();
 builder.Services.AddCors(options =>
@@ -55,7 +66,12 @@ if (app.Environment.IsDevelopment())
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseHttpsRedirection();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 app.MapHealthChecks("/health");
 app.MapHub<DiagramHub>("/hubs/diagram");
 app.MapEndpoints();

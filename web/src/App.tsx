@@ -1,35 +1,39 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode } from 'react';
 import { DashboardPage } from './features/dashboard/DashboardPage';
 import { Layout } from './shared/components/Layout';
 import { AuthPage } from './features/auth/AuthPage';
 import { OrganizationProjectsPage } from './features/organization/OrganizationProjectsPage';
 import { SubscriptionWizardPage } from './features/subscription/SubscriptionWizardPage';
 import { DiagramPage } from './features/diagram/DiagramPage';
+import { AuthProvider, useAuth } from './shared/auth/AuthContext';
 
-function ProtectedRoute({ token, children }: { token: string | null; children: ReactNode }) {
-  return token ? children : <Navigate to="/login" replace />;
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<AuthPage />} />
+      <Route element={<Layout />} path="/">
+        <Route index element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="organizations" element={<ProtectedRoute><OrganizationProjectsPage /></ProtectedRoute>} />
+        <Route path="subscriptions" element={<ProtectedRoute><SubscriptionWizardPage /></ProtectedRoute>} />
+        <Route path="diagram" element={<ProtectedRoute><DiagramPage /></ProtectedRoute>} />
+        <Route path="diagram/:projectId" element={<ProtectedRoute><DiagramPage /></ProtectedRoute>} />
+      </Route>
+    </Routes>
+  );
 }
 
 export function App() {
-  const [token, setToken] = useState<string | null>(null);
-
-  const onLogin = (value: string) => {
-    setToken(value);
-  };
-
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<AuthPage onLogin={onLogin} />} />
-        <Route element={<Layout />} path="/">
-          <Route index element={<ProtectedRoute token={token}><DashboardPage /></ProtectedRoute>} />
-          <Route path="organizations" element={<ProtectedRoute token={token}><OrganizationProjectsPage /></ProtectedRoute>} />
-          <Route path="subscriptions" element={<ProtectedRoute token={token}><SubscriptionWizardPage /></ProtectedRoute>} />
-          <Route path="diagram" element={<ProtectedRoute token={token}><DiagramPage /></ProtectedRoute>} />
-          <Route path="diagram/:projectId" element={<ProtectedRoute token={token}><DiagramPage /></ProtectedRoute>} />
-        </Route>
-      </Routes>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </BrowserRouter>
   );
 }
