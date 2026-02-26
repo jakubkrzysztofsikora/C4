@@ -5,9 +5,13 @@ using Microsoft.SemanticKernel;
 
 namespace C4.Shared.Infrastructure.AI;
 
+public sealed record SemanticKernelCreationResult(
+    Microsoft.SemanticKernel.Kernel Kernel,
+    IReadOnlyCollection<string> EnabledTools);
+
 public interface ISemanticKernelFactory
 {
-    Microsoft.SemanticKernel.Kernel Create(string moduleName, IEnumerable<string> discoveredTools);
+    SemanticKernelCreationResult Create(string moduleName, IEnumerable<string> discoveredTools);
 }
 
 public interface ISemanticKernelTelemetryHook
@@ -31,7 +35,7 @@ internal sealed class SemanticKernelFactory(
 {
     private readonly SemanticKernelOptions _options = options.Value;
 
-    public Microsoft.SemanticKernel.Kernel Create(string moduleName, IEnumerable<string> discoveredTools)
+    public SemanticKernelCreationResult Create(string moduleName, IEnumerable<string> discoveredTools)
     {
         var toolNames = discoveredTools.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var filterOptions = ResolveToolFilterOptions(hostEnvironment.EnvironmentName);
@@ -67,7 +71,7 @@ internal sealed class SemanticKernelFactory(
             enabledTools.Length,
             _options.RemoteMcpServers.Count);
 
-        return kernel;
+        return new SemanticKernelCreationResult(kernel, enabledTools);
     }
 
     private ToolFilterOptions ResolveToolFilterOptions(string environmentName)
@@ -79,20 +83,17 @@ internal sealed class SemanticKernelFactory(
 
     private static bool IsToolEnabled(string toolName, ToolFilterOptions options)
     {
-        var allowList = options.AllowList;
-        var denyList = options.DenyList;
-
-        if (denyList.Contains(toolName, StringComparer.OrdinalIgnoreCase))
+        if (options.DenyList.Contains(toolName))
         {
             return false;
         }
 
-        if (allowList.Count == 0)
+        if (options.AllowList.Count == 0)
         {
             return true;
         }
 
-        return allowList.Contains(toolName, StringComparer.OrdinalIgnoreCase);
+        return options.AllowList.Contains(toolName);
     }
 }
 

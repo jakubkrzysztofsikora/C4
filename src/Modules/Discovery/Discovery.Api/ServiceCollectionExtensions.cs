@@ -41,10 +41,20 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IIacStateParser, CompositeIacStateParser>();
 
         services.AddSingleton<IUnitOfWork, NoOpDiscoveryUnitOfWork>();
-        services.AddSingleton(sp =>
+        services.AddKeyedSingleton<SemanticKernelCreationResult>("Discovery", (sp, _) =>
             sp.GetRequiredService<ISemanticKernelFactory>().Create("Discovery",
                 [nameof(ResourceClassifierPlugin)]));
-        services.AddSingleton<IResourceClassifier, ResourceClassifierPlugin>();
+        services.AddSingleton(sp =>
+            sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Discovery").Kernel);
+        services.AddSingleton<IResourceClassifier>(sp =>
+        {
+            var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Discovery");
+            return result.EnabledTools.Contains(nameof(ResourceClassifierPlugin))
+                ? new ResourceClassifierPlugin(result.Kernel)
+                : throw new InvalidOperationException(
+                    $"{nameof(ResourceClassifierPlugin)} is required but disabled by the tool filter. " +
+                    $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");
+        });
 
         services.AddEndpoints(AssemblyReference.Assembly);
 

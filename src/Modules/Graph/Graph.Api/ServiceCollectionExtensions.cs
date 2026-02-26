@@ -36,11 +36,29 @@ public static class ServiceCollectionExtensions
         {
             services.AddDbContext<GraphDbContext>(options => options.UseNpgsql(connectionString));
         }
-        services.AddSingleton(sp =>
+        services.AddKeyedSingleton<SemanticKernelCreationResult>("Graph", (sp, _) =>
             sp.GetRequiredService<ISemanticKernelFactory>().Create("Graph",
                 [nameof(ArchitectureAnalysisPlugin), nameof(ThreatDetectionPlugin)]));
-        services.AddSingleton<IArchitectureAnalyzer, ArchitectureAnalysisPlugin>();
-        services.AddSingleton<IThreatDetector, ThreatDetectionPlugin>();
+        services.AddSingleton(sp =>
+            sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Graph").Kernel);
+        services.AddSingleton<IArchitectureAnalyzer>(sp =>
+        {
+            var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Graph");
+            return result.EnabledTools.Contains(nameof(ArchitectureAnalysisPlugin))
+                ? new ArchitectureAnalysisPlugin(result.Kernel)
+                : throw new InvalidOperationException(
+                    $"{nameof(ArchitectureAnalysisPlugin)} is required but disabled by the tool filter. " +
+                    $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");
+        });
+        services.AddSingleton<IThreatDetector>(sp =>
+        {
+            var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Graph");
+            return result.EnabledTools.Contains(nameof(ThreatDetectionPlugin))
+                ? new ThreatDetectionPlugin(result.Kernel)
+                : throw new InvalidOperationException(
+                    $"{nameof(ThreatDetectionPlugin)} is required but disabled by the tool filter. " +
+                    $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");
+        });
 
         services.AddScoped<IArchitectureGraphRepository, ArchitectureGraphRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<GraphDbContext>());
