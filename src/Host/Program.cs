@@ -60,9 +60,10 @@ builder.Services
 
 var app = builder.Build();
 
+await SeedDataService.MigrateAndSeedAsync(app);
+
 if (app.Environment.IsDevelopment())
 {
-    await SeedDataService.MigrateAndSeedAsync(app);
     app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI();

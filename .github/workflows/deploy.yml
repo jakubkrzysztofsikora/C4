@@ -218,7 +218,11 @@ jobs:
               environment:
                 ASPNETCORE_ENVIRONMENT: Production
                 ASPNETCORE_URLS: http://+:5000
-                ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+                ConnectionStrings__Identity: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+                ConnectionStrings__Discovery: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+                ConnectionStrings__Graph: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+                ConnectionStrings__Telemetry: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+                ConnectionStrings__Visualization: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
                 Frontend__Origin: ${FRONTEND_ORIGIN}
               ports:
                 - "127.0.0.1:5000:5000"
