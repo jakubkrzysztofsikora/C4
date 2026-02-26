@@ -1,0 +1,75 @@
+using C4.Modules.Identity.Application.LoginUser;
+using C4.Modules.Identity.Application.Ports;
+using C4.Modules.Identity.Domain.User;
+using C4.Shared.Kernel;
+
+namespace C4.Modules.Identity.Tests;
+
+public sealed class LoginUserHandlerTests
+{
+    private const string ValidEmail = "test@example.com";
+    private const string ValidPassword = "SecurePass1!";
+    private const string DisplayName = "Test User";
+    private const string GeneratedToken = "jwt_token_value";
+
+    [Fact]
+    public async Task Handle_ValidCredentials_ReturnsToken()
+    {
+        var userRepository = new RegisterUserHandlerTests.FakeUserRepository();
+        await SeedUserAsync(userRepository);
+        var handler = CreateHandler(userRepository);
+
+        var result = await handler.Handle(
+            new LoginUserCommand(ValidEmail, ValidPassword),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Email.Should().Be(ValidEmail);
+        result.Value.DisplayName.Should().Be(DisplayName);
+        result.Value.Token.Should().Be(GeneratedToken);
+    }
+
+    [Fact]
+    public async Task Handle_UnknownEmail_ReturnsInvalidCredentialsError()
+    {
+        var handler = CreateHandler();
+
+        var result = await handler.Handle(
+            new LoginUserCommand("unknown@example.com", ValidPassword),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("identity.user.invalid_credentials");
+    }
+
+    [Fact]
+    public async Task Handle_WrongPassword_ReturnsInvalidCredentialsError()
+    {
+        var userRepository = new RegisterUserHandlerTests.FakeUserRepository();
+        await SeedUserAsync(userRepository);
+        var passwordHasher = new RegisterUserHandlerTests.FakePasswordHasher();
+        var handler = CreateHandler(userRepository, passwordHasher);
+
+        var result = await handler.Handle(
+            new LoginUserCommand(ValidEmail, "WrongPassword!"),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("identity.user.invalid_credentials");
+    }
+
+    private static async Task SeedUserAsync(RegisterUserHandlerTests.FakeUserRepository repository)
+    {
+        var hasher = new RegisterUserHandlerTests.FakePasswordHasher();
+        var user = User.Create(ValidEmail, hasher.Hash(ValidPassword), DisplayName);
+        await repository.AddAsync(user, CancellationToken.None);
+    }
+
+    private static LoginUserHandler CreateHandler(
+        RegisterUserHandlerTests.FakeUserRepository? userRepository = null,
+        RegisterUserHandlerTests.FakePasswordHasher? passwordHasher = null) =>
+        new(
+            userRepository ?? new RegisterUserHandlerTests.FakeUserRepository(),
+            passwordHasher ?? new RegisterUserHandlerTests.FakePasswordHasher(),
+            new RegisterUserHandlerTests.FakeTokenService());
+}
