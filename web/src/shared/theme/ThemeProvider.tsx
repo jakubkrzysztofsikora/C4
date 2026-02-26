@@ -1,5 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import { tokens } from './tokens';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -8,10 +7,22 @@ type ThemeContextValue = {
   toggleMode: () => void;
 };
 
+const THEME_STORAGE_KEY = 'c4_theme';
+
+function loadStoredTheme(): ThemeMode {
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  return stored === 'light' ? 'light' : 'dark';
+}
+
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>('dark');
+  const [mode, setMode] = useState<ThemeMode>(loadStoredTheme);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', mode);
+    localStorage.setItem(THEME_STORAGE_KEY, mode);
+  }, [mode]);
 
   const value = useMemo(
     () => ({
@@ -21,11 +32,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [mode]
   );
 
-  const palette = tokens.colors[mode];
-
   return (
     <ThemeContext.Provider value={value}>
-      <div style={{ backgroundColor: palette.background, color: palette.foreground, minHeight: '100vh' }}>{children}</div>
+      {children}
     </ThemeContext.Provider>
   );
 }

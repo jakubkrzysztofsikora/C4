@@ -1,6 +1,7 @@
 using C4.Modules.Identity.Application.Ports;
 using C4.Modules.Identity.Infrastructure.Persistence;
 using C4.Modules.Identity.Infrastructure.Repositories;
+using C4.Modules.Identity.Infrastructure.Security;
 using C4.Shared.Infrastructure.Behaviors;
 using C4.Shared.Infrastructure.Endpoints;
 using C4.Shared.Kernel;
@@ -39,7 +40,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IOrganizationRepository, OrganizationRepository>();
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IMemberRepository, MemberRepository>();
+        services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<IdentityDbContext>());
+        services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
+        services.AddSingleton<ITokenService, JwtTokenService>();
 
         services.AddEndpoints(AssemblyReference.Assembly);
         return services;

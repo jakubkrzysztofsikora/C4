@@ -19,8 +19,16 @@ export function DiagramPage() {
         <h2 style={{ marginTop: 0 }}>Architecture Diagram</h2>
         <p className="subtle">Professional C4-style view with service icons, health overlays, and drift highlights.</p>
 
-        {loading && <p>Loading graph data...</p>}
-        {error !== undefined && <p style={{ color: '#e74c3c' }}>{error}</p>}
+        {loading && (
+          <div className="loading-state">
+            <span className="spinner" />
+            Loading graph data...
+          </div>
+        )}
+
+        {error !== undefined && (
+          <p style={{ color: 'var(--error)' }}>{error}</p>
+        )}
 
         <div className="toolbox">
           <label>

@@ -21,8 +21,7 @@ internal sealed class RegisterUserHandler(
         }
 
         string passwordHash = passwordHasher.Hash(command.Password);
-        string displayName = command.Email.Split('@')[0];
-        User user = User.Create(command.Email.Trim(), passwordHash, displayName);
+        User user = User.Create(command.Email.Trim(), passwordHash, command.DisplayName.Trim());
 
         await userRepository.AddAsync(user, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
