@@ -3,6 +3,7 @@ using C4.Shared.Kernel.IntegrationEvents;
 using C4.Modules.Discovery.Domain.Resources;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace C4.Modules.Discovery.Application.DiscoverResources;
 
@@ -12,6 +13,7 @@ public sealed class DiscoverResourcesHandler(
     IResourceClassifier classifier,
     IMediator mediator,
     IUnitOfWork unitOfWork,
+    ILogger<DiscoverResourcesHandler> logger,
     MultiSourceDiscoveryPlanner? planner = null,
     IDiscoveryTelemetryEventSink? telemetryEventSink = null) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
@@ -24,8 +26,9 @@ public sealed class DiscoverResourcesHandler(
         {
             records = await resourceGraphClient.GetResourcesAsync(request.ExternalSubscriptionId, cancellationToken);
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Failed to retrieve resources from Azure Resource Graph; proceeding without Azure results.");
             azureAvailable = false;
             records = [];
         }
