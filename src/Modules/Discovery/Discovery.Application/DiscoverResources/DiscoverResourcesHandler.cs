@@ -10,6 +10,7 @@ public sealed class DiscoverResourcesHandler(
     IDiscoveryInputProvider discoveryInputProvider,
     IDiscoveredResourceRepository discoveredResourceRepository,
     IResourceClassifier classifier,
+    IDiscoveryDataPreparer discoveryDataPreparer,
     IMediator mediator,
     IUnitOfWork unitOfWork) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
@@ -61,7 +62,12 @@ public sealed class DiscoverResourcesHandler(
                 p.Resource.Classification?.ServiceType,
                 p.Resource.Classification?.C4Level,
                 p.Resource.Classification?.IncludeInDiagram ?? true,
-                p.Record.ParentResourceId))
+                p.Record.RawParentResourceId,
+                p.Record.SourceProvenance,
+                p.Record.ConfidenceScore,
+                p.Record.Relationships.FirstOrDefault()?.RelationshipType,
+                p.Record.Relationships.FirstOrDefault()?.RelatedStableResourceId,
+                p.Record.StableResourceId))
             .ToArray();
 
         await mediator.Publish(new ResourcesDiscoveredIntegrationEvent(request.ProjectId, diagramItems), cancellationToken);
@@ -81,4 +87,12 @@ public sealed class DiscoverResourcesHandler(
                 escalation.UserActionHint,
                 dataQualityFailures));
     }
+
+    private static string MapSourceProvenance(DiscoverySourceKind source) => source switch
+    {
+        DiscoverySourceKind.AzureSubscription => "azure",
+        DiscoverySourceKind.RepositoryIac => "repo",
+        DiscoverySourceKind.RemoteMcp => "mcp",
+        _ => source.ToString().ToLowerInvariant()
+    };
 }

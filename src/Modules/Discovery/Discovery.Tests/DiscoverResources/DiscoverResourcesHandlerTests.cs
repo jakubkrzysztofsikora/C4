@@ -15,7 +15,11 @@ public sealed class DiscoverResourcesHandlerTests
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
+<<<<<<< codex/add-error-taxonomy-and-extend-contracts
         var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new FakeMediator(), new FakeUnitOfWork());
+=======
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork());
+>>>>>>> main
         var subscriptionId = Guid.NewGuid();
 
         var result = await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
@@ -61,7 +65,11 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
+<<<<<<< codex/add-error-taxonomy-and-extend-contracts
         var handler = new DiscoverResourcesHandler(new MixedDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
+=======
+        var handler = new DiscoverResourcesHandler(new MixedDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
+>>>>>>> main
         var subscriptionId = Guid.NewGuid();
 
         await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
@@ -76,7 +84,11 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
+<<<<<<< codex/add-error-taxonomy-and-extend-contracts
         var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
+=======
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
+>>>>>>> main
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -90,15 +102,42 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
+<<<<<<< codex/add-error-taxonomy-and-extend-contracts
         var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, mediator, new FakeUnitOfWork());
+=======
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
+>>>>>>> main
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
         mediator.PublishedEvent.Should().NotBeNull();
         var childItem = mediator.PublishedEvent!.Resources.Single(r => r.ResourceId == "/r2");
         childItem.ParentResourceId.Should().Be("/r1");
+        childItem.NormalizedRelatedResourceId.Should().Be("/r1");
     }
 
+<<<<<<< codex/add-error-taxonomy-and-extend-contracts
+=======
+    [Fact]
+    public async Task Handle_EmitsProvenanceAndConfidenceMetadata()
+    {
+        var repo = new FakeDiscoveredResourceRepository();
+        var classifier = new FakeResourceClassifier();
+        var mediator = new CapturingMediator();
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork());
+
+        await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
+
+        mediator.PublishedEvent.Should().NotBeNull();
+        mediator.PublishedEvent!.Resources.Should().AllSatisfy(item =>
+        {
+            item.SourceProvenance.Should().Be("azure");
+            item.ConfidenceScore.Should().Be(0.95);
+            item.StableResourceId.Should().NotBeNullOrWhiteSpace();
+        });
+    }
+
+>>>>>>> main
     private sealed class FakeDiscoveryInputProvider : IDiscoveryInputProvider
     {
         public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
