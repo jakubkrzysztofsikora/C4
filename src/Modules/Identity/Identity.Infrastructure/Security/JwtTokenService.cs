@@ -8,7 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace C4.Modules.Identity.Infrastructure.Security;
 
-internal sealed class JwtTokenService(IConfiguration configuration) : ITokenService
+public sealed class JwtTokenService(IConfiguration configuration) : ITokenService
 {
     public string GenerateToken(UserId userId, string email, string displayName)
     {
