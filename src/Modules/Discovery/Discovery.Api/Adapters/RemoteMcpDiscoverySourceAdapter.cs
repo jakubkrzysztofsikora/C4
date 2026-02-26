@@ -8,6 +8,6 @@ public sealed class RemoteMcpDiscoverySourceAdapter : IDiscoverySourceAdapter
 
     public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
     {
-        return Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>([]);
+        return Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(Array.Empty<DiscoveryResourceDescriptor>());
     }
 }
