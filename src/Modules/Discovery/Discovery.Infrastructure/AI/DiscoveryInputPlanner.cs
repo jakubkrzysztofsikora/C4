@@ -5,8 +5,10 @@ using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Discovery.Infrastructure.AI;
 
-public sealed class DiscoveryInputPlanner(Kernel kernel) : IDiscoveryInputPlanner
+public sealed class DiscoveryInputPlanner : IDiscoveryInputPlanner
 {
+    private const string PlannerPluginName = "discovery_tools";
+
     private const string PlannerPrompt = """
         <system>
         You are a discovery orchestration planner.
@@ -37,11 +39,17 @@ public sealed class DiscoveryInputPlanner(Kernel kernel) : IDiscoveryInputPlanne
         <inputContext>{{$context}}</inputContext>
         """;
 
+    private readonly Kernel _kernel;
+
+    public DiscoveryInputPlanner(Kernel kernel)
+    {
+        if (!kernel.Plugins.Contains(PlannerPluginName))
+            kernel.Plugins.AddFromObject(new DiscoveryPlannerToolsPlugin(), PlannerPluginName);
+        _kernel = kernel;
+    }
+
     public async Task<DiscoveryPlan> BuildPlanAsync(string userIntent, string inputContext, CancellationToken cancellationToken)
     {
-        if (!kernel.Plugins.Contains(DiscoveryToolNames.PluginName))
-            kernel.Plugins.AddFromObject(new DiscoveryPlannerToolsPlugin(), DiscoveryToolNames.PluginName);
-
         var arguments = new KernelArguments(new PromptExecutionSettings
         {
             FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
@@ -51,7 +59,7 @@ public sealed class DiscoveryInputPlanner(Kernel kernel) : IDiscoveryInputPlanne
             ["context"] = inputContext
         };
 
-        var result = await kernel.InvokePromptAsync(PlannerPrompt, arguments, cancellationToken: cancellationToken);
+        var result = await _kernel.InvokePromptAsync(PlannerPrompt, arguments, cancellationToken: cancellationToken);
         var text = result.GetValue<string>() ?? string.Empty;
 
         var parsed = TryParsePlan(text);

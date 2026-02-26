@@ -1,4 +1,5 @@
 using C4.Modules.Discovery.Api.Adapters;
+using C4.Modules.Discovery.Application.DiscoverResources;
 using C4.Modules.Discovery.Application.Adapters;
 using C4.Modules.Discovery.Application.Ports;
 using C4.Modules.Discovery.Infrastructure.AI;
@@ -45,11 +46,21 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IIacStateParser, CompositeIacStateParser>();
 
         services.AddSingleton<IUnitOfWork, NoOpDiscoveryUnitOfWork>();
+        services.AddSingleton<IDiscoveryDataPreparer, DiscoveryDataPreparer>();
+        services.AddSingleton<MultiSourceDiscoveryPlanner>();
+        services.AddSingleton<IDiscoveryTelemetryEventSink, DiscoveryStructuredTelemetryEventSink>();
+        services.AddSingleton<DiscoveryPromptRenderFilter>();
+        services.AddSingleton<DiscoveryFunctionInvocationFilter>();
         services.AddKeyedSingleton<SemanticKernelCreationResult>("Discovery", (sp, _) =>
             sp.GetRequiredService<ISemanticKernelFactory>().Create("Discovery",
                 [nameof(ResourceClassifierPlugin)]));
         services.AddSingleton(sp =>
-            sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Discovery").Kernel);
+        {
+            var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Discovery");
+            result.Kernel.PromptRenderFilters.Add(sp.GetRequiredService<DiscoveryPromptRenderFilter>());
+            result.Kernel.FunctionInvocationFilters.Add(sp.GetRequiredService<DiscoveryFunctionInvocationFilter>());
+            return result.Kernel;
+        });
         services.AddSingleton<IResourceClassifier>(sp =>
         {
             var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Discovery");
