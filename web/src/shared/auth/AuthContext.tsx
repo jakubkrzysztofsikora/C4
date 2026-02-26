@@ -21,7 +21,7 @@ type AuthState = {
   user: AuthUser | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => void;
 };
 
@@ -84,10 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyToken(response.token);
   }, [applyToken]);
 
-  const register = useCallback(async (email: string, password: string) => {
-    const response = await postJson<{ email: string; password: string }, RegisterResponse>(
+  const register = useCallback(async (email: string, password: string, displayName: string) => {
+    const response = await postJson<{ email: string; password: string; displayName: string }, RegisterResponse>(
       '/api/auth/register',
-      { email, password }
+      { email, password, displayName }
     );
     applyToken(response.token);
   }, [applyToken]);

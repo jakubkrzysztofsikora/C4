@@ -35,4 +35,15 @@ describe('AuthPage', () => {
     const rendered = renderToString(<AuthPageHarness />);
     expect(rendered).toContain('C4 Platform');
   });
+
+  it('does not render display name field on sign in tab', () => {
+    const rendered = renderToString(
+      <MemoryRouter>
+        <AuthProvider>
+          <AuthPage />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+    expect(rendered).not.toContain('auth-display-name');
+  });
 });
