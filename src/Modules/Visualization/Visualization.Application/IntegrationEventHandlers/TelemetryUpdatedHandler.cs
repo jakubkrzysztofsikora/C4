@@ -5,7 +5,7 @@ using MediatR;
 
 namespace C4.Modules.Visualization.Application.IntegrationEventHandlers;
 
-internal sealed class TelemetryUpdatedHandler(IDiagramNotifier notifier) : INotificationHandler<TelemetryUpdatedIntegrationEvent>
+public sealed class TelemetryUpdatedHandler(IDiagramNotifier notifier) : INotificationHandler<TelemetryUpdatedIntegrationEvent>
 {
     public async Task Handle(TelemetryUpdatedIntegrationEvent notification, CancellationToken cancellationToken)
     {
