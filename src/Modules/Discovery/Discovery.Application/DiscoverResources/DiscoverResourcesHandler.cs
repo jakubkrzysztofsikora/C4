@@ -4,6 +4,7 @@ using C4.Modules.Discovery.Domain.Resources;
 using C4.Shared.Kernel;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace C4.Modules.Discovery.Application.DiscoverResources;
 
@@ -14,16 +15,24 @@ public sealed class DiscoverResourcesHandler(
     IResourceClassifier classifier,
     IDiscoveryDataPreparer discoveryDataPreparer,
     IMediator mediator,
-    [FromKeyedServices("Discovery")] IUnitOfWork unitOfWork) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
+    [FromKeyedServices("Discovery")] IUnitOfWork unitOfWork,
+    ILogger<DiscoverResourcesHandler> logger) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
     private const string DefaultUserIntent = "Discover Azure resources for connected subscription";
 
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
-        await planner.BuildPlanAsync(
-            DefaultUserIntent,
-            $"SubscriptionId={request.SubscriptionId}; ExternalSubscriptionId={request.ExternalSubscriptionId}; ProjectId={request.ProjectId}",
-            cancellationToken);
+        try
+        {
+            await planner.BuildPlanAsync(
+                DefaultUserIntent,
+                $"SubscriptionId={request.SubscriptionId}; ExternalSubscriptionId={request.ExternalSubscriptionId}; ProjectId={request.ProjectId}",
+                cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Discovery planner failed; continuing with default pipeline");
+        }
 
         var normalizedRequest = new NormalizedDiscoveryRequest(
             request.ProjectId,
