@@ -53,6 +53,9 @@ public sealed class RegisterOrganizationHandlerTests
             _organizations.TryGetValue(organizationId, out var organization);
             return Task.FromResult(organization);
         }
+
+        public Task<Organization?> GetFirstAsync(CancellationToken cancellationToken)
+            => Task.FromResult(_organizations.Values.FirstOrDefault());
     }
 
     private sealed class FakeUnitOfWork : IUnitOfWork

@@ -48,6 +48,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDiscoveredResourceRepository, InMemoryDiscoveredResourceRepository>();
         services.AddSingleton<IDriftResultRepository, InMemoryDriftResultRepository>();
         services.AddSingleton<IAzureResourceGraphClient, FakeAzureResourceGraphClient>();
+        services.AddHttpClient();
+        services.AddSingleton<IAzureIdentityService, AzureIdentityService>();
         services.AddSingleton<IDiscoverySourceAdapter, AzureSubscriptionDiscoverySourceAdapter>();
         services.AddSingleton<IDiscoverySourceAdapter, RepositoryIacDiscoverySourceAdapter>();
         services.AddSingleton<IDiscoverySourceAdapter, RemoteMcpDiscoverySourceAdapter>();

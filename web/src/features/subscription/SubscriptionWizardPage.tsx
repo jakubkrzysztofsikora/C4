@@ -1,21 +1,26 @@
-import { useState } from 'react';
-import { MdCloud, MdCheckCircle, MdLink } from 'react-icons/md';
+import { MdCloud, MdCheckCircle } from 'react-icons/md';
 import { useSubscriptions } from './useSubscriptions';
 
 export function SubscriptionWizardPage() {
-  const { connectedSubscription, loading, error, connectSubscription } = useSubscriptions();
+  const { connectedSubscription, loading, error, startAzureAuth } = useSubscriptions();
 
-  const [subscriptionId, setSubscriptionId] = useState('');
-  const [displayName, setDisplayName] = useState('');
-
-  async function handleConnect() {
-    if (!subscriptionId || !displayName) return;
-    await connectSubscription(subscriptionId, displayName);
+  if (loading) {
+    return (
+      <section className="fade-in">
+        <h1 style={{ marginTop: 0, marginBottom: 4 }}>Azure Subscription</h1>
+        <div className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="skeleton" style={{ height: 20, width: '40%' }} />
+            <div className="skeleton" style={{ height: 14, width: '60%' }} />
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (
     <section className="fade-in">
-      <h1 style={{ marginTop: 0, marginBottom: 4 }}>Azure Subscription Wizard</h1>
+      <h1 style={{ marginTop: 0, marginBottom: 4 }}>Azure Subscription</h1>
       <p className="subtle" style={{ marginTop: 0, marginBottom: 20 }}>
         Connect your Azure subscription to enable architecture discovery.
       </p>
@@ -50,63 +55,28 @@ export function SubscriptionWizardPage() {
           >
             <MdCloud size={16} style={{ color: 'var(--muted)', flexShrink: 0 }} />
             <span style={{ fontSize: 13, color: 'var(--muted)', fontFamily: 'monospace' }}>
-              {connectedSubscription.subscriptionId}
+              {connectedSubscription.externalSubscriptionId}
             </span>
           </div>
         </div>
       ) : (
         <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <MdCloud size={20} style={{ color: 'var(--accent)' }} />
-            <div>
-              <div style={{ fontWeight: 600 }}>Connect Azure Subscription</div>
-              <div style={{ fontSize: 13, color: 'var(--muted)' }}>Pending connection</div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '24px 0' }}>
+            <MdCloud size={48} style={{ color: '#0078D4' }} />
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 4 }}>Connect with Azure</div>
+              <div style={{ fontSize: 14, color: 'var(--muted)', maxWidth: 360 }}>
+                Sign in with your Microsoft account to discover and connect your Azure subscriptions automatically.
+              </div>
             </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="subscription-id-input">Subscription ID</label>
-              <input
-                className="input"
-                id="subscription-id-input"
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                value={subscriptionId}
-                onChange={(e) => setSubscriptionId(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="display-name-input">Display Name</label>
-              <input
-                className="input"
-                id="display-name-input"
-                placeholder="Production"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-
             <button
               className="btn btn-primary"
-              style={{ alignSelf: 'flex-start' }}
               type="button"
-              onClick={() => void handleConnect()}
-              disabled={loading || !subscriptionId || !displayName}
+              onClick={() => void startAzureAuth()}
+              style={{ gap: 8, padding: '10px 24px', fontSize: 15 }}
             >
-              {loading ? (
-                <>
-                  <span className="spinner spinner-sm" />
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <MdLink size={16} />
-                  Connect
-                </>
-              )}
+              <MdCloud size={16} />
+              Sign in with Microsoft
             </button>
           </div>
         </div>

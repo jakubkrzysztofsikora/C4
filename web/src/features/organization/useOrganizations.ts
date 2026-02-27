@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { postJson, ApiError } from '../../shared/api/client';
+import { useCallback, useEffect, useState } from 'react';
+import { postJson, getJsonOrNull, ApiError } from '../../shared/api/client';
 
 type RegisterOrganizationRequest = { name: string };
 type RegisterOrganizationResponse = { organizationId: string; name: string };
@@ -8,6 +8,12 @@ type CreateProjectRequest = { name: string };
 type CreateProjectResponse = { projectId: string; organizationId: string; name: string };
 
 type Project = { id: string; name: string };
+
+type GetOrganizationResponse = {
+  organizationId: string;
+  name: string;
+  projects: ReadonlyArray<{ projectId: string; name: string }>;
+};
 
 type OrganizationState = {
   organizationId: string | undefined;
@@ -36,9 +42,30 @@ export function useOrganizations() {
     organizationId: undefined,
     organizationName: '',
     projects: [],
-    loading: false,
+    loading: true,
     error: undefined,
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const data = await getJsonOrNull<GetOrganizationResponse>('/api/organizations/current');
+      if (cancelled) return;
+      if (data === null) {
+        setState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+      setState({
+        organizationId: data.organizationId,
+        organizationName: data.name,
+        projects: data.projects.map(p => ({ id: p.projectId, name: p.name })),
+        loading: false,
+        error: undefined,
+      });
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, []);
 
   const registerOrganization = useCallback(async (name: string) => {
     setState((prev) => ({ ...prev, loading: true, error: undefined }));

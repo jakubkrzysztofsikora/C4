@@ -68,6 +68,39 @@
 
 .legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 
+.diagram-stage .react-flow__minimap {
+  background: #0d172a;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.diagram-stage .react-flow__controls {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.diagram-stage .react-flow__controls button {
+  background: #132443;
+  border: 1px solid #324a73;
+  color: #e8edf7;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+}
+
+.diagram-stage .react-flow__controls button:hover {
+  background: #1c3460;
+}
+
+.diagram-stage .react-flow__controls button svg {
+  fill: #e8edf7;
+}
+
+.diagram-stage .react-flow__attribution {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .diagram-grid {
     grid-template-columns: 1fr;

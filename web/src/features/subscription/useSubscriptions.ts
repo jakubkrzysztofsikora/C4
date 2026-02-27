@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { postJson, ApiError } from '../../shared/api/client';
+import { useCallback, useEffect, useState } from 'react';
+import { postJson, getJson, getJsonOrNull, ApiError } from '../../shared/api/client';
 
 type ConnectSubscriptionRequest = {
   externalSubscriptionId: string;
@@ -12,8 +12,30 @@ type ConnectSubscriptionResponse = {
   displayName: string;
 };
 
+type GetSubscriptionResponse = {
+  subscriptionId: string;
+  externalSubscriptionId: string;
+  displayName: string;
+};
+
+type AzureAuthResponse = {
+  authorizationUrl: string;
+  state: string;
+};
+
+type AzureSubscriptionDto = {
+  subscriptionId: string;
+  displayName: string;
+  state: string;
+};
+
+type ExchangeCodeResponse = {
+  subscriptions: ReadonlyArray<AzureSubscriptionDto>;
+};
+
 type SubscriptionState = {
   connectedSubscription: ConnectSubscriptionResponse | undefined;
+  azureSubscriptions: ReadonlyArray<AzureSubscriptionDto>;
   loading: boolean;
   error: string | undefined;
 };
@@ -35,9 +57,62 @@ function extractErrorMessage(err: unknown): string {
 export function useSubscriptions() {
   const [state, setState] = useState<SubscriptionState>({
     connectedSubscription: undefined,
-    loading: false,
+    azureSubscriptions: [],
+    loading: true,
     error: undefined,
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const data = await getJsonOrNull<GetSubscriptionResponse>('/api/discovery/subscriptions/current');
+      if (cancelled) return;
+      if (data === null) {
+        setState(prev => ({ ...prev, loading: false }));
+        return;
+      }
+      setState(prev => ({
+        ...prev,
+        connectedSubscription: data,
+        loading: false,
+      }));
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const startAzureAuth = useCallback(async () => {
+    setState(prev => ({ ...prev, loading: true, error: undefined }));
+    try {
+      const callbackUrl = `${window.location.origin}/azure/callback`;
+      const response = await getJson<AzureAuthResponse>(`/api/azure/auth?redirectUri=${encodeURIComponent(callbackUrl)}`);
+      sessionStorage.setItem('azure_auth_state', response.state);
+      window.location.href = response.authorizationUrl;
+    } catch (err: unknown) {
+      const message = extractErrorMessage(err);
+      setState(prev => ({ ...prev, loading: false, error: message }));
+    }
+  }, []);
+
+  const exchangeAzureCode = useCallback(async (code: string, redirectUri: string) => {
+    setState(prev => ({ ...prev, loading: true, error: undefined }));
+    try {
+      const response = await postJson<{ code: string; redirectUri: string }, ExchangeCodeResponse>(
+        '/api/azure/auth/callback',
+        { code, redirectUri },
+      );
+      setState(prev => ({
+        ...prev,
+        azureSubscriptions: response.subscriptions,
+        loading: false,
+      }));
+      return response.subscriptions;
+    } catch (err: unknown) {
+      const message = extractErrorMessage(err);
+      setState(prev => ({ ...prev, loading: false, error: message }));
+      return undefined;
+    }
+  }, []);
 
   const connectSubscription = useCallback(async (externalSubscriptionId: string, displayName: string) => {
     setState((prev) => ({ ...prev, loading: true, error: undefined }));
@@ -46,11 +121,12 @@ export function useSubscriptions() {
         '/api/discovery/subscriptions',
         { externalSubscriptionId, displayName },
       );
-      setState({
+      setState(prev => ({
+        ...prev,
         connectedSubscription: response,
         loading: false,
         error: undefined,
-      });
+      }));
       return response;
     } catch (err: unknown) {
       const message = extractErrorMessage(err);
@@ -61,8 +137,11 @@ export function useSubscriptions() {
 
   return {
     connectedSubscription: state.connectedSubscription,
+    azureSubscriptions: state.azureSubscriptions,
     loading: state.loading,
     error: state.error,
+    startAzureAuth,
+    exchangeAzureCode,
     connectSubscription,
   } as const;
 }

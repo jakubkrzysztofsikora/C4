@@ -68,6 +68,9 @@ public sealed class CreateProjectHandlerTests
             _organizations.TryGetValue(organizationId, out var organization);
             return Task.FromResult(organization);
         }
+
+        public Task<Organization?> GetFirstAsync(CancellationToken cancellationToken)
+            => Task.FromResult(_organizations.Values.FirstOrDefault());
     }
 
     private sealed class FakeProjectRepository : IProjectRepository
@@ -88,6 +91,9 @@ public sealed class CreateProjectHandlerTests
 
         public Task<Project?> GetByIdAsync(ProjectId projectId, CancellationToken cancellationToken)
             => Task.FromResult(_projects.FirstOrDefault(project => project.Id == projectId));
+
+        public Task<IReadOnlyList<Project>> GetByOrganizationIdAsync(OrganizationId organizationId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<Project>>(_projects.Where(project => project.OrganizationId == organizationId).ToList());
     }
 
     private sealed class FakeUnitOfWork : IUnitOfWork

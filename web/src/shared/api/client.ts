@@ -79,6 +79,18 @@ export async function deleteJson<TResponse = void>(path: string): Promise<TRespo
   return JSON.parse(text) as TResponse;
 }
 
+export async function getJsonOrNull<TResponse>(path: string): Promise<TResponse | null> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: { ...getAuthHeaders() },
+  });
+  if (response.status === 204) return null;
+  if (!response.ok) {
+    handleUnauthorized(response.status);
+    return null;
+  }
+  return (await response.json()) as TResponse;
+}
+
 export async function fetchBlob(path: string): Promise<Blob> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: { ...getAuthHeaders() },

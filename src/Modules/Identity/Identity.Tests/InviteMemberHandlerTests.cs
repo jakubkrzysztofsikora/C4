@@ -52,6 +52,9 @@ public sealed class InviteMemberHandlerTests
 
         public Task<Project?> GetByIdAsync(ProjectId projectId, CancellationToken cancellationToken)
             => Task.FromResult(_projects.FirstOrDefault(project => project.Id == projectId));
+
+        public Task<IReadOnlyList<Project>> GetByOrganizationIdAsync(OrganizationId organizationId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<Project>>(_projects.Where(project => project.OrganizationId == organizationId).ToList());
     }
 
     private sealed class FakeMemberRepository : IMemberRepository

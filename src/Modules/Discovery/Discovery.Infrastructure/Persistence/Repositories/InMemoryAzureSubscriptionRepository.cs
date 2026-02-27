@@ -15,4 +15,7 @@ public sealed class InMemoryAzureSubscriptionRepository : IAzureSubscriptionRepo
         _subscriptions.Add(subscription);
         return Task.CompletedTask;
     }
+
+    public Task<AzureSubscription?> GetFirstAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(_subscriptions.FirstOrDefault());
 }
