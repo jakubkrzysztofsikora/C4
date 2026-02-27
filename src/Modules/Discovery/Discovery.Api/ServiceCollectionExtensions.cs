@@ -57,7 +57,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<TerraformParser>();
         services.AddSingleton<IIacStateParser, CompositeIacStateParser>();
 
-        services.AddSingleton<IUnitOfWork, NoOpDiscoveryUnitOfWork>();
+        services.AddSingleton<NoOpDiscoveryUnitOfWork>();
+        services.AddKeyedSingleton<IUnitOfWork>("Discovery", (sp, _) => sp.GetRequiredService<NoOpDiscoveryUnitOfWork>());
         services.AddSingleton<IDiscoveryDataPreparer, DiscoveryDataPreparer>();
         services.AddSingleton<MultiSourceDiscoveryPlanner>();
         services.AddSingleton<IDiscoveryTelemetryEventSink, DiscoveryStructuredTelemetryEventSink>();

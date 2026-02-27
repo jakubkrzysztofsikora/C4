@@ -3,10 +3,11 @@ using C4.Modules.Identity.Domain.Errors;
 using C4.Modules.Identity.Domain.Organization;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Identity.Application.CreateProject;
 
-public sealed class CreateProjectHandler(IOrganizationRepository organizationRepository, IProjectRepository projectRepository, IUnitOfWork unitOfWork)
+public sealed class CreateProjectHandler(IOrganizationRepository organizationRepository, IProjectRepository projectRepository, [FromKeyedServices("Identity")] IUnitOfWork unitOfWork)
     : IRequestHandler<CreateProjectCommand, Result<CreateProjectResponse>>
 {
     public async Task<Result<CreateProjectResponse>> Handle(CreateProjectCommand request, CancellationToken cancellationToken)

@@ -50,7 +50,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFeedbackEntryRepository, FeedbackEntryRepository>();
         services.AddScoped<ILearningInsightRepository, LearningInsightRepository>();
         services.AddScoped<ILearningProvider, C4.Modules.Feedback.Infrastructure.LearningProvider>();
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<FeedbackDbContext>());
+        services.AddKeyedScoped<IUnitOfWork>("Feedback", (sp, _) => sp.GetRequiredService<FeedbackDbContext>());
 
         services.AddEndpoints(AssemblyReference.Assembly);
         return services;

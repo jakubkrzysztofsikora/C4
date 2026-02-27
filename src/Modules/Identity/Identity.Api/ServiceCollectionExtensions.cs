@@ -41,7 +41,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IProjectRepository, ProjectRepository>();
         services.AddScoped<IMemberRepository, MemberRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<IdentityDbContext>());
+        services.AddKeyedScoped<IUnitOfWork>("Identity", (sp, _) => sp.GetRequiredService<IdentityDbContext>());
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
         services.AddSingleton<ITokenService, JwtTokenService>();
 

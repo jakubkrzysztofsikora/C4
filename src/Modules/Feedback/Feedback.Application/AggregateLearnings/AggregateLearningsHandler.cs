@@ -2,6 +2,7 @@ using C4.Modules.Feedback.Application.Ports;
 using C4.Shared.Kernel;
 using C4.Shared.Kernel.IntegrationEvents;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace C4.Modules.Feedback.Application.AggregateLearnings;
@@ -10,7 +11,7 @@ public sealed class AggregateLearningsHandler(
     IFeedbackEntryRepository feedbackRepository,
     ILearningAggregator aggregator,
     ILearningInsightRepository insightRepository,
-    IUnitOfWork unitOfWork,
+    [FromKeyedServices("Feedback")] IUnitOfWork unitOfWork,
     IMediator mediator,
     ILogger<AggregateLearningsHandler> logger)
     : IRequestHandler<AggregateLearningsCommand, Result<AggregateLearningsResponse>>

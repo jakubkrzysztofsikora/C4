@@ -3,10 +3,11 @@ using C4.Modules.Discovery.Domain.Errors;
 using C4.Modules.Discovery.Domain.Subscriptions;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Discovery.Application.ConnectAzureSubscription;
 
-public sealed class ConnectAzureSubscriptionHandler(IAzureSubscriptionRepository repository, IUnitOfWork unitOfWork)
+public sealed class ConnectAzureSubscriptionHandler(IAzureSubscriptionRepository repository, [FromKeyedServices("Discovery")] IUnitOfWork unitOfWork)
     : IRequestHandler<ConnectAzureSubscriptionCommand, Result<ConnectAzureSubscriptionResponse>>
 {
     public async Task<Result<ConnectAzureSubscriptionResponse>> Handle(ConnectAzureSubscriptionCommand request, CancellationToken cancellationToken)

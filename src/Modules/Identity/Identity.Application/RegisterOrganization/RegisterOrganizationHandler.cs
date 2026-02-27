@@ -3,10 +3,11 @@ using C4.Modules.Identity.Domain.Errors;
 using C4.Modules.Identity.Domain.Organization;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Identity.Application.RegisterOrganization;
 
-public sealed class RegisterOrganizationHandler(IOrganizationRepository organizationRepository, IUnitOfWork unitOfWork)
+public sealed class RegisterOrganizationHandler(IOrganizationRepository organizationRepository, [FromKeyedServices("Identity")] IUnitOfWork unitOfWork)
     : IRequestHandler<RegisterOrganizationCommand, Result<RegisterOrganizationResponse>>
 {
     public async Task<Result<RegisterOrganizationResponse>> Handle(RegisterOrganizationCommand request, CancellationToken cancellationToken)

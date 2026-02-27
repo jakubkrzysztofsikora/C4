@@ -3,13 +3,14 @@ using C4.Modules.Feedback.Domain.FeedbackEntry;
 using C4.Shared.Kernel;
 using C4.Shared.Kernel.IntegrationEvents;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace C4.Modules.Feedback.Application.SubmitFeedback;
 
 public sealed class SubmitFeedbackHandler(
     IFeedbackEntryRepository repository,
-    IUnitOfWork unitOfWork,
+    [FromKeyedServices("Feedback")] IUnitOfWork unitOfWork,
     IMediator mediator,
     ILogger<SubmitFeedbackHandler> logger)
     : IRequestHandler<SubmitFeedbackCommand, Result<SubmitFeedbackResponse>>

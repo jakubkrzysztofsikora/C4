@@ -4,13 +4,14 @@ using C4.Modules.Identity.Domain.Member;
 using C4.Modules.Identity.Domain.Project;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Identity.Application.InviteMember;
 
 public sealed class InviteMemberHandler(
     IProjectRepository projectRepository,
     IMemberRepository memberRepository,
-    IUnitOfWork unitOfWork) : IRequestHandler<InviteMemberCommand, Result<InviteMemberResponse>>
+    [FromKeyedServices("Identity")] IUnitOfWork unitOfWork) : IRequestHandler<InviteMemberCommand, Result<InviteMemberResponse>>
 {
     public async Task<Result<InviteMemberResponse>> Handle(InviteMemberCommand request, CancellationToken cancellationToken)
     {

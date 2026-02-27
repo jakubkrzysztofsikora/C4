@@ -1,4 +1,5 @@
 using C4.Modules.Discovery.Infrastructure.Persistence;
+using C4.Modules.Feedback.Infrastructure.Persistence;
 using C4.Modules.Graph.Infrastructure.Persistence;
 using C4.Modules.Identity.Application.Ports;
 using C4.Modules.Identity.Infrastructure.Persistence;
@@ -18,6 +19,7 @@ public static class SeedDataService
         await DatabaseMigrator.MigrateAsync<GraphDbContext>(app.Services);
         await DatabaseMigrator.MigrateAsync<TelemetryDbContext>(app.Services);
         await DatabaseMigrator.MigrateAsync<VisualizationDbContext>(app.Services);
+        await DatabaseMigrator.MigrateAsync<FeedbackDbContext>(app.Services);
 
         if (app.Environment.IsDevelopment())
         {

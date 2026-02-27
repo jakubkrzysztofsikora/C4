@@ -3,6 +3,7 @@ using C4.Shared.Kernel.IntegrationEvents;
 using C4.Modules.Discovery.Domain.Resources;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Discovery.Application.DiscoverResources;
 
@@ -13,7 +14,7 @@ public sealed class DiscoverResourcesHandler(
     IResourceClassifier classifier,
     IDiscoveryDataPreparer discoveryDataPreparer,
     IMediator mediator,
-    IUnitOfWork unitOfWork) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
+    [FromKeyedServices("Discovery")] IUnitOfWork unitOfWork) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
     private const string DefaultUserIntent = "Discover Azure resources for connected subscription";
 
