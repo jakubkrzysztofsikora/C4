@@ -14,7 +14,7 @@ public sealed class AzureResourceGraphClient(
     IAzureIdentityService identityService,
     ILogger<AzureResourceGraphClient> logger) : IAzureResourceGraphClient
 {
-    private const string ResourceGraphEndpoint = "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2021-06-01";
+    private const string ResourceGraphEndpoint = "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2024-04-01";
 
     private const string ResourceQuery = "Resources | project id, type, name, properties";
 
