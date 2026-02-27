@@ -9,8 +9,15 @@ public sealed class ExchangeAzureCodeHandler(IAzureIdentityService azureIdentity
 {
     public async Task<Result<ExchangeAzureCodeResponse>> Handle(ExchangeAzureCodeCommand request, CancellationToken cancellationToken)
     {
-        var tokenResponse = await azureIdentityService.ExchangeAuthorizationCodeAsync(request.Code, request.RedirectUri, cancellationToken);
-        var subscriptions = await azureIdentityService.ListSubscriptionsAsync(tokenResponse.AccessToken, cancellationToken);
-        return Result<ExchangeAzureCodeResponse>.Success(new ExchangeAzureCodeResponse(subscriptions));
+        try
+        {
+            var tokenResponse = await azureIdentityService.ExchangeAuthorizationCodeAsync(request.Code, request.RedirectUri, cancellationToken);
+            var subscriptions = await azureIdentityService.ListSubscriptionsAsync(tokenResponse.AccessToken, cancellationToken);
+            return Result<ExchangeAzureCodeResponse>.Success(new ExchangeAzureCodeResponse(subscriptions));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result<ExchangeAzureCodeResponse>.Failure(new Error("AzureAuth.Failed", ex.Message));
+        }
     }
 }
