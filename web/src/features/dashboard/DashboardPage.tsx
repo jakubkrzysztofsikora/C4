@@ -150,7 +150,7 @@ export function DashboardPage() {
   const [projectIdInput, setProjectIdInput] = useState('');
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(undefined);
   const [discovering, setDiscovering] = useState(false);
-  const { graph, loading, error, refetch } = useDashboard(activeProjectId);
+  const { graph, loading, error, graphNotFound, refetch } = useDashboard(activeProjectId);
 
   const setupComplete = setup.hasOrganization && setup.hasProject && setup.hasSubscription;
 
@@ -288,26 +288,38 @@ export function DashboardPage() {
         </div>
       )}
 
+      {graphNotFound && !loading && activeProjectId !== undefined && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="empty-state">
+            <MdCloud className="empty-state-icon" />
+            <p className="empty-state-title">No architecture graph yet</p>
+            <p className="empty-state-description">
+              Run discovery to scan your Azure subscription and build the architecture graph for this project.
+            </p>
+            {setup.subscriptionId && (
+              <button
+                className="btn btn-primary"
+                type="button"
+                disabled={discovering}
+                onClick={() => void handleDiscover()}
+              >
+                {discovering ? (
+                  <>
+                    <span className="spinner spinner-sm" />
+                    Discovering...
+                  </>
+                ) : (
+                  'Discover Resources'
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {error !== undefined && (
         <div className="card" style={{ borderColor: 'var(--error)', marginBottom: 16 }}>
-          <p style={{ color: 'var(--error)', margin: 0, marginBottom: setupComplete ? 12 : 0 }}>{error}</p>
-          {setupComplete && (
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={discovering || !setup.subscriptionId}
-              onClick={() => void handleDiscover()}
-            >
-              {discovering ? (
-                <>
-                  <span className="spinner spinner-sm" />
-                  Discovering...
-                </>
-              ) : (
-                'Discover Resources'
-              )}
-            </button>
-          )}
+          <p style={{ color: 'var(--error)', margin: 0 }}>{error}</p>
         </div>
       )}
 

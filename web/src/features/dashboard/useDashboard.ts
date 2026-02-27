@@ -24,6 +24,7 @@ type DashboardState = {
   graph: GraphDto | undefined;
   loading: boolean;
   error: string | undefined;
+  graphNotFound: boolean;
 };
 
 function isApiError(value: unknown): value is ApiError {
@@ -45,16 +46,21 @@ export function useDashboard(projectId?: string) {
     graph: undefined,
     loading: false,
     error: undefined,
+    graphNotFound: false,
   });
 
   const fetchDashboardData = useCallback(async (id: string) => {
-    setState((prev) => ({ ...prev, loading: true, error: undefined }));
+    setState((prev) => ({ ...prev, loading: true, error: undefined, graphNotFound: false }));
     try {
       const graph = await getJson<GraphDto>(`/api/projects/${id}/graph`);
-      setState({ graph, loading: false, error: undefined });
+      setState({ graph, loading: false, error: undefined, graphNotFound: false });
     } catch (err: unknown) {
+      if (isApiError(err) && err.status === 404) {
+        setState({ graph: undefined, loading: false, error: undefined, graphNotFound: true });
+        return;
+      }
       const message = extractErrorMessage(err);
-      setState({ graph: undefined, loading: false, error: message });
+      setState({ graph: undefined, loading: false, error: message, graphNotFound: false });
     }
   }, []);
 
@@ -68,6 +74,7 @@ export function useDashboard(projectId?: string) {
     graph: state.graph,
     loading: state.loading,
     error: state.error,
+    graphNotFound: state.graphNotFound,
     refetch: fetchDashboardData,
   } as const;
 }
