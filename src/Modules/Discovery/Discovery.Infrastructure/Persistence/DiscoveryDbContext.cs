@@ -59,6 +59,12 @@ file sealed class DiscoveredResourceConfiguration : IEntityTypeConfiguration<Dis
         builder.Property(r => r.Name).HasMaxLength(250).IsRequired();
         builder.Property<Guid>("SubscriptionId");
         builder.HasIndex("SubscriptionId", "ResourceId").IsUnique();
+        builder.OwnsOne(r => r.Classification, classification =>
+        {
+            classification.Property(c => c.FriendlyName).HasMaxLength(250);
+            classification.Property(c => c.ServiceType).HasMaxLength(100);
+            classification.Property(c => c.C4Level).HasMaxLength(50);
+        });
     }
 }
 

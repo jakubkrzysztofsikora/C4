@@ -11,6 +11,7 @@ using C4.Shared.Infrastructure.Endpoints;
 using C4.Shared.Kernel;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -30,6 +31,16 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddValidatorsFromAssembly(C4.Modules.Discovery.Application.AssemblyReference.Assembly);
+
+        var connectionString = configuration.GetConnectionString("Discovery");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            services.AddDbContext<DiscoveryDbContext>(options => options.UseInMemoryDatabase("discovery-dev"));
+        }
+        else
+        {
+            services.AddDbContext<DiscoveryDbContext>(options => options.UseNpgsql(connectionString));
+        }
 
         services.AddSharedSemanticKernel(configuration);
 
