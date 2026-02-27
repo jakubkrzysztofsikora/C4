@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -33,8 +34,13 @@ public sealed class AzureResourceGraphClient(
 
         if (!response.IsSuccessStatusCode)
         {
+            string detail = ExtractAzureErrorDetail(responseJson);
             logger.LogError("Azure Resource Graph query failed ({StatusCode}): {Response}", response.StatusCode, responseJson);
-            throw new InvalidOperationException($"Azure Resource Graph query failed ({response.StatusCode})");
+
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                throw new UnauthorizedAccessException($"Azure returned {(int)response.StatusCode}: {detail}");
+
+            throw new HttpRequestException($"Azure Resource Graph query failed ({(int)response.StatusCode}): {detail}", null, response.StatusCode);
         }
 
         return ParseResourceGraphResponse(responseJson);
@@ -108,6 +114,26 @@ public sealed class AzureResourceGraphClient(
         }
 
         return results;
+    }
+
+    private static string ExtractAzureErrorDetail(string responseJson)
+    {
+        try
+        {
+            using JsonDocument doc = JsonDocument.Parse(responseJson);
+            if (doc.RootElement.TryGetProperty("error", out JsonElement errorElement))
+            {
+                string? code = errorElement.TryGetProperty("code", out JsonElement c) ? c.GetString() : null;
+                string? message = errorElement.TryGetProperty("message", out JsonElement m) ? m.GetString() : null;
+                if (code is not null || message is not null)
+                    return $"{code}: {message}";
+            }
+        }
+        catch
+        {
+        }
+
+        return responseJson.Length > 300 ? responseJson[..300] : responseJson;
     }
 
     private sealed record ResourceGraphRequest(

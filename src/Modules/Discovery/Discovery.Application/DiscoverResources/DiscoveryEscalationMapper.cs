@@ -19,12 +19,12 @@ public static class DiscoveryEscalationMapper
         {
             "discovery.connector.unavailable" => new(
                 DiscoveryExecutionStatus.Failed,
-                DiscoveryEscalationLevel.RetrySilently,
-                "Discovery connector is temporarily unavailable. Retry in a few moments."),
+                DiscoveryEscalationLevel.NotifyUser,
+                error.Message),
             "discovery.auth.permission" => new(
                 DiscoveryExecutionStatus.Failed,
                 DiscoveryEscalationLevel.NotifyUser,
-                "Reconnect the subscription or refresh credentials/permissions before retrying discovery."),
+                error.Message),
             "discovery.schema.contract" => new(
                 DiscoveryExecutionStatus.Failed,
                 DiscoveryEscalationLevel.BlockPipeline,
@@ -39,13 +39,13 @@ public static class DiscoveryEscalationMapper
     public static Error MapExternalFailure(Exception exception) =>
         exception switch
         {
-            UnauthorizedAccessException => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph"),
-            InvalidOperationException ex when IsAuthRelated(ex.Message) => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph"),
-            HttpRequestException => DiscoveryErrors.ConnectorUnavailable("azure-resource-graph"),
+            UnauthorizedAccessException ex => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph", ex.Message),
+            InvalidOperationException ex when IsAuthRelated(ex.Message) => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph", ex.Message),
+            HttpRequestException ex => DiscoveryErrors.ConnectorUnavailable("azure-resource-graph", ex.Message),
             System.Text.Json.JsonException => DiscoveryErrors.SchemaContractViolation("azure-resource-graph"),
             FormatException => DiscoveryErrors.SchemaContractViolation("azure-resource-graph"),
             InvalidDataException => DiscoveryErrors.SchemaContractViolation("azure-resource-graph"),
-            _ => DiscoveryErrors.ConnectorUnavailable("azure-resource-graph")
+            _ => DiscoveryErrors.ConnectorUnavailable("azure-resource-graph", exception.Message)
         };
 
     private static bool IsAuthRelated(string message) =>

@@ -54,7 +54,7 @@ public sealed class DiscoverResourcesHandlerTests
         var result = await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
-        result.Error.Should().Be(DiscoveryErrors.ConnectorUnavailable("azure-resource-graph"));
+        result.Error.Should().Be(DiscoveryErrors.ConnectorUnavailable("azure-resource-graph", "Connector unavailable"));
     }
 
     [Fact]
