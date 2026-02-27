@@ -9,6 +9,7 @@ using C4.Modules.Visualization.Api;
 using C4.Modules.Visualization.Api.Hubs;
 using C4.Shared.Infrastructure.Endpoints;
 using C4.Shared.Infrastructure.Middleware;
+using System.Net;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
@@ -51,6 +52,15 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 2;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+    options.KnownProxies.Add(IPAddress.Loopback);
+});
+
 builder.Services
     .AddIdentityModule(builder.Configuration)
     .AddDiscoveryModule(builder.Configuration)
@@ -70,10 +80,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
+app.UseForwardedHeaders();
 
 app.UseExceptionHandler();
 app.UseCors("Frontend");
