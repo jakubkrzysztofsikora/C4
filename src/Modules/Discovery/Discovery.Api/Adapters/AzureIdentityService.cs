@@ -12,9 +12,11 @@ public sealed class AzureIdentityService(IHttpClientFactory httpClientFactory, I
     private string ClientId => configuration["AzureAd:ClientId"] ?? throw new InvalidOperationException("AzureAd:ClientId not configured");
     private string ClientSecret => configuration["AzureAd:ClientSecret"] ?? throw new InvalidOperationException("AzureAd:ClientSecret not configured");
 
+    private const string ManagementScope = "https://management.azure.com/user_impersonation offline_access";
+
     public string BuildAuthorizationUrl(string redirectUri, string state)
     {
-        var scope = Uri.EscapeDataString("https://management.azure.com/.default offline_access");
+        var scope = Uri.EscapeDataString(ManagementScope);
         return $"https://login.microsoftonline.com/{TenantId}/oauth2/v2.0/authorize" +
                $"?client_id={ClientId}" +
                $"&response_type=code" +
@@ -34,7 +36,7 @@ public sealed class AzureIdentityService(IHttpClientFactory httpClientFactory, I
             ["redirect_uri"] = redirectUri,
             ["client_id"] = ClientId,
             ["client_secret"] = ClientSecret,
-            ["scope"] = "https://management.azure.com/.default offline_access"
+            ["scope"] = ManagementScope
         });
 
         var response = await client.PostAsync(
