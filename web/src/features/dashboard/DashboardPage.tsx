@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MdBusiness, MdCloud, MdHub, MdCheckCircle, MdArrowForward, MdSearch } from 'react-icons/md';
-import { getJsonOrNull } from '../../shared/api/client';
+import { getJsonOrNull, postJson } from '../../shared/api/client';
 import { useDashboard } from './useDashboard';
 
 type SetupStatus = {
@@ -11,6 +11,8 @@ type SetupStatus = {
   projectId: string;
   projectName: string;
   hasSubscription: boolean;
+  subscriptionId: string;
+  externalSubscriptionId: string;
   subscriptionName: string;
   loading: boolean;
 };
@@ -35,6 +37,8 @@ function useSetupStatus(): SetupStatus {
     projectId: '',
     projectName: '',
     hasSubscription: false,
+    subscriptionId: '',
+    externalSubscriptionId: '',
     subscriptionName: '',
     loading: true,
   });
@@ -56,6 +60,8 @@ function useSetupStatus(): SetupStatus {
         projectId: firstProject?.projectId ?? '',
         projectName: firstProject?.name ?? '',
         hasSubscription: sub !== null,
+        subscriptionId: sub?.subscriptionId ?? '',
+        externalSubscriptionId: sub?.externalSubscriptionId ?? '',
         subscriptionName: sub?.displayName ?? '',
         loading: false,
       });
@@ -122,25 +128,64 @@ function SetupStep({ step, title, description, done, doneLabel, actionLabel, to 
   );
 }
 
+type DiscoverRequest = {
+  externalSubscriptionId: string;
+  projectId: string;
+  organizationId: string | null;
+  sources: null;
+};
+
+type DiscoverResponse = {
+  subscriptionId: string;
+  resourcesCount: number;
+  status: string;
+  escalationLevel: string;
+  userActionHint: string;
+  dataQualityFailures: number;
+};
+
 export function DashboardPage() {
   const setup = useSetupStatus();
   const navigate = useNavigate();
   const [projectIdInput, setProjectIdInput] = useState('');
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(undefined);
-  const { graph, loading, error } = useDashboard(activeProjectId);
+  const [discovering, setDiscovering] = useState(false);
+  const { graph, loading, error, refetch } = useDashboard(activeProjectId);
 
   const setupComplete = setup.hasOrganization && setup.hasProject && setup.hasSubscription;
 
   useEffect(() => {
-    if (setup.hasProject && setup.projectId.length > 0 && activeProjectId === undefined) {
+    if (setupComplete && setup.projectId.length > 0 && activeProjectId === undefined) {
+      setActiveProjectId(setup.projectId);
+    }
+  }, [setupComplete, setup.projectId, activeProjectId]);
+
+  useEffect(() => {
+    if (!setupComplete && setup.hasProject && setup.projectId.length > 0 && activeProjectId === undefined) {
       setProjectIdInput(setup.projectId);
     }
-  }, [setup.hasProject, setup.projectId, activeProjectId]);
+  }, [setupComplete, setup.hasProject, setup.projectId, activeProjectId]);
 
   function handleLoadProject() {
     if (!projectIdInput) return;
     setActiveProjectId(projectIdInput);
   }
+
+  const handleDiscover = useCallback(async () => {
+    if (!setup.subscriptionId || !setup.projectId) return;
+    setDiscovering(true);
+    await postJson<DiscoverRequest, DiscoverResponse>(
+      `/api/discovery/subscriptions/${setup.subscriptionId}/discover`,
+      {
+        externalSubscriptionId: setup.externalSubscriptionId,
+        projectId: setup.projectId,
+        organizationId: null,
+        sources: null,
+      },
+    ).catch(() => undefined);
+    setDiscovering(false);
+    await refetch(setup.projectId);
+  }, [setup.subscriptionId, setup.externalSubscriptionId, setup.projectId, refetch]);
 
   if (setup.loading) {
     return (
@@ -205,45 +250,73 @@ export function DashboardPage() {
         </div>
       )}
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div className="form-group" style={{ flex: 1, minWidth: 200 }}>
-            <label className="form-label" htmlFor="project-id-input">Project ID</label>
-            <input
-              className="input"
-              id="project-id-input"
-              placeholder="Enter project ID to load graph"
-              value={projectIdInput}
-              onChange={(e) => setProjectIdInput(e.target.value)}
-              disabled={loading}
-              onKeyDown={(e) => e.key === 'Enter' && handleLoadProject()}
-            />
+      {!setupComplete && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="form-group" style={{ flex: 1, minWidth: 200 }}>
+              <label className="form-label" htmlFor="project-id-input">Project ID</label>
+              <input
+                className="input"
+                id="project-id-input"
+                placeholder="Enter project ID to load graph"
+                value={projectIdInput}
+                onChange={(e) => setProjectIdInput(e.target.value)}
+                disabled={loading}
+                onKeyDown={(e) => e.key === 'Enter' && handleLoadProject()}
+              />
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={handleLoadProject}
+              disabled={loading || !projectIdInput}
+              style={{ alignSelf: 'flex-end' }}
+              type="button"
+            >
+              {loading ? (
+                <>
+                  <span className="spinner spinner-sm" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <MdSearch size={16} />
+                  Load Project
+                </>
+              )}
+            </button>
           </div>
-          <button
-            className="btn btn-primary"
-            onClick={handleLoadProject}
-            disabled={loading || !projectIdInput}
-            style={{ alignSelf: 'flex-end' }}
-            type="button"
-          >
-            {loading ? (
-              <>
-                <span className="spinner spinner-sm" />
-                Loading...
-              </>
-            ) : (
-              <>
-                <MdSearch size={16} />
-                Load Project
-              </>
-            )}
-          </button>
         </div>
-      </div>
+      )}
 
       {error !== undefined && (
         <div className="card" style={{ borderColor: 'var(--error)', marginBottom: 16 }}>
-          <p style={{ color: 'var(--error)', margin: 0 }}>{error}</p>
+          <p style={{ color: 'var(--error)', margin: 0, marginBottom: setupComplete ? 12 : 0 }}>{error}</p>
+          {setupComplete && (
+            <button
+              className="btn btn-primary"
+              type="button"
+              disabled={discovering || !setup.subscriptionId}
+              onClick={() => void handleDiscover()}
+            >
+              {discovering ? (
+                <>
+                  <span className="spinner spinner-sm" />
+                  Discovering...
+                </>
+              ) : (
+                'Discover Resources'
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
+      {discovering && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className="spinner spinner-sm" />
+            <span>Discovering resources...</span>
+          </div>
         </div>
       )}
 
@@ -304,13 +377,13 @@ export function DashboardPage() {
         </div>
       )}
 
-      {graph === undefined && activeProjectId === undefined && !loading && setupComplete && (
+      {graph === undefined && activeProjectId === undefined && !loading && setupComplete && !discovering && (
         <div className="card">
           <div className="empty-state">
             <MdHub className="empty-state-icon" />
             <p className="empty-state-title">No project loaded</p>
             <p className="empty-state-description">
-              Enter a project ID above to load architecture data and explore your C4 architecture graph.
+              Architecture data is still loading. If discovery has not run yet, use the Discover Resources button above.
             </p>
           </div>
         </div>

@@ -186,7 +186,7 @@ export function useDiagram(projectId?: string) {
     onDiagramUpdated: handleDiagramUpdated,
   });
 
-  const sourceData = apiData ?? seed;
+  const sourceData = apiData ?? (error !== undefined ? { nodes: [], edges: [] } : seed);
 
   const data = useMemo(() => {
     const levelFiltered = sourceData.nodes.filter((n) =>
