@@ -30,7 +30,7 @@ public sealed class ArchitectureGraph : AggregateRoot<ArchitectureGraphId>
         var props = new NodeProperties("unknown", "n/a", [], 0m);
         if (existing is not null)
         {
-            existing.Update(name, props);
+            existing.Update(name, level, props);
             return existing;
         }
 

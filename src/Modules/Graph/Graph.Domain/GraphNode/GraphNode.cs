@@ -19,16 +19,17 @@ public sealed class GraphNode : Entity<GraphNodeId>
 
     public string ExternalResourceId { get; }
     public string Name { get; private set; }
-    public C4Level Level { get; }
+    public C4Level Level { get; private set; }
     public GraphNodeId? ParentId { get; private set; }
     public NodeProperties Properties { get; private set; }
 
     public static GraphNode Create(string externalResourceId, string name, C4Level level, GraphNodeId? parentId, NodeProperties properties) =>
         new(GraphNodeId.New(), externalResourceId.Trim(), name.Trim(), level, parentId, properties);
 
-    public void Update(string name, NodeProperties properties)
+    public void Update(string name, C4Level level, NodeProperties properties)
     {
         Name = name;
+        Level = level;
         Properties = properties;
     }
 
