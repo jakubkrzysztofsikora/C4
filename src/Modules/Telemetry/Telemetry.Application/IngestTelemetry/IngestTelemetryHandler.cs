@@ -3,10 +3,11 @@ using C4.Modules.Telemetry.Application.Ports;
 using C4.Modules.Telemetry.Domain.Metrics;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Telemetry.Application.IngestTelemetry;
 
-public sealed class IngestTelemetryHandler(ITelemetryRepository repository, IMediator mediator, IUnitOfWork unitOfWork)
+public sealed class IngestTelemetryHandler(ITelemetryRepository repository, IMediator mediator, [FromKeyedServices("Telemetry")] IUnitOfWork unitOfWork)
     : IRequestHandler<IngestTelemetryCommand, Result<IngestTelemetryResponse>>
 {
     public async Task<Result<IngestTelemetryResponse>> Handle(IngestTelemetryCommand request, CancellationToken cancellationToken)

@@ -40,7 +40,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IViewPresetRepository, ViewPresetRepository>();
         services.AddSingleton<IDiagramExporter, SvgDiagramExporter>();
         services.AddSingleton<IDiagramExporter, PdfDiagramExporter>();
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<VisualizationDbContext>());
+        services.AddKeyedScoped<IUnitOfWork>("Visualization", (sp, _) => sp.GetRequiredService<VisualizationDbContext>());
         services.AddScoped<IDiagramNotifier, SignalRDiagramNotifier>();
         services.AddEndpoints(AssemblyReference.Assembly);
         return services;

@@ -2,10 +2,11 @@ using C4.Modules.Visualization.Application.Ports;
 using C4.Modules.Visualization.Domain.Preset;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Visualization.Application.SaveViewPreset;
 
-public sealed class SaveViewPresetHandler(IViewPresetRepository repository, IUnitOfWork unitOfWork)
+public sealed class SaveViewPresetHandler(IViewPresetRepository repository, [FromKeyedServices("Visualization")] IUnitOfWork unitOfWork)
     : IRequestHandler<SaveViewPresetCommand, Result<SaveViewPresetResponse>>
 {
     public async Task<Result<SaveViewPresetResponse>> Handle(SaveViewPresetCommand request, CancellationToken cancellationToken)

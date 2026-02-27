@@ -3,10 +3,11 @@ using C4.Modules.Graph.Application.Ports;
 using C4.Modules.Graph.Domain;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Graph.Application.IntegrationEventHandlers;
 
-public sealed class ResourcesDiscoveredHandler(IArchitectureGraphRepository repository, IUnitOfWork unitOfWork)
+public sealed class ResourcesDiscoveredHandler(IArchitectureGraphRepository repository, [FromKeyedServices("Graph")] IUnitOfWork unitOfWork)
     : INotificationHandler<ResourcesDiscoveredIntegrationEvent>
 {
     public async Task Handle(ResourcesDiscoveredIntegrationEvent notification, CancellationToken cancellationToken)

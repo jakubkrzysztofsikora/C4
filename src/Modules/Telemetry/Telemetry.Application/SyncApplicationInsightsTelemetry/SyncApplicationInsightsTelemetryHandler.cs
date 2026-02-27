@@ -3,6 +3,7 @@ using C4.Modules.Telemetry.Application.Ports;
 using C4.Modules.Telemetry.Domain.Metrics;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Telemetry.Application.SyncApplicationInsightsTelemetry;
 
@@ -10,7 +11,7 @@ public sealed class SyncApplicationInsightsTelemetryHandler(
     IApplicationInsightsClient applicationInsightsClient,
     ITelemetryRepository telemetryRepository,
     IMediator mediator,
-    IUnitOfWork unitOfWork)
+    [FromKeyedServices("Telemetry")] IUnitOfWork unitOfWork)
     : IRequestHandler<SyncApplicationInsightsTelemetryCommand, Result<SyncApplicationInsightsTelemetryResponse>>
 {
     public async Task<Result<SyncApplicationInsightsTelemetryResponse>> Handle(SyncApplicationInsightsTelemetryCommand request, CancellationToken cancellationToken)

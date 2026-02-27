@@ -3,6 +3,7 @@ using C4.Modules.Identity.Domain.Errors;
 using C4.Modules.Identity.Domain.User;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Identity.Application.RegisterUser;
 
@@ -10,7 +11,7 @@ internal sealed class RegisterUserHandler(
     IUserRepository userRepository,
     IPasswordHasher passwordHasher,
     ITokenService tokenService,
-    IUnitOfWork unitOfWork
+    [FromKeyedServices("Identity")] IUnitOfWork unitOfWork
 ) : IRequestHandler<RegisterUserCommand, Result<RegisterUserResponse>>
 {
     public async Task<Result<RegisterUserResponse>> Handle(RegisterUserCommand command, CancellationToken cancellationToken)

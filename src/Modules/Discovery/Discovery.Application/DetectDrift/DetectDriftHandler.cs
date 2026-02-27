@@ -2,6 +2,7 @@ using C4.Modules.Discovery.Application.Ports;
 using C4.Shared.Kernel.IntegrationEvents;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Discovery.Application.DetectDrift;
 
@@ -10,7 +11,7 @@ public sealed class DetectDriftHandler(
     IDiscoveredResourceRepository discoveredResourceRepository,
     IDriftResultRepository driftResultRepository,
     IMediator mediator,
-    IUnitOfWork unitOfWork) : IRequestHandler<DetectDriftCommand, Result<DetectDriftResponse>>
+    [FromKeyedServices("Discovery")] IUnitOfWork unitOfWork) : IRequestHandler<DetectDriftCommand, Result<DetectDriftResponse>>
 {
     public async Task<Result<DetectDriftResponse>> Handle(DetectDriftCommand request, CancellationToken cancellationToken)
     {

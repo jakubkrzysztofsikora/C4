@@ -63,7 +63,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped<IArchitectureGraphRepository, ArchitectureGraphRepository>();
-        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<GraphDbContext>());
+        services.AddKeyedScoped<IUnitOfWork>("Graph", (sp, _) => sp.GetRequiredService<GraphDbContext>());
         services.AddEndpoints(AssemblyReference.Assembly);
         return services;
     }

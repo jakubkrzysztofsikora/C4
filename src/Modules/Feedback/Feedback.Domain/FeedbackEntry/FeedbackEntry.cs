@@ -6,6 +6,10 @@ namespace C4.Modules.Feedback.Domain.FeedbackEntry;
 
 public sealed class FeedbackEntry : AggregateRoot<FeedbackEntryId>
 {
+#pragma warning disable CS8618
+    private FeedbackEntry() : base(default!) { }
+#pragma warning restore CS8618
+
     private FeedbackEntry(
         FeedbackEntryId id,
         Guid projectId,

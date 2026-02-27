@@ -3,3 +3,6 @@
 web/node_modules/
 web/dist/
 web/tsconfig.tsbuildinfo
+node_modules/
+.env
+test-results/

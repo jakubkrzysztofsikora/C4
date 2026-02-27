@@ -4,10 +4,11 @@ using C4.Modules.Identity.Domain.Member;
 using C4.Modules.Identity.Domain.Project;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Identity.Application.UpdateMemberRole;
 
-public sealed class UpdateMemberRoleHandler(IMemberRepository memberRepository, IUnitOfWork unitOfWork)
+public sealed class UpdateMemberRoleHandler(IMemberRepository memberRepository, [FromKeyedServices("Identity")] IUnitOfWork unitOfWork)
     : IRequestHandler<UpdateMemberRoleCommand, Result<UpdateMemberRoleResponse>>
 {
     public async Task<Result<UpdateMemberRoleResponse>> Handle(UpdateMemberRoleCommand request, CancellationToken cancellationToken)
