@@ -1,5 +1,6 @@
 using C4.Modules.Telemetry.Api.Adapters;
 using C4.Modules.Telemetry.Application.Ports;
+using C4.Modules.Telemetry.Infrastructure;
 using C4.Modules.Telemetry.Infrastructure.Persistence;
 using C4.Modules.Telemetry.Infrastructure.Repositories;
 using C4.Modules.Telemetry.Infrastructure.Services;
@@ -39,7 +40,17 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITelemetryRepository, TelemetryRepository>();
         services.AddKeyedScoped<IUnitOfWork>("Telemetry", (sp, _) => sp.GetRequiredService<TelemetryDbContext>());
         services.AddScoped<ITelemetryQueryService, TelemetryQueryService>();
-        services.AddSingleton<IApplicationInsightsClient, FakeApplicationInsightsClient>();
+        services.AddHttpClient();
+
+        var appInsightsAppId = configuration["ApplicationInsights:AppId"];
+        if (!string.IsNullOrWhiteSpace(appInsightsAppId))
+        {
+            services.AddApplicationInsightsClient(configuration);
+        }
+        else
+        {
+            services.AddSingleton<IApplicationInsightsClient, FakeApplicationInsightsClient>();
+        }
 
         services.AddEndpoints(AssemblyReference.Assembly);
         return services;

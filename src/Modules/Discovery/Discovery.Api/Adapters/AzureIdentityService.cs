@@ -51,7 +51,34 @@ public sealed class AzureIdentityService(IHttpClientFactory httpClientFactory, I
         }
         var tokenResult = JsonSerializer.Deserialize<TokenEndpointResponse>(json)!;
 
-        return new AzureTokenResponse(tokenResult.AccessToken, tokenResult.ExpiresIn);
+        return new AzureTokenResponse(tokenResult.AccessToken, tokenResult.ExpiresIn, tokenResult.RefreshToken);
+    }
+
+    public async Task<AzureTokenResponse> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken)
+    {
+        using var client = httpClientFactory.CreateClient();
+        var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "refresh_token",
+            ["refresh_token"] = refreshToken,
+            ["client_id"] = ClientId,
+            ["client_secret"] = ClientSecret,
+            ["scope"] = ManagementScope
+        });
+
+        var response = await client.PostAsync(
+            $"https://login.microsoftonline.com/{TenantId}/oauth2/v2.0/token",
+            content,
+            cancellationToken);
+
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Azure token refresh failed ({response.StatusCode}): {json}");
+        }
+        var tokenResult = JsonSerializer.Deserialize<TokenEndpointResponse>(json)!;
+
+        return new AzureTokenResponse(tokenResult.AccessToken, tokenResult.ExpiresIn, tokenResult.RefreshToken);
     }
 
     public async Task<IReadOnlyList<AzureSubscriptionInfo>> ListSubscriptionsAsync(string accessToken, CancellationToken cancellationToken)
@@ -77,7 +104,8 @@ public sealed class AzureIdentityService(IHttpClientFactory httpClientFactory, I
 
     private sealed record TokenEndpointResponse(
         [property: JsonPropertyName("access_token")] string AccessToken,
-        [property: JsonPropertyName("expires_in")] int ExpiresIn);
+        [property: JsonPropertyName("expires_in")] int ExpiresIn,
+        [property: JsonPropertyName("refresh_token")] string? RefreshToken);
 
     private sealed record SubscriptionListResponse(
         [property: JsonPropertyName("value")] IReadOnlyList<SubscriptionEntry> Value);
