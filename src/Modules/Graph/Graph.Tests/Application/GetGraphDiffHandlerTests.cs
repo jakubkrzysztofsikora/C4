@@ -106,5 +106,6 @@ public sealed class GetGraphDiffHandlerTests
             => Task.FromResult(graph is not null && graph.ProjectId == projectId ? graph : null);
 
         public Task UpsertAsync(ArchitectureGraph graph, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task DeleteAsync(ArchitectureGraph graph, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

@@ -28,6 +28,8 @@ public sealed class GetGraphHandlerTests
             => Task.FromResult<ArchitectureGraph?>(graph.ProjectId == projectId ? graph : null);
 
         public Task UpsertAsync(ArchitectureGraph graph, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task DeleteAsync(ArchitectureGraph graph, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class EmptyTelemetryQueryService : ITelemetryQueryService

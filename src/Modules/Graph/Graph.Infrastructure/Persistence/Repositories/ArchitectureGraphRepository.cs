@@ -19,4 +19,10 @@ public sealed class ArchitectureGraphRepository(GraphDbContext dbContext) : IArc
         if (existing is null)
             await dbContext.Graphs.AddAsync(graph, cancellationToken);
     }
+
+    public Task DeleteAsync(ArchitectureGraph graph, CancellationToken cancellationToken)
+    {
+        dbContext.Graphs.Remove(graph);
+        return Task.CompletedTask;
+    }
 }

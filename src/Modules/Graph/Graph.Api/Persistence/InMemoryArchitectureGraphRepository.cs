@@ -18,4 +18,10 @@ public sealed class InMemoryArchitectureGraphRepository : IArchitectureGraphRepo
         _graphs[graph.ProjectId] = graph;
         return Task.CompletedTask;
     }
+
+    public Task DeleteAsync(ArchitectureGraph graph, CancellationToken cancellationToken)
+    {
+        _graphs.Remove(graph.ProjectId);
+        return Task.CompletedTask;
+    }
 }

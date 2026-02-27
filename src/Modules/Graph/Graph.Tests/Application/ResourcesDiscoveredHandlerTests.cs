@@ -214,6 +214,8 @@ public sealed class ResourcesDiscoveredHandlerTests
             Graph = graph;
             return Task.CompletedTask;
         }
+
+        public Task DeleteAsync(ArchitectureGraph graph, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeUnitOfWork : IUnitOfWork
