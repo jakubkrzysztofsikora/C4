@@ -179,10 +179,17 @@ jobs:
             "${{ secrets.SCW_SECRET }}" \
             "${{ github.repository }}" \
             "${{ github.sha }}" \
-            "${{ needs.provision.outputs.server_ip }}" <<'SCRIPT'
+            "${{ needs.provision.outputs.server_ip }}" \
+            "${{ vars.DOMAIN || '' }}" <<'SCRIPT'
           set -euo pipefail
-          GH_TOKEN="$1"; GH_ACTOR="$2"; DB_PASS="$3"; REPO=$(echo "$4" | tr '[:upper:]' '[:lower:]'); TAG="$5"; IP="$6"
+          GH_TOKEN="$1"; GH_ACTOR="$2"; DB_PASS="$3"; REPO=$(echo "$4" | tr '[:upper:]' '[:lower:]'); TAG="$5"; IP="$6"; DOMAIN="$7"
           mkdir -p /opt/c4 && cd /opt/c4
+
+          if [ -n "$DOMAIN" ]; then
+            ORIGIN="https://$DOMAIN"
+          else
+            ORIGIN="http://$IP"
+          fi
 
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
 
@@ -192,7 +199,7 @@ jobs:
           POSTGRES_PASSWORD=$DB_PASS
           GITHUB_REPOSITORY=$REPO
           IMAGE_TAG=$TAG
-          FRONTEND_ORIGIN=http://$IP
+          FRONTEND_ORIGIN=$ORIGIN
           EOF
 
           cat > docker-compose.yml <<'COMPOSE'
@@ -223,6 +230,7 @@ jobs:
                 ConnectionStrings__Graph: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
                 ConnectionStrings__Telemetry: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
                 ConnectionStrings__Visualization: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+                ConnectionStrings__Feedback: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
                 Frontend__Origin: ${FRONTEND_ORIGIN}
               ports:
                 - "127.0.0.1:5000:5000"
