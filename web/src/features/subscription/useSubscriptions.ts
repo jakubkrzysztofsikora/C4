@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { postJson, getJson, getJsonOrNull, ApiError } from '../../shared/api/client';
+import { postJson, getJson, getJsonOrNull, deleteJson, ApiError } from '../../shared/api/client';
 
 type ConnectSubscriptionRequest = {
   externalSubscriptionId: string;
@@ -135,6 +135,17 @@ export function useSubscriptions() {
     }
   }, []);
 
+  const disconnectSubscription = useCallback(async () => {
+    setState(prev => ({ ...prev, loading: true, error: undefined }));
+    try {
+      await deleteJson('/api/discovery/subscriptions/current');
+      setState(prev => ({ ...prev, connectedSubscription: undefined, loading: false }));
+    } catch (err: unknown) {
+      const message = extractErrorMessage(err);
+      setState(prev => ({ ...prev, loading: false, error: message }));
+    }
+  }, []);
+
   return {
     connectedSubscription: state.connectedSubscription,
     azureSubscriptions: state.azureSubscriptions,
@@ -143,5 +154,6 @@ export function useSubscriptions() {
     startAzureAuth,
     exchangeAzureCode,
     connectSubscription,
+    disconnectSubscription,
   } as const;
 }

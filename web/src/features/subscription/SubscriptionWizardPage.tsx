@@ -2,7 +2,7 @@ import { MdCloud, MdCheckCircle } from 'react-icons/md';
 import { useSubscriptions } from './useSubscriptions';
 
 export function SubscriptionWizardPage() {
-  const { connectedSubscription, loading, error, startAzureAuth } = useSubscriptions();
+  const { connectedSubscription, loading, error, startAzureAuth, disconnectSubscription } = useSubscriptions();
 
   if (loading) {
     return (
@@ -57,6 +57,24 @@ export function SubscriptionWizardPage() {
             <span style={{ fontSize: 13, color: 'var(--muted)', fontFamily: 'monospace' }}>
               {connectedSubscription.externalSubscriptionId}
             </span>
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <button
+              className="btn btn-sm"
+              type="button"
+              disabled={loading}
+              onClick={() => void disconnectSubscription()}
+              style={{ borderColor: 'var(--error)', color: 'var(--error)' }}
+            >
+              {loading ? (
+                <>
+                  <span className="spinner spinner-sm" />
+                  Disconnecting...
+                </>
+              ) : (
+                'Disconnect'
+              )}
+            </button>
           </div>
         </div>
       ) : (

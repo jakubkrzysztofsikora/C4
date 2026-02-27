@@ -9,4 +9,6 @@ public interface IAzureSubscriptionRepository
     Task AddAsync(AzureSubscription subscription, CancellationToken cancellationToken);
 
     Task<AzureSubscription?> GetFirstAsync(CancellationToken cancellationToken);
+
+    Task DeleteAsync(AzureSubscription subscription, CancellationToken cancellationToken);
 }

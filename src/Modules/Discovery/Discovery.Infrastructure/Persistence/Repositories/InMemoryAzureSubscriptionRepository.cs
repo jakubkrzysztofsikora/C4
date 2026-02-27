@@ -18,4 +18,10 @@ public sealed class InMemoryAzureSubscriptionRepository : IAzureSubscriptionRepo
 
     public Task<AzureSubscription?> GetFirstAsync(CancellationToken cancellationToken) =>
         Task.FromResult(_subscriptions.FirstOrDefault());
+
+    public Task DeleteAsync(AzureSubscription subscription, CancellationToken cancellationToken)
+    {
+        _subscriptions.Remove(subscription);
+        return Task.CompletedTask;
+    }
 }

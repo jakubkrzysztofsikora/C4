@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MdBusiness, MdCloud, MdHub, MdCheckCircle, MdArrowForward, MdSearch } from 'react-icons/md';
-import { getJsonOrNull, postJson } from '../../shared/api/client';
+import { getJsonOrNull, postJson, deleteJson } from '../../shared/api/client';
 import { useDashboard } from './useDashboard';
 
 type SetupStatus = {
@@ -174,6 +174,23 @@ export function DashboardPage() {
   const handleDiscover = useCallback(async () => {
     if (!setup.subscriptionId || !setup.projectId) return;
     setDiscovering(true);
+    await postJson<DiscoverRequest, DiscoverResponse>(
+      `/api/discovery/subscriptions/${setup.subscriptionId}/discover`,
+      {
+        externalSubscriptionId: setup.externalSubscriptionId,
+        projectId: setup.projectId,
+        organizationId: null,
+        sources: null,
+      },
+    ).catch(() => undefined);
+    setDiscovering(false);
+    await refetch(setup.projectId);
+  }, [setup.subscriptionId, setup.externalSubscriptionId, setup.projectId, refetch]);
+
+  const handleRediscover = useCallback(async () => {
+    if (!setup.subscriptionId || !setup.projectId) return;
+    setDiscovering(true);
+    await deleteJson(`/api/projects/${setup.projectId}/graph`).catch(() => undefined);
     await postJson<DiscoverRequest, DiscoverResponse>(
       `/api/discovery/subscriptions/${setup.subscriptionId}/discover`,
       {
@@ -360,6 +377,24 @@ export function DashboardPage() {
             >
               <MdHub size={14} />
               View Diagram
+            </button>
+            <button
+              className="btn btn-sm"
+              type="button"
+              disabled={discovering}
+              onClick={() => void handleRediscover()}
+            >
+              {discovering ? (
+                <>
+                  <span className="spinner spinner-sm" />
+                  Rediscovering...
+                </>
+              ) : (
+                <>
+                  <MdCloud size={14} />
+                  Rediscover
+                </>
+              )}
             </button>
           </div>
           <h3 style={{ marginTop: 0, marginBottom: 10 }}>Resources</h3>
