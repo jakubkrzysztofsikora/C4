@@ -52,14 +52,14 @@ test.describe('Dashboard Page', () => {
     if (projectId) {
       await page.fill('#project-id-input', projectId);
       await page.click('button:has-text("Load Project")');
-      await page.waitForTimeout(3000);
+      await page.waitForSelector('.some-element-that-appears-on-load');
     } else {
       await page.fill('#project-id-input', '00000000-0000-0000-0000-000000000000');
       await page.click('button:has-text("Load Project")');
-      await page.waitForTimeout(3000);
+      await expect(page.locator('.error-message')).toBeVisible();
     }
 
-    expect(true).toBe(true);
+    await expect(page.locator('.project-title')).toBeVisible();
   });
 
   test('navigation links are visible in header', async ({ page }) => {
