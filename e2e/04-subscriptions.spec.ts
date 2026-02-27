@@ -42,7 +42,7 @@ test.describe('Subscription Wizard', () => {
     } else {
       const body = await response.text();
       console.log(`Subscription body: ${body}`);
-      expect(status).toBeLessThan(400);
+      expect(status).toBe(201);
     }
   });
 
