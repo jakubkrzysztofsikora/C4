@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { API_BASE_URL } from './helpers';
 
 test.describe('Full Stack Connectivity', () => {
   test('frontend serves the app on port 3000', async ({ page }) => {
@@ -18,14 +19,14 @@ test.describe('Full Stack Connectivity', () => {
   });
 
   test('backend health endpoint responds', async ({ request }) => {
-    const response = await request.get('http://localhost:5000/health');
+    const response = await request.get(`${API_BASE_URL}/health`);
     expect(response.status()).toBe(200);
   });
 
   test('all module health endpoints respond', async ({ request }) => {
     const modules = ['identity', 'discovery', 'graph', 'telemetry', 'visualization', 'feedback'];
     for (const mod of modules) {
-      const response = await request.get(`http://localhost:5000/api/${mod}/health`);
+      const response = await request.get(`${API_BASE_URL}/api/${mod}/health`);
       expect(response.status()).toBe(200);
       const body = await response.json();
       expect(body.status).toBe('ok');

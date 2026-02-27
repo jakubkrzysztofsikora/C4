@@ -68,7 +68,7 @@ test.describe('Authentication Flows', () => {
 
   test('register new user succeeds', async ({ page }) => {
     await page.click('button.auth-tab:has-text("Create Account")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('#auth-display-name')).toBeVisible();
 
     const uniqueEmail = `e2e-test-${Date.now()}@c4.local`;
     await page.fill('#auth-display-name', 'Test User E2E');
@@ -123,7 +123,7 @@ test.describe('Authentication Flows', () => {
 
   test('registration validation rejects short password', async ({ page }) => {
     await page.click('button.auth-tab:has-text("Create Account")');
-    await page.waitForTimeout(500);
+    await expect(page.locator('#auth-display-name')).toBeVisible();
 
     await page.fill('#auth-display-name', 'Test User');
     await page.fill('#auth-email', 'short@c4.local');
@@ -131,7 +131,8 @@ test.describe('Authentication Flows', () => {
 
     await page.click('button.auth-submit');
 
-    await page.waitForTimeout(2000);
+    const errorElement = page.locator('[role="alert"], .form-error');
+    await expect(errorElement.first()).toBeVisible({ timeout: 5000 });
     await expect(page).toHaveURL(/\/login/);
   });
 });

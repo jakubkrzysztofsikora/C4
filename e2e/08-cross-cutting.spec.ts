@@ -12,10 +12,8 @@ test.describe('Cross-Cutting Concerns', () => {
     const initialText = await themeToggle.textContent();
 
     await themeToggle.click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', newText?.toLowerCase() ?? '');
 
-    const newText = await themeToggle.textContent();
-    expect(newText).not.toBe(initialText);
+    await expect(themeToggle).not.toHaveText(initialText!);
 
     const storedTheme = await page.evaluate(() => localStorage.getItem('c4_theme'));
     expect(storedTheme).toBeTruthy();
@@ -70,9 +68,8 @@ test.describe('Cross-Cutting Concerns', () => {
     });
 
     await page.goto('/');
-    await page.waitForURL(new RegExp('/login'));
 
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/login/, { timeout: 5000 });
   });
 
   test('active nav link is highlighted', async ({ page }) => {

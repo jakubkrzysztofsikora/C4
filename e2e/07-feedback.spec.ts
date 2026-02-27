@@ -1,25 +1,25 @@
 import { test, expect } from '@playwright/test';
-import { loginAsDemo } from './helpers';
+import { loginAsDemo, API_BASE_URL } from './helpers';
 
 test.describe('Feedback System', () => {
   let token: string;
   let projectId: string;
 
   test.beforeAll(async ({ request }) => {
-    const loginResponse = await request.post('http://localhost:5000/api/auth/login', {
+    const loginResponse = await request.post(`${API_BASE_URL}/api/auth/login`, {
       data: { email: 'demo@c4.local', password: 'Password123!' },
     });
     const loginData = await loginResponse.json();
     token = loginData.token;
 
-    const orgResponse = await request.post('http://localhost:5000/api/organizations', {
+    const orgResponse = await request.post(`${API_BASE_URL}/api/organizations`, {
       headers: { Authorization: `Bearer ${token}` },
       data: { name: `Feedback Org ${Date.now()}` },
     });
     const org = await orgResponse.json();
 
     const projectResponse = await request.post(
-      `http://localhost:5000/api/organizations/${org.organizationId}/projects`,
+      `${API_BASE_URL}/api/organizations/${org.organizationId}/projects`,
       {
         headers: { Authorization: `Bearer ${token}` },
         data: { name: `Feedback Project ${Date.now()}` },
@@ -31,7 +31,7 @@ test.describe('Feedback System', () => {
 
   test('feedback list endpoint returns OK', async ({ request }) => {
     const response = await request.get(
-      `http://localhost:5000/api/projects/${projectId}/feedback`,
+      `${API_BASE_URL}/api/projects/${projectId}/feedback`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     expect(response.ok()).toBe(true);
@@ -39,7 +39,7 @@ test.describe('Feedback System', () => {
 
   test('feedback summary endpoint returns initial state', async ({ request }) => {
     const response = await request.get(
-      `http://localhost:5000/api/projects/${projectId}/feedback/summary`,
+      `${API_BASE_URL}/api/projects/${projectId}/feedback/summary`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     expect(response.ok()).toBe(true);
@@ -49,7 +49,7 @@ test.describe('Feedback System', () => {
 
   test('submit feedback via API succeeds', async ({ request }) => {
     const response = await request.post(
-      `http://localhost:5000/api/projects/${projectId}/feedback`,
+      `${API_BASE_URL}/api/projects/${projectId}/feedback`,
       {
         headers: { Authorization: `Bearer ${token}` },
         data: {
@@ -70,7 +70,7 @@ test.describe('Feedback System', () => {
 
   test('feedback learnings endpoint is accessible', async ({ request }) => {
     const response = await request.get(
-      `http://localhost:5000/api/projects/${projectId}/feedback/learnings`,
+      `${API_BASE_URL}/api/projects/${projectId}/feedback/learnings`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     expect(response.ok()).toBe(true);

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAsDemo } from './helpers';
+import { loginAsDemo, API_BASE_URL } from './helpers';
 
 test.describe('Diagram Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -82,9 +82,22 @@ test.describe('Diagram Page', () => {
   });
 
   test('diagram with project ID in URL', async ({ page }) => {
-    const projectId = '00000000-0000-0000-0000-000000000001';
-    await page.goto(`/diagram/${projectId}`);
-    await expect(page).toHaveURL(new RegExp(`/diagram/${projectId}`));
+    const apiBaseUrl = API_BASE_URL;
+    const projectId = await page.evaluate(async (baseUrl) => {
+      const token = localStorage.getItem('c4_token');
+      const res = await fetch(`${baseUrl}/api/projects`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) && data.length > 0 ? data[0].id ?? data[0].projectId : null;
+      }
+      return null;
+    }, apiBaseUrl);
+
+    const id = projectId ?? '00000000-0000-0000-0000-000000000001';
+    await page.goto(`/diagram/${id}`);
+    await expect(page).toHaveURL(new RegExp(`/diagram/${id}`));
     await expect(page.locator('.diagram-sidebar')).toBeVisible();
   });
 });
