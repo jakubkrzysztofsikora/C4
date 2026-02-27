@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { getJsonOrNull, postJson } from '../../shared/api/client';
 import { useSubscriptions } from './useSubscriptions';
 
 type AzureSubscription = {
@@ -8,7 +9,29 @@ type AzureSubscription = {
   state: string;
 };
 
-type CallbackStatus = 'exchanging' | 'selecting' | 'connecting' | 'error';
+type OrgResponse = {
+  organizationId: string;
+  name: string;
+  projects: ReadonlyArray<{ projectId: string; name: string }>;
+};
+
+type DiscoverRequest = {
+  externalSubscriptionId: string;
+  projectId: string;
+  organizationId: string | null;
+  sources: null;
+};
+
+type DiscoverResponse = {
+  subscriptionId: string;
+  resourcesCount: number;
+  status: string;
+  escalationLevel: string;
+  userActionHint: string;
+  dataQualityFailures: number;
+};
+
+type CallbackStatus = 'exchanging' | 'selecting' | 'connecting' | 'discovering' | 'error';
 
 export function AzureCallbackPage() {
   const [searchParams] = useSearchParams();
@@ -43,14 +66,26 @@ export function AzureCallbackPage() {
     void exchange();
   }, [searchParams, exchangeAzureCode]);
 
-  async function handleSelect(subscriptionId: string, displayName: string) {
+  async function handleSelect(externalSubscriptionId: string, displayName: string) {
     setStatus('connecting');
-    const result = await connectSubscription(subscriptionId, displayName);
-    if (result !== undefined) {
-      navigate('/subscriptions', { replace: true });
-    } else {
+    const result = await connectSubscription(externalSubscriptionId, displayName);
+    if (result === undefined) {
       setStatus('error');
+      return;
     }
+
+    setStatus('discovering');
+    const org = await getJsonOrNull<OrgResponse>('/api/organizations/current');
+    const projectId = org?.projects[0]?.projectId;
+
+    if (projectId !== undefined) {
+      await postJson<DiscoverRequest, DiscoverResponse>(
+        `/api/discovery/subscriptions/${result.subscriptionId}/discover`,
+        { externalSubscriptionId: result.externalSubscriptionId, projectId, organizationId: null, sources: null },
+      ).catch(() => undefined);
+    }
+
+    navigate('/', { replace: true });
   }
 
   if (status === 'exchanging') {
@@ -70,6 +105,17 @@ export function AzureCallbackPage() {
         <div className="auth-card" style={{ textAlign: 'center' }}>
           <span className="spinner" style={{ margin: '0 auto 16px' }} />
           <p>Connecting subscription...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'discovering') {
+    return (
+      <div className="auth-page">
+        <div className="auth-card" style={{ textAlign: 'center' }}>
+          <span className="spinner" style={{ margin: '0 auto 16px' }} />
+          <p>Discovering resources...</p>
         </div>
       </div>
     );
