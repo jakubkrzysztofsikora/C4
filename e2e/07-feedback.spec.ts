@@ -65,7 +65,7 @@ test.describe('Feedback System', () => {
     const status = response.status();
     const body = await response.text();
     console.log(`Submit feedback: status=${status}, body=${body}`);
-    expect(status).toBeLessThan(500);
+    expect(status).toBe(201);
   });
 
   test('feedback learnings endpoint is accessible', async ({ request }) => {
