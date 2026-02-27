@@ -70,7 +70,7 @@ test.describe('Cross-Cutting Concerns', () => {
     });
 
     await page.goto('/');
-    await page.waitForTimeout(2000);
+    await page.waitForURL(new RegExp('/login'));
 
     await expect(page).toHaveURL(/\/login/);
   });
