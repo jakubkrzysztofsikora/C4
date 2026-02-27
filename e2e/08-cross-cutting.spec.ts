@@ -12,7 +12,7 @@ test.describe('Cross-Cutting Concerns', () => {
     const initialText = await themeToggle.textContent();
 
     await themeToggle.click();
-    await page.waitForTimeout(300);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', newText?.toLowerCase() ?? '');
 
     const newText = await themeToggle.textContent();
     expect(newText).not.toBe(initialText);
