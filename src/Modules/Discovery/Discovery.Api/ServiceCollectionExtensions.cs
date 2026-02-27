@@ -53,9 +53,19 @@ public static class ServiceCollectionExtensions
 
         services.AddSharedSemanticKernel(configuration);
 
-        services.AddSingleton<IAzureResourceGraphClient, FakeAzureResourceGraphClient>();
+        services.AddSingleton<IAzureTokenStore, InMemoryAzureTokenStore>();
         services.AddHttpClient();
         services.AddSingleton<IAzureIdentityService, AzureIdentityService>();
+
+        var azureClientId = configuration["AzureAd:ClientId"];
+        if (!string.IsNullOrWhiteSpace(azureClientId))
+        {
+            services.AddSingleton<IAzureResourceGraphClient, AzureResourceGraphClient>();
+        }
+        else
+        {
+            services.AddSingleton<IAzureResourceGraphClient, FakeAzureResourceGraphClient>();
+        }
         services.AddSingleton<IDiscoverySourceAdapter, AzureSubscriptionDiscoverySourceAdapter>();
         services.AddSingleton<IDiscoverySourceAdapter, RepositoryIacDiscoverySourceAdapter>();
         services.AddSingleton<IDiscoverySourceAdapter, RemoteMcpDiscoverySourceAdapter>();

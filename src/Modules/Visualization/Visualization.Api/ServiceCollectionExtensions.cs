@@ -36,7 +36,15 @@ public static class ServiceCollectionExtensions
             services.AddDbContext<VisualizationDbContext>(options => options.UseNpgsql(connectionString));
         }
 
-        services.AddSingleton<IDiagramReadModel, InMemoryDiagramReadModel>();
+        var graphConnectionString = configuration.GetConnectionString("Graph");
+        if (!string.IsNullOrWhiteSpace(graphConnectionString))
+        {
+            services.AddScoped<IDiagramReadModel, GraphDatabaseDiagramReadModel>();
+        }
+        else
+        {
+            services.AddSingleton<IDiagramReadModel, InMemoryDiagramReadModel>();
+        }
         services.AddScoped<IViewPresetRepository, ViewPresetRepository>();
         services.AddSingleton<IDiagramExporter, SvgDiagramExporter>();
         services.AddSingleton<IDiagramExporter, PdfDiagramExporter>();
