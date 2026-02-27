@@ -19,7 +19,7 @@ type GetSubscriptionResponse = {
 };
 
 type AzureAuthResponse = {
-  authorizationUrl: string;
+  authUrl: string;
   state: string;
 };
 
@@ -87,7 +87,7 @@ export function useSubscriptions() {
       const callbackUrl = `${window.location.origin}/azure/callback`;
       const response = await getJson<AzureAuthResponse>(`/api/azure/auth?redirectUri=${encodeURIComponent(callbackUrl)}`);
       sessionStorage.setItem('azure_auth_state', response.state);
-      window.location.href = response.authorizationUrl;
+      window.location.href = response.authUrl;
     } catch (err: unknown) {
       const message = extractErrorMessage(err);
       setState(prev => ({ ...prev, loading: false, error: message }));

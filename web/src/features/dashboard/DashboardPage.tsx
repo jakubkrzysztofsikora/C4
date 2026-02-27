@@ -1,23 +1,209 @@
-import { useState } from 'react';
-import { MdHub, MdSearch } from 'react-icons/md';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { MdBusiness, MdCloud, MdHub, MdCheckCircle, MdArrowForward, MdSearch } from 'react-icons/md';
+import { getJsonOrNull } from '../../shared/api/client';
 import { useDashboard } from './useDashboard';
 
+type SetupStatus = {
+  hasOrganization: boolean;
+  organizationName: string;
+  hasProject: boolean;
+  projectId: string;
+  projectName: string;
+  hasSubscription: boolean;
+  subscriptionName: string;
+  loading: boolean;
+};
+
+type OrgResponse = {
+  organizationId: string;
+  name: string;
+  projects: ReadonlyArray<{ projectId: string; name: string }>;
+};
+
+type SubResponse = {
+  subscriptionId: string;
+  externalSubscriptionId: string;
+  displayName: string;
+};
+
+function useSetupStatus(): SetupStatus {
+  const [status, setStatus] = useState<SetupStatus>({
+    hasOrganization: false,
+    organizationName: '',
+    hasProject: false,
+    projectId: '',
+    projectName: '',
+    hasSubscription: false,
+    subscriptionName: '',
+    loading: true,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const [org, sub] = await Promise.all([
+        getJsonOrNull<OrgResponse>('/api/organizations/current'),
+        getJsonOrNull<SubResponse>('/api/discovery/subscriptions/current'),
+      ]);
+      if (cancelled) return;
+      const hasOrg = org !== null;
+      const firstProject = org?.projects[0];
+      setStatus({
+        hasOrganization: hasOrg,
+        organizationName: org?.name ?? '',
+        hasProject: firstProject !== undefined,
+        projectId: firstProject?.projectId ?? '',
+        projectName: firstProject?.name ?? '',
+        hasSubscription: sub !== null,
+        subscriptionName: sub?.displayName ?? '',
+        loading: false,
+      });
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, []);
+
+  return status;
+}
+
+function SetupStep({ step, title, description, done, doneLabel, actionLabel, to }: {
+  step: number;
+  title: string;
+  description: string;
+  done: boolean;
+  doneLabel: string;
+  actionLabel: string;
+  to: string;
+}) {
+  return (
+    <Link
+      to={to}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        padding: '16px 18px',
+        background: done ? 'rgba(46,143,94,0.06)' : 'var(--panel-2)',
+        border: `1px solid ${done ? 'var(--success)' : 'var(--border)'}`,
+        borderRadius: 12,
+        textDecoration: 'none',
+        color: 'inherit',
+        transition: 'all 0.15s ease',
+      }}
+    >
+      {done ? (
+        <MdCheckCircle size={28} style={{ color: 'var(--success)', flexShrink: 0 }} />
+      ) : (
+        <div style={{
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          border: '2px solid var(--border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 13,
+          fontWeight: 700,
+          color: 'var(--muted)',
+          flexShrink: 0,
+        }}>
+          {step}
+        </div>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: 15 }}>{title}</div>
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
+          {done ? doneLabel : description}
+        </div>
+      </div>
+      {!done && <MdArrowForward size={18} style={{ color: 'var(--muted)', flexShrink: 0 }} />}
+    </Link>
+  );
+}
+
 export function DashboardPage() {
+  const setup = useSetupStatus();
+  const navigate = useNavigate();
   const [projectIdInput, setProjectIdInput] = useState('');
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(undefined);
   const { graph, loading, error } = useDashboard(activeProjectId);
+
+  const setupComplete = setup.hasOrganization && setup.hasProject && setup.hasSubscription;
+
+  useEffect(() => {
+    if (setup.hasProject && setup.projectId.length > 0 && activeProjectId === undefined) {
+      setProjectIdInput(setup.projectId);
+    }
+  }, [setup.hasProject, setup.projectId, activeProjectId]);
 
   function handleLoadProject() {
     if (!projectIdInput) return;
     setActiveProjectId(projectIdInput);
   }
 
+  if (setup.loading) {
+    return (
+      <section className="fade-in">
+        <h1 style={{ marginTop: 0, marginBottom: 4 }}>Dashboard</h1>
+        <div className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="skeleton" style={{ height: 20, width: '40%' }} />
+            <div className="skeleton" style={{ height: 48, borderRadius: 12 }} />
+            <div className="skeleton" style={{ height: 48, borderRadius: 12 }} />
+            <div className="skeleton" style={{ height: 48, borderRadius: 12 }} />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="fade-in">
-      <h1 style={{ marginTop: 0, marginBottom: 4 }}>Dynamic Architecture Dashboard</h1>
+      <h1 style={{ marginTop: 0, marginBottom: 4 }}>Dashboard</h1>
       <p className="subtle" style={{ marginTop: 0, marginBottom: 20 }}>
-        Connect Azure and start discovering your C4 architecture graph.
+        {setupComplete
+          ? `${setup.organizationName} \u2014 ${setup.projectName}`
+          : 'Complete the setup steps below to start discovering your architecture.'}
       </p>
+
+      {!setupComplete && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ margin: '0 0 4px 0', fontSize: 17 }}>Get Started</h2>
+          <p className="subtle" style={{ margin: '0 0 16px 0', fontSize: 14 }}>
+            Set up your workspace in three steps.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <SetupStep
+              step={1}
+              title="Create Organization"
+              description="Register your organization and create a project."
+              done={setup.hasOrganization && setup.hasProject}
+              doneLabel={`${setup.organizationName} \u2014 ${setup.projectName}`}
+              actionLabel="Set up"
+              to="/organizations"
+            />
+            <SetupStep
+              step={2}
+              title="Connect Azure"
+              description="Sign in with Microsoft to link your Azure subscription."
+              done={setup.hasSubscription}
+              doneLabel={setup.subscriptionName}
+              actionLabel="Connect"
+              to="/subscriptions"
+            />
+            <SetupStep
+              step={3}
+              title="Explore Architecture"
+              description="View your C4 architecture diagram and discover resources."
+              done={false}
+              doneLabel=""
+              actionLabel="Explore"
+              to={setup.projectId.length > 0 ? `/diagram/${setup.projectId}` : '/diagram'}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -81,6 +267,16 @@ export function DashboardPage() {
           <p className="subtle" style={{ marginTop: 0, marginBottom: 16 }}>
             {graph.nodes.length} node{graph.nodes.length !== 1 ? 's' : ''} &bull; {graph.edges.length} edge{graph.edges.length !== 1 ? 's' : ''}
           </p>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <button
+              className="btn btn-primary btn-sm"
+              type="button"
+              onClick={() => void navigate(`/diagram/${graph.projectId}`)}
+            >
+              <MdHub size={14} />
+              View Diagram
+            </button>
+          </div>
           <h3 style={{ marginTop: 0, marginBottom: 10 }}>Resources</h3>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
             {graph.nodes.map((node) => (
@@ -108,7 +304,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      {graph === undefined && activeProjectId === undefined && !loading && (
+      {graph === undefined && activeProjectId === undefined && !loading && setupComplete && (
         <div className="card">
           <div className="empty-state">
             <MdHub className="empty-state-icon" />
