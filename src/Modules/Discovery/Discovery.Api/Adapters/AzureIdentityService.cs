@@ -44,8 +44,11 @@ public sealed class AzureIdentityService(IHttpClientFactory httpClientFactory, I
             content,
             cancellationToken);
 
-        response.EnsureSuccessStatusCode();
         var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Azure token exchange failed ({response.StatusCode}): {json}");
+        }
         var tokenResult = JsonSerializer.Deserialize<TokenEndpointResponse>(json)!;
 
         return new AzureTokenResponse(tokenResult.AccessToken, tokenResult.ExpiresIn);
@@ -60,8 +63,11 @@ public sealed class AzureIdentityService(IHttpClientFactory httpClientFactory, I
             "https://management.azure.com/subscriptions?api-version=2022-12-01",
             cancellationToken);
 
-        response.EnsureSuccessStatusCode();
         var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException($"Azure subscription listing failed ({response.StatusCode}): {json}");
+        }
         var result = JsonSerializer.Deserialize<SubscriptionListResponse>(json)!;
 
         return result.Value
