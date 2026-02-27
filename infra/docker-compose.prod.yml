@@ -27,6 +27,9 @@ services:
       ConnectionStrings__Visualization: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
       ConnectionStrings__Feedback: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
       Frontend__Origin: ${FRONTEND_ORIGIN:-http://localhost}
+      AzureAd__ClientId: ${AZURE_AD_CLIENT_ID:-}
+      AzureAd__TenantId: ${AZURE_AD_TENANT_ID:-}
+      AzureAd__ClientSecret: ${AZURE_AD_CLIENT_SECRET:-}
     ports:
       - "127.0.0.1:5000:5000"
     depends_on:

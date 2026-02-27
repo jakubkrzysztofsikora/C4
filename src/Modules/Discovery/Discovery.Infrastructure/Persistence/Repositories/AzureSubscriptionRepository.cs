@@ -11,4 +11,7 @@ public sealed class AzureSubscriptionRepository(DiscoveryDbContext dbContext) : 
 
     public async Task AddAsync(AzureSubscription subscription, CancellationToken cancellationToken) =>
         await dbContext.Subscriptions.AddAsync(subscription, cancellationToken);
+
+    public Task<AzureSubscription?> GetFirstAsync(CancellationToken cancellationToken) =>
+        dbContext.Subscriptions.FirstOrDefaultAsync(cancellationToken);
 }

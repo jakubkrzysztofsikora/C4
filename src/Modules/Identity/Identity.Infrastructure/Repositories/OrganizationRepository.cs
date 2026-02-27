@@ -15,4 +15,7 @@ public sealed class OrganizationRepository(IdentityDbContext dbContext) : IOrgan
 
     public Task<Organization?> GetByIdAsync(OrganizationId organizationId, CancellationToken cancellationToken) =>
         dbContext.Organizations.FirstOrDefaultAsync(organization => organization.Id == organizationId, cancellationToken);
+
+    public Task<Organization?> GetFirstAsync(CancellationToken cancellationToken) =>
+        dbContext.Organizations.FirstOrDefaultAsync(cancellationToken);
 }

@@ -10,4 +10,6 @@ public interface IProjectRepository
     Task AddAsync(Project project, CancellationToken cancellationToken);
 
     Task<Project?> GetByIdAsync(ProjectId projectId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Project>> GetByOrganizationIdAsync(OrganizationId organizationId, CancellationToken cancellationToken);
 }

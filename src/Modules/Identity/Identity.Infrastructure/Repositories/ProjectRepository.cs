@@ -16,4 +16,7 @@ public sealed class ProjectRepository(IdentityDbContext dbContext) : IProjectRep
 
     public Task<Project?> GetByIdAsync(ProjectId projectId, CancellationToken cancellationToken) =>
         dbContext.Projects.FirstOrDefaultAsync(project => project.Id == projectId, cancellationToken);
+
+    public async Task<IReadOnlyList<Project>> GetByOrganizationIdAsync(OrganizationId organizationId, CancellationToken cancellationToken) =>
+        await dbContext.Projects.Where(project => project.OrganizationId == organizationId).ToListAsync(cancellationToken);
 }

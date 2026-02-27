@@ -9,4 +9,6 @@ public interface IOrganizationRepository
     Task AddAsync(Organization organization, CancellationToken cancellationToken);
 
     Task<Organization?> GetByIdAsync(OrganizationId organizationId, CancellationToken cancellationToken);
+
+    Task<Organization?> GetFirstAsync(CancellationToken cancellationToken);
 }

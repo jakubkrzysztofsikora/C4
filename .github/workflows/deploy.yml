@@ -180,9 +180,12 @@ jobs:
             "${{ github.repository }}" \
             "${{ github.sha }}" \
             "${{ needs.provision.outputs.server_ip }}" \
-            "${{ vars.DOMAIN || 'c4.jakub.team' }}" <<'SCRIPT'
+            "${{ vars.DOMAIN || 'c4.jakub.team' }}" \
+            "${{ vars.AZURE_AD_CLIENT_ID || '2f3e8ba2-910e-4341-bf6a-079d75901c8d' }}" \
+            "${{ vars.AZURE_AD_TENANT_ID || 'b6560c52-065a-424b-90b1-5340eab75de9' }}" \
+            "${{ secrets.ENTRA_ID_SECRET }}" <<'SCRIPT'
           set -euo pipefail
-          GH_TOKEN="$1"; GH_ACTOR="$2"; DB_PASS="$3"; REPO=$(echo "$4" | tr '[:upper:]' '[:lower:]'); TAG="$5"; IP="$6"; DOMAIN="$7"
+          GH_TOKEN="$1"; GH_ACTOR="$2"; DB_PASS="$3"; REPO=$(echo "$4" | tr '[:upper:]' '[:lower:]'); TAG="$5"; IP="$6"; DOMAIN="$7"; AZ_CLIENT_ID="$8"; AZ_TENANT_ID="$9"; AZ_CLIENT_SECRET="${10}"
           mkdir -p /opt/c4 && cd /opt/c4
 
           if [ -n "$DOMAIN" ]; then
@@ -200,6 +203,9 @@ jobs:
           GITHUB_REPOSITORY=$REPO
           IMAGE_TAG=$TAG
           FRONTEND_ORIGIN=$ORIGIN
+          AZURE_AD_CLIENT_ID=$AZ_CLIENT_ID
+          AZURE_AD_TENANT_ID=$AZ_TENANT_ID
+          AZURE_AD_CLIENT_SECRET=$AZ_CLIENT_SECRET
           EOF
 
           cat > docker-compose.yml <<'COMPOSE'
@@ -232,6 +238,9 @@ jobs:
                 ConnectionStrings__Visualization: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
                 ConnectionStrings__Feedback: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
                 Frontend__Origin: ${FRONTEND_ORIGIN}
+                AzureAd__ClientId: ${AZURE_AD_CLIENT_ID}
+                AzureAd__TenantId: ${AZURE_AD_TENANT_ID}
+                AzureAd__ClientSecret: ${AZURE_AD_CLIENT_SECRET}
               ports:
                 - "127.0.0.1:5000:5000"
               depends_on:

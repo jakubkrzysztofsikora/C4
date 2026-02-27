@@ -7,4 +7,6 @@ public interface IAzureSubscriptionRepository
     Task<bool> ExistsByExternalIdAsync(string externalSubscriptionId, CancellationToken cancellationToken);
 
     Task AddAsync(AzureSubscription subscription, CancellationToken cancellationToken);
+
+    Task<AzureSubscription?> GetFirstAsync(CancellationToken cancellationToken);
 }

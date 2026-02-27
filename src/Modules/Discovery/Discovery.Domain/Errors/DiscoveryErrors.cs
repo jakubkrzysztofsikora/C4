@@ -21,4 +21,7 @@ public static class DiscoveryErrors
 
     public static Error PartialDataQualityFailure(int failedResources) =>
         new("discovery.data-quality.partial", $"{failedResources} resources could not be processed due to data quality issues.");
+
+    public static Error SubscriptionNotFound() =>
+        new("discovery.subscription.not_found", "No subscription has been connected.");
 }
