@@ -11,13 +11,23 @@ public sealed class DiscoveryDbContext(DbContextOptions<DiscoveryDbContext> opti
     public DbSet<AzureSubscription> Subscriptions => Set<AzureSubscription>();
     public DbSet<DiscoveredResource> Resources => Set<DiscoveredResource>();
     public DbSet<DriftItemEntity> DriftItems => Set<DriftItemEntity>();
+    public DbSet<AzureTokenEntity> AzureTokens => Set<AzureTokenEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new AzureSubscriptionConfiguration());
         modelBuilder.ApplyConfiguration(new DiscoveredResourceConfiguration());
         modelBuilder.ApplyConfiguration(new DriftItemEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new AzureTokenEntityConfiguration());
     }
+}
+
+public sealed class AzureTokenEntity
+{
+    public string ExternalSubscriptionId { get; init; } = string.Empty;
+    public string AccessToken { get; set; } = string.Empty;
+    public string? RefreshToken { get; set; }
+    public DateTime ExpiresAtUtc { get; set; }
 }
 
 public sealed class DriftItemEntity
@@ -77,5 +87,18 @@ file sealed class DriftItemEntityConfiguration : IEntityTypeConfiguration<DriftI
         builder.Property(d => d.ResourceId).HasMaxLength(500).IsRequired();
         builder.Property(d => d.Status).HasMaxLength(50).IsRequired();
         builder.HasIndex(d => d.SubscriptionId);
+    }
+}
+
+file sealed class AzureTokenEntityConfiguration : IEntityTypeConfiguration<AzureTokenEntity>
+{
+    public void Configure(EntityTypeBuilder<AzureTokenEntity> builder)
+    {
+        builder.ToTable("azure_tokens");
+        builder.HasKey(t => t.ExternalSubscriptionId);
+        builder.Property(t => t.ExternalSubscriptionId).HasColumnName("external_subscription_id").HasMaxLength(200);
+        builder.Property(t => t.AccessToken).HasColumnName("access_token").HasMaxLength(4000).IsRequired();
+        builder.Property(t => t.RefreshToken).HasColumnName("refresh_token").HasMaxLength(4000);
+        builder.Property(t => t.ExpiresAtUtc).HasColumnName("expires_at_utc").IsRequired();
     }
 }

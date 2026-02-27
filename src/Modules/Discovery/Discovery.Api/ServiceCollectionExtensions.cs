@@ -53,7 +53,14 @@ public static class ServiceCollectionExtensions
 
         services.AddSharedSemanticKernel(configuration);
 
-        services.AddSingleton<IAzureTokenStore, InMemoryAzureTokenStore>();
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            services.AddSingleton<IAzureTokenStore, InMemoryAzureTokenStore>();
+        }
+        else
+        {
+            services.AddSingleton<IAzureTokenStore, DatabaseAzureTokenStore>();
+        }
         services.AddHttpClient();
         services.AddSingleton<IAzureIdentityService, AzureIdentityService>();
 

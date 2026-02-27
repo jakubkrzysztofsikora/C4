@@ -40,10 +40,17 @@ public static class DiscoveryEscalationMapper
         exception switch
         {
             UnauthorizedAccessException => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph"),
+            InvalidOperationException ex when IsAuthRelated(ex.Message) => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph"),
             HttpRequestException => DiscoveryErrors.ConnectorUnavailable("azure-resource-graph"),
             System.Text.Json.JsonException => DiscoveryErrors.SchemaContractViolation("azure-resource-graph"),
             FormatException => DiscoveryErrors.SchemaContractViolation("azure-resource-graph"),
             InvalidDataException => DiscoveryErrors.SchemaContractViolation("azure-resource-graph"),
             _ => DiscoveryErrors.ConnectorUnavailable("azure-resource-graph")
         };
+
+    private static bool IsAuthRelated(string message) =>
+        message.Contains("credentials", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("re-authenticate", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("token expired", StringComparison.OrdinalIgnoreCase)
+        || message.Contains("token refresh", StringComparison.OrdinalIgnoreCase);
 }
