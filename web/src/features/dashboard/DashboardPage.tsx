@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { MdBusiness, MdCloud, MdHub, MdCheckCircle, MdArrowForward, MdSearch } from 'react-icons/md';
-import { getJsonOrNull, postJson, deleteJson } from '../../shared/api/client';
+import { MdBusiness, MdCloud, MdHub, MdCheckCircle, MdArrowForward, MdSearch, MdError, MdWarning } from 'react-icons/md';
+import { ApiError, getJsonOrNull, postJson, deleteJson } from '../../shared/api/client';
 import { useDashboard } from './useDashboard';
 
 type SetupStatus = {
@@ -144,14 +144,99 @@ type DiscoverResponse = {
   dataQualityFailures: number;
 };
 
+type DiscoveryPhase = 'idle' | 'clearing' | 'scanning' | 'done' | 'error';
+
+type DiscoveryStatus = {
+  phase: DiscoveryPhase;
+  result: DiscoverResponse | undefined;
+  errorMessage: string | undefined;
+};
+
+const initialDiscoveryStatus: DiscoveryStatus = { phase: 'idle', result: undefined, errorMessage: undefined };
+
+function DiscoveryProgressCard({ status }: { status: DiscoveryStatus }) {
+  if (status.phase === 'idle') return null;
+
+  const isRunning = status.phase !== 'done' && status.phase !== 'error';
+  const isError = status.phase === 'error';
+  const isPartial = status.result !== undefined && status.result.dataQualityFailures > 0;
+
+  const borderColor = isError
+    ? 'var(--error)'
+    : isPartial
+      ? 'var(--warning, #e6a700)'
+      : isRunning
+        ? 'var(--primary, #3b82f6)'
+        : 'var(--success)';
+
+  const phaseLabel: Record<DiscoveryPhase, string> = {
+    idle: '',
+    clearing: 'Clearing previous graph data...',
+    scanning: 'Scanning Azure subscription and classifying resources...',
+    done: 'Discovery complete',
+    error: 'Discovery failed',
+  };
+
+  return (
+    <div className="card fade-in" style={{ borderColor, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        {isRunning && <span className="spinner spinner-sm" style={{ flexShrink: 0, marginTop: 2 }} />}
+        {status.phase === 'done' && !isPartial && (
+          <MdCheckCircle size={20} style={{ color: 'var(--success)', flexShrink: 0, marginTop: 2 }} />
+        )}
+        {status.phase === 'done' && isPartial && (
+          <MdWarning size={20} style={{ color: 'var(--warning, #e6a700)', flexShrink: 0, marginTop: 2 }} />
+        )}
+        {isError && (
+          <MdError size={20} style={{ color: 'var(--error)', flexShrink: 0, marginTop: 2 }} />
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+            {phaseLabel[status.phase]}
+          </div>
+
+          {isRunning && (
+            <div className="subtle" style={{ fontSize: 13 }}>
+              This may take a moment while we query Azure Resource Graph and classify resources.
+            </div>
+          )}
+
+          {status.result !== undefined && (
+            <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+              <div>
+                <strong>{status.result.resourcesCount}</strong> resource{status.result.resourcesCount !== 1 ? 's' : ''} discovered
+              </div>
+              {status.result.dataQualityFailures > 0 && (
+                <div style={{ color: 'var(--warning, #e6a700)' }}>
+                  {status.result.dataQualityFailures} resource{status.result.dataQualityFailures !== 1 ? 's' : ''} could not be classified
+                </div>
+              )}
+              {status.result.userActionHint.length > 0 && (
+                <div className="subtle">{status.result.userActionHint}</div>
+              )}
+            </div>
+          )}
+
+          {status.errorMessage !== undefined && (
+            <div style={{ color: 'var(--error)', fontSize: 13, marginTop: 4 }}>
+              {status.errorMessage}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DashboardPage() {
   const setup = useSetupStatus();
   const navigate = useNavigate();
   const [projectIdInput, setProjectIdInput] = useState('');
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(undefined);
-  const [discovering, setDiscovering] = useState(false);
+  const [discovery, setDiscovery] = useState<DiscoveryStatus>(initialDiscoveryStatus);
   const { graph, loading, error, graphNotFound, refetch } = useDashboard(activeProjectId);
 
+  const discovering = discovery.phase !== 'idle' && discovery.phase !== 'done' && discovery.phase !== 'error';
   const setupComplete = setup.hasOrganization && setup.hasProject && setup.hasSubscription;
 
   useEffect(() => {
@@ -171,38 +256,44 @@ export function DashboardPage() {
     setActiveProjectId(projectIdInput);
   }
 
-  const handleDiscover = useCallback(async () => {
+  const runDiscovery = useCallback(async (clearFirst: boolean) => {
     if (!setup.subscriptionId || !setup.projectId) return;
-    setDiscovering(true);
-    await postJson<DiscoverRequest, DiscoverResponse>(
-      `/api/discovery/subscriptions/${setup.subscriptionId}/discover`,
-      {
-        externalSubscriptionId: setup.externalSubscriptionId,
-        projectId: setup.projectId,
-        organizationId: null,
-        sources: null,
-      },
-    ).catch(() => undefined);
-    setDiscovering(false);
-    await refetch(setup.projectId);
+
+    if (clearFirst) {
+      setDiscovery({ phase: 'clearing', result: undefined, errorMessage: undefined });
+      try {
+        await deleteJson(`/api/projects/${setup.projectId}/graph`);
+      } catch {
+        // Not critical if graph didn't exist
+      }
+    }
+
+    setDiscovery({ phase: 'scanning', result: undefined, errorMessage: undefined });
+
+    try {
+      const result = await postJson<DiscoverRequest, DiscoverResponse>(
+        `/api/discovery/subscriptions/${setup.subscriptionId}/discover`,
+        {
+          externalSubscriptionId: setup.externalSubscriptionId,
+          projectId: setup.projectId,
+          organizationId: null,
+          sources: null,
+        },
+      );
+      setDiscovery({ phase: 'done', result, errorMessage: undefined });
+      await refetch(setup.projectId);
+    } catch (err: unknown) {
+      const message = err instanceof ApiError
+        ? `${err.status}: ${err.message}`
+        : err instanceof Error
+          ? err.message
+          : 'An unexpected error occurred';
+      setDiscovery({ phase: 'error', result: undefined, errorMessage: message });
+    }
   }, [setup.subscriptionId, setup.externalSubscriptionId, setup.projectId, refetch]);
 
-  const handleRediscover = useCallback(async () => {
-    if (!setup.subscriptionId || !setup.projectId) return;
-    setDiscovering(true);
-    await deleteJson(`/api/projects/${setup.projectId}/graph`).catch(() => undefined);
-    await postJson<DiscoverRequest, DiscoverResponse>(
-      `/api/discovery/subscriptions/${setup.subscriptionId}/discover`,
-      {
-        externalSubscriptionId: setup.externalSubscriptionId,
-        projectId: setup.projectId,
-        organizationId: null,
-        sources: null,
-      },
-    ).catch(() => undefined);
-    setDiscovering(false);
-    await refetch(setup.projectId);
-  }, [setup.subscriptionId, setup.externalSubscriptionId, setup.projectId, refetch]);
+  const handleDiscover = useCallback(() => void runDiscovery(false), [runDiscovery]);
+  const handleRediscover = useCallback(() => void runDiscovery(true), [runDiscovery]);
 
   if (setup.loading) {
     return (
@@ -340,14 +431,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      {discovering && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="spinner spinner-sm" />
-            <span>Discovering resources...</span>
-          </div>
-        </div>
-      )}
+      <DiscoveryProgressCard status={discovery} />
 
       {loading && activeProjectId !== undefined && (
         <div className="card">

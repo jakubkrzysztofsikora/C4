@@ -31,7 +31,7 @@ type DiscoverResponse = {
   dataQualityFailures: number;
 };
 
-type CallbackStatus = 'exchanging' | 'selecting' | 'connecting' | 'discovering' | 'error';
+type CallbackStatus = 'exchanging' | 'selecting' | 'connecting' | 'discovering' | 'discover-done' | 'discover-error' | 'error';
 
 export function AzureCallbackPage() {
   const [searchParams] = useSearchParams();
@@ -39,6 +39,8 @@ export function AzureCallbackPage() {
   const { exchangeAzureCode, connectSubscription, error } = useSubscriptions();
   const [status, setStatus] = useState<CallbackStatus>('exchanging');
   const [subscriptions, setSubscriptions] = useState<ReadonlyArray<AzureSubscription>>([]);
+  const [discoverResult, setDiscoverResult] = useState<DiscoverResponse | undefined>(undefined);
+  const [discoverError, setDiscoverError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const code = searchParams.get('code');
@@ -79,13 +81,20 @@ export function AzureCallbackPage() {
     const projectId = org?.projects[0]?.projectId;
 
     if (projectId !== undefined) {
-      await postJson<DiscoverRequest, DiscoverResponse>(
-        `/api/discovery/subscriptions/${result.subscriptionId}/discover`,
-        { externalSubscriptionId: result.externalSubscriptionId, projectId, organizationId: null, sources: null },
-      ).catch(() => undefined);
+      try {
+        const discoverResp = await postJson<DiscoverRequest, DiscoverResponse>(
+          `/api/discovery/subscriptions/${result.subscriptionId}/discover`,
+          { externalSubscriptionId: result.externalSubscriptionId, projectId, organizationId: null, sources: null },
+        );
+        setDiscoverResult(discoverResp);
+        setStatus('discover-done');
+      } catch (err: unknown) {
+        setDiscoverError(err instanceof Error ? err.message : 'Discovery failed');
+        setStatus('discover-error');
+      }
+    } else {
+      navigate('/', { replace: true });
     }
-
-    navigate('/', { replace: true });
   }
 
   if (status === 'exchanging') {
@@ -115,7 +124,82 @@ export function AzureCallbackPage() {
       <div className="auth-page">
         <div className="auth-card" style={{ textAlign: 'center' }}>
           <span className="spinner" style={{ margin: '0 auto 16px' }} />
-          <p>Discovering resources...</p>
+          <p style={{ fontWeight: 600 }}>Scanning Azure subscription...</p>
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+            Querying Azure Resource Graph and classifying resources. This may take a moment.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'discover-done' && discoverResult !== undefined) {
+    const hasWarnings = discoverResult.dataQualityFailures > 0;
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <div style={{
+              width: 48,
+              height: 48,
+              borderRadius: '50%',
+              background: hasWarnings ? 'rgba(230,167,0,0.1)' : 'rgba(46,143,94,0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 12px',
+            }}>
+              {hasWarnings ? '!' : '\u2713'}
+            </div>
+            <h2 style={{ margin: '0 0 4px 0' }}>Discovery Complete</h2>
+            <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0 }}>
+              <strong>{discoverResult.resourcesCount}</strong> resource{discoverResult.resourcesCount !== 1 ? 's' : ''} discovered
+            </p>
+          </div>
+          {hasWarnings && (
+            <div style={{
+              padding: '10px 14px',
+              background: 'rgba(230,167,0,0.06)',
+              border: '1px solid rgba(230,167,0,0.3)',
+              borderRadius: 8,
+              fontSize: 13,
+              marginBottom: 16,
+            }}>
+              {discoverResult.dataQualityFailures} resource{discoverResult.dataQualityFailures !== 1 ? 's' : ''} could not be classified.
+              {discoverResult.userActionHint.length > 0 && ` ${discoverResult.userActionHint}`}
+            </div>
+          )}
+          <button
+            className="btn btn-primary"
+            style={{ width: '100%' }}
+            onClick={() => navigate('/', { replace: true })}
+            type="button"
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'discover-error') {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <h2 style={{ marginTop: 0 }}>Discovery Failed</h2>
+          <p style={{ color: 'var(--error)', fontSize: 14 }}>
+            {discoverError ?? 'Could not discover resources from your Azure subscription.'}
+          </p>
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>
+            Your subscription was connected successfully. You can try rediscovering from the Dashboard.
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={() => navigate('/', { replace: true })}
+            type="button"
+          >
+            Go to Dashboard
+          </button>
         </div>
       </div>
     );
