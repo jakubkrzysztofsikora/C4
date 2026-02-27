@@ -36,17 +36,23 @@ public static class ServiceCollectionExtensions
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             services.AddDbContext<DiscoveryDbContext>(options => options.UseInMemoryDatabase("discovery-dev"));
+            services.AddSingleton<IAzureSubscriptionRepository, InMemoryAzureSubscriptionRepository>();
+            services.AddSingleton<IDiscoveredResourceRepository, InMemoryDiscoveredResourceRepository>();
+            services.AddSingleton<IDriftResultRepository, InMemoryDriftResultRepository>();
+            services.AddSingleton<NoOpDiscoveryUnitOfWork>();
+            services.AddKeyedSingleton<IUnitOfWork>("Discovery", (sp, _) => sp.GetRequiredService<NoOpDiscoveryUnitOfWork>());
         }
         else
         {
             services.AddDbContext<DiscoveryDbContext>(options => options.UseNpgsql(connectionString));
+            services.AddScoped<IAzureSubscriptionRepository, AzureSubscriptionRepository>();
+            services.AddScoped<IDiscoveredResourceRepository, DiscoveredResourceRepository>();
+            services.AddScoped<IDriftResultRepository, DriftResultRepository>();
+            services.AddKeyedScoped<IUnitOfWork>("Discovery", (sp, _) => sp.GetRequiredService<DiscoveryDbContext>());
         }
 
         services.AddSharedSemanticKernel(configuration);
 
-        services.AddSingleton<IAzureSubscriptionRepository, InMemoryAzureSubscriptionRepository>();
-        services.AddSingleton<IDiscoveredResourceRepository, InMemoryDiscoveredResourceRepository>();
-        services.AddSingleton<IDriftResultRepository, InMemoryDriftResultRepository>();
         services.AddSingleton<IAzureResourceGraphClient, FakeAzureResourceGraphClient>();
         services.AddHttpClient();
         services.AddSingleton<IAzureIdentityService, AzureIdentityService>();
@@ -58,9 +64,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BicepParser>();
         services.AddSingleton<TerraformParser>();
         services.AddSingleton<IIacStateParser, CompositeIacStateParser>();
-
-        services.AddSingleton<NoOpDiscoveryUnitOfWork>();
-        services.AddKeyedSingleton<IUnitOfWork>("Discovery", (sp, _) => sp.GetRequiredService<NoOpDiscoveryUnitOfWork>());
         services.AddSingleton<IDiscoveryDataPreparer, DiscoveryDataPreparer>();
         services.AddSingleton<MultiSourceDiscoveryPlanner>();
         services.AddSingleton<IDiscoveryTelemetryEventSink, DiscoveryStructuredTelemetryEventSink>();
