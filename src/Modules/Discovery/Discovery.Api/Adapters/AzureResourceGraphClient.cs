@@ -74,10 +74,38 @@ public sealed class AzureResourceGraphClient(
         if (!root.TryGetProperty("data", out JsonElement data))
             return [];
 
-        if (data.TryGetProperty("columns", out JsonElement columns) && data.TryGetProperty("rows", out JsonElement rows))
+        if (data.ValueKind == JsonValueKind.Array)
+            return ParseObjectArrayResponse(data);
+
+        if (data.ValueKind == JsonValueKind.Object
+            && data.TryGetProperty("columns", out JsonElement columns)
+            && data.TryGetProperty("rows", out JsonElement rows))
             return ParseTabularResponse(columns, rows);
 
         return [];
+    }
+
+    private static IReadOnlyCollection<AzureResourceRecord> ParseObjectArrayResponse(JsonElement data)
+    {
+        List<AzureResourceRecord> results = [];
+        foreach (JsonElement element in data.EnumerateArray())
+        {
+            string resourceId = element.TryGetProperty("id", out JsonElement idProp) ? idProp.GetString() ?? string.Empty : string.Empty;
+            string resourceType = element.TryGetProperty("type", out JsonElement typeProp) ? typeProp.GetString() ?? string.Empty : string.Empty;
+            string name = element.TryGetProperty("name", out JsonElement nameProp) ? nameProp.GetString() ?? string.Empty : string.Empty;
+
+            string? parentResourceId = null;
+            if (element.TryGetProperty("properties", out JsonElement props) && props.ValueKind == JsonValueKind.Object)
+            {
+                if (props.TryGetProperty("parentResourceId", out JsonElement parentProp))
+                    parentResourceId = parentProp.GetString();
+            }
+
+            if (!string.IsNullOrWhiteSpace(resourceId))
+                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId));
+        }
+
+        return results;
     }
 
     private static IReadOnlyCollection<AzureResourceRecord> ParseTabularResponse(JsonElement columns, JsonElement rows)
