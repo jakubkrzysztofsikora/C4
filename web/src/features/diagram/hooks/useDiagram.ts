@@ -54,7 +54,7 @@ function resolveHealth(value: string | undefined): DiagramNode['health'] {
 }
 
 function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
-  const nodes: DiagramNode[] = dto.nodes.map((node) => ({
+  const nodes: DiagramNode[] = (dto.nodes ?? []).map((node) => ({
     id: node.id,
     label: node.name,
     level: mapLevel(node.level),
@@ -63,7 +63,7 @@ function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
     ...(node.parentNodeId !== undefined && { parentId: node.parentNodeId }),
   }));
 
-  const edges: DiagramEdge[] = dto.edges.map((edge) => ({
+  const edges: DiagramEdge[] = (dto.edges ?? []).map((edge) => ({
     id: edge.id,
     from: edge.sourceNodeId,
     to: edge.targetNodeId,

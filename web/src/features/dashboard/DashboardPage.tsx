@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MdBusiness, MdCloud, MdHub, MdCheckCircle, MdArrowForward, MdSearch, MdError, MdWarning } from 'react-icons/md';
 import { ApiError, getJsonOrNull, postJson, deleteJson } from '../../shared/api/client';
 import { useDashboard } from './useDashboard';
+import { useSearch } from '../../shared/search/SearchContext';
 
 type SetupStatus = {
   hasOrganization: boolean;
@@ -231,6 +232,7 @@ function DiscoveryProgressCard({ status }: { status: DiscoveryStatus }) {
 export function DashboardPage() {
   const setup = useSetupStatus();
   const navigate = useNavigate();
+  const { query: searchQuery } = useSearch();
   const [projectIdInput, setProjectIdInput] = useState('');
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(undefined);
   const [discovery, setDiscovery] = useState<DiscoveryStatus>(initialDiscoveryStatus);
@@ -238,6 +240,21 @@ export function DashboardPage() {
 
   const discovering = discovery.phase !== 'idle' && discovery.phase !== 'done' && discovery.phase !== 'error';
   const setupComplete = setup.hasOrganization && setup.hasProject && setup.hasSubscription;
+
+  const [visibleCount, setVisibleCount] = useState(50);
+
+  const filteredNodes = useMemo(() => {
+    const nodes = graph?.nodes ?? [];
+    if (searchQuery.length === 0) return nodes;
+    const lower = searchQuery.toLowerCase();
+    return nodes.filter(
+      (n) => n.name.toLowerCase().includes(lower) || n.externalResourceId.toLowerCase().includes(lower),
+    );
+  }, [graph?.nodes, searchQuery]);
+
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (setupComplete && setup.projectId.length > 0 && activeProjectId === undefined) {
@@ -449,9 +466,9 @@ export function DashboardPage() {
 
       {graph !== undefined && !loading && (
         <div className="card fade-in">
-          <h2 style={{ marginTop: 0, marginBottom: 4 }}>Project: {graph.projectId}</h2>
+          <h2 style={{ marginTop: 0, marginBottom: 4 }}>Project: {setup.projectName || graph.projectId}</h2>
           <p className="subtle" style={{ marginTop: 0, marginBottom: 16 }}>
-            {graph.nodes.length} node{graph.nodes.length !== 1 ? 's' : ''} &bull; {graph.edges.length} edge{graph.edges.length !== 1 ? 's' : ''}
+            {filteredNodes.length}{searchQuery.length > 0 ? ` / ${(graph.nodes ?? []).length}` : ''} node{filteredNodes.length !== 1 ? 's' : ''} &bull; {(graph.edges ?? []).length} edge{(graph.edges ?? []).length !== 1 ? 's' : ''}
           </p>
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <button
@@ -483,7 +500,7 @@ export function DashboardPage() {
           </div>
           <h3 style={{ marginTop: 0, marginBottom: 10 }}>Resources</h3>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {graph.nodes.map((node) => (
+            {filteredNodes.slice(0, visibleCount).map((node) => (
               <li
                 key={node.id}
                 style={{
@@ -505,6 +522,16 @@ export function DashboardPage() {
               </li>
             ))}
           </ul>
+          {filteredNodes.length > visibleCount && (
+            <button
+              className="btn btn-sm"
+              type="button"
+              style={{ marginTop: 12, width: '100%' }}
+              onClick={() => setVisibleCount((c) => c + 50)}
+            >
+              Show more ({filteredNodes.length - visibleCount} remaining)
+            </button>
+          )}
         </div>
       )}
 
