@@ -39,6 +39,8 @@ public sealed class ResourcesDiscoveredHandler(IArchitectureGraphRepository repo
 
         graph.ResolveNodeParents(parentMappings);
 
+        InferEdges(graph, includedResources);
+
         graph.CreateSnapshot();
         await repository.UpsertAsync(graph, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -65,5 +67,60 @@ public sealed class ResourcesDiscoveredHandler(IArchitectureGraphRepository repo
             return 2;
 
         return 3;
+    }
+
+    private static void InferEdges(
+        Domain.ArchitectureGraph.ArchitectureGraph graph,
+        DiscoveredResourceEventItem[] includedResources)
+    {
+        foreach (var resource in includedResources.Where(r => r.NormalizedRelatedResourceId is not null))
+        {
+            var sourceId = resource.StableResourceId ?? resource.ResourceId;
+            var sourceNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == sourceId);
+            var targetNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == resource.NormalizedRelatedResourceId);
+            if (sourceNode is not null && targetNode is not null)
+                graph.AddEdge(sourceNode, targetNode);
+        }
+
+        var appServiceTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "app", "api" };
+        var backendServiceTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "database", "queue", "cache" };
+
+        var byResourceGroup = includedResources
+            .Select(r => new { Resource = r, ResourceGroup = ExtractResourceGroup(r.StableResourceId ?? r.ResourceId) })
+            .Where(x => x.ResourceGroup is not null)
+            .GroupBy(x => x.ResourceGroup!, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1);
+
+        foreach (var group in byResourceGroup)
+        {
+            var apps = group.Where(x => appServiceTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
+            var backends = group.Where(x => backendServiceTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
+
+            foreach (var app in apps)
+            {
+                foreach (var backend in backends)
+                {
+                    var appId = app.Resource.StableResourceId ?? app.Resource.ResourceId;
+                    var backendId = backend.Resource.StableResourceId ?? backend.Resource.ResourceId;
+                    var sourceNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == appId);
+                    var targetNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == backendId);
+                    if (sourceNode is not null && targetNode is not null)
+                        graph.AddEdge(sourceNode, targetNode);
+                }
+            }
+        }
+    }
+
+    private static string? ExtractResourceGroup(string resourceId)
+    {
+        var lower = resourceId.ToLowerInvariant();
+        var rgIndex = lower.IndexOf("/resourcegroups/", StringComparison.Ordinal);
+        if (rgIndex < 0) return null;
+
+        var start = rgIndex + "/resourcegroups/".Length;
+        var end = lower.IndexOf('/', start);
+        if (end < 0) return lower[start..];
+
+        return lower[start..end];
     }
 }

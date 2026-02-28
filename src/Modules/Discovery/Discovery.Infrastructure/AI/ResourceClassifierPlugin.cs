@@ -68,15 +68,8 @@ public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? l
         }
     }
 
-    private static bool IsKnownType(string armResourceType)
-    {
-        var defaultFallbackName = armResourceType.Split('/').Last();
-        var catalogResult = AzureResourceTypeCatalog.Classify(armResourceType);
-        return !string.Equals(catalogResult.FriendlyName, defaultFallbackName, StringComparison.Ordinal)
-               || catalogResult.ServiceType != "external"
-               || !catalogResult.IncludeInDiagram
-               || catalogResult.C4Level != "Container";
-    }
+    private static bool IsKnownType(string armResourceType) =>
+        AzureResourceTypeCatalog.IsKnown(armResourceType);
 
     private static AzureResourceClassification? ParseClassification(string text, string armResourceType)
     {

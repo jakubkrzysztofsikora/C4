@@ -18,7 +18,8 @@ public sealed class AzureSubscriptionDiscoverySourceAdapter(IAzureResourceGraphC
                 record.ResourceType,
                 record.Name,
                 record.ParentResourceId,
-                Source))
+                Source,
+                record.AppInsightsAppId))
             .ToArray();
     }
 }

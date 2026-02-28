@@ -13,7 +13,7 @@ public sealed class ConnectAzureSubscriptionHandlerTests
         var repository = new FakeAzureSubscriptionRepository();
         var handler = new ConnectAzureSubscriptionHandler(repository, new FakeUnitOfWork());
 
-        var result = await handler.Handle(new ConnectAzureSubscriptionCommand("sub-001", "Production"), CancellationToken.None);
+        var result = await handler.Handle(new ConnectAzureSubscriptionCommand("sub-001", "Production", null, null), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
         result.Value.ExternalSubscriptionId.Should().Be("sub-001");
@@ -26,7 +26,7 @@ public sealed class ConnectAzureSubscriptionHandlerTests
         await repository.AddAsync(AzureSubscription.Connect("sub-001", "Production").Value, CancellationToken.None);
         var handler = new ConnectAzureSubscriptionHandler(repository, new FakeUnitOfWork());
 
-        var result = await handler.Handle(new ConnectAzureSubscriptionCommand("sub-001", "Prod"), CancellationToken.None);
+        var result = await handler.Handle(new ConnectAzureSubscriptionCommand("sub-001", "Prod", null, null), CancellationToken.None);
 
         result.IsFailure.Should().BeTrue();
         result.Error.Code.Should().Be("discovery.subscription.duplicate");

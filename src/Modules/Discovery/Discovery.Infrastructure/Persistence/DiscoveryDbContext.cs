@@ -1,3 +1,4 @@
+using C4.Modules.Discovery.Domain.McpServers;
 using C4.Modules.Discovery.Domain.Resources;
 using C4.Modules.Discovery.Domain.Subscriptions;
 using C4.Shared.Infrastructure.Persistence;
@@ -11,13 +12,25 @@ public sealed class DiscoveryDbContext(DbContextOptions<DiscoveryDbContext> opti
     public DbSet<AzureSubscription> Subscriptions => Set<AzureSubscription>();
     public DbSet<DiscoveredResource> Resources => Set<DiscoveredResource>();
     public DbSet<DriftItemEntity> DriftItems => Set<DriftItemEntity>();
+    public DbSet<AzureTokenEntity> AzureTokens => Set<AzureTokenEntity>();
+    public DbSet<McpServerConfig> McpServerConfigs => Set<McpServerConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new AzureSubscriptionConfiguration());
         modelBuilder.ApplyConfiguration(new DiscoveredResourceConfiguration());
         modelBuilder.ApplyConfiguration(new DriftItemEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new AzureTokenEntityConfiguration());
+        modelBuilder.ApplyConfiguration(new McpServerConfigConfiguration());
     }
+}
+
+public sealed class AzureTokenEntity
+{
+    public string ExternalSubscriptionId { get; init; } = string.Empty;
+    public string AccessToken { get; set; } = string.Empty;
+    public string? RefreshToken { get; set; }
+    public DateTime ExpiresAtUtc { get; set; }
 }
 
 public sealed class DriftItemEntity
@@ -40,6 +53,8 @@ file sealed class AzureSubscriptionConfiguration : IEntityTypeConfiguration<Azur
         builder.Property(s => s.ExternalSubscriptionId).HasMaxLength(200).IsRequired();
         builder.Property(s => s.DisplayName).HasMaxLength(250).IsRequired();
         builder.Property(s => s.ConnectedAtUtc).IsRequired();
+        builder.Property(s => s.GitRepoUrl).HasMaxLength(500);
+        builder.Property(s => s.GitPatToken).HasMaxLength(500);
         builder.HasIndex(s => s.ExternalSubscriptionId).IsUnique();
         builder.Ignore(s => s.DomainEvents);
     }
@@ -77,5 +92,36 @@ file sealed class DriftItemEntityConfiguration : IEntityTypeConfiguration<DriftI
         builder.Property(d => d.ResourceId).HasMaxLength(500).IsRequired();
         builder.Property(d => d.Status).HasMaxLength(50).IsRequired();
         builder.HasIndex(d => d.SubscriptionId);
+    }
+}
+
+file sealed class AzureTokenEntityConfiguration : IEntityTypeConfiguration<AzureTokenEntity>
+{
+    public void Configure(EntityTypeBuilder<AzureTokenEntity> builder)
+    {
+        builder.ToTable("azure_tokens");
+        builder.HasKey(t => t.ExternalSubscriptionId);
+        builder.Property(t => t.ExternalSubscriptionId).HasColumnName("external_subscription_id").HasMaxLength(200);
+        builder.Property(t => t.AccessToken).HasColumnName("access_token").HasMaxLength(4000).IsRequired();
+        builder.Property(t => t.RefreshToken).HasColumnName("refresh_token").HasMaxLength(4000);
+        builder.Property(t => t.ExpiresAtUtc).HasColumnName("expires_at_utc").IsRequired();
+    }
+}
+
+file sealed class McpServerConfigConfiguration : IEntityTypeConfiguration<McpServerConfig>
+{
+    public void Configure(EntityTypeBuilder<McpServerConfig> builder)
+    {
+        builder.ToTable("mcp_server_configs");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id)
+            .HasConversion(id => id.Value, value => new McpServerConfigId(value))
+            .ValueGeneratedNever();
+        builder.Property(c => c.ProjectId).IsRequired();
+        builder.Property(c => c.Name).HasMaxLength(200).IsRequired();
+        builder.Property(c => c.Endpoint).HasMaxLength(500).IsRequired();
+        builder.Property(c => c.AuthMode).HasMaxLength(50).IsRequired();
+        builder.Property(c => c.CreatedAtUtc).IsRequired();
+        builder.HasIndex(c => c.ProjectId);
     }
 }

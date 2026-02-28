@@ -39,6 +39,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IAzureSubscriptionRepository, InMemoryAzureSubscriptionRepository>();
             services.AddSingleton<IDiscoveredResourceRepository, InMemoryDiscoveredResourceRepository>();
             services.AddSingleton<IDriftResultRepository, InMemoryDriftResultRepository>();
+            services.AddSingleton<IMcpServerConfigRepository, InMemoryMcpServerConfigRepository>();
             services.AddSingleton<NoOpDiscoveryUnitOfWork>();
             services.AddKeyedSingleton<IUnitOfWork>("Discovery", (sp, _) => sp.GetRequiredService<NoOpDiscoveryUnitOfWork>());
         }
@@ -48,12 +49,20 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAzureSubscriptionRepository, AzureSubscriptionRepository>();
             services.AddScoped<IDiscoveredResourceRepository, DiscoveredResourceRepository>();
             services.AddScoped<IDriftResultRepository, DriftResultRepository>();
+            services.AddScoped<IMcpServerConfigRepository, McpServerConfigRepository>();
             services.AddKeyedScoped<IUnitOfWork>("Discovery", (sp, _) => sp.GetRequiredService<DiscoveryDbContext>());
         }
 
         services.AddSharedSemanticKernel(configuration);
 
-        services.AddSingleton<IAzureTokenStore, InMemoryAzureTokenStore>();
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            services.AddSingleton<IAzureTokenStore, InMemoryAzureTokenStore>();
+        }
+        else
+        {
+            services.AddSingleton<IAzureTokenStore, DatabaseAzureTokenStore>();
+        }
         services.AddHttpClient();
         services.AddSingleton<IAzureIdentityService, AzureIdentityService>();
 

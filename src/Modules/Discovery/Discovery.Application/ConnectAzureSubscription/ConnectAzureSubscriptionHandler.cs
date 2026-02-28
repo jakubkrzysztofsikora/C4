@@ -23,6 +23,8 @@ public sealed class ConnectAzureSubscriptionHandler(IAzureSubscriptionRepository
             return Result<ConnectAzureSubscriptionResponse>.Failure(subscriptionResult.Error);
         }
 
+        subscriptionResult.Value.ConfigureGitRepository(request.GitRepoUrl, request.GitPatToken);
+
         await repository.AddAsync(subscriptionResult.Value, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

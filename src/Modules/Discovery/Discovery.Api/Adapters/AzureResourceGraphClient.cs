@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -13,7 +14,7 @@ public sealed class AzureResourceGraphClient(
     IAzureIdentityService identityService,
     ILogger<AzureResourceGraphClient> logger) : IAzureResourceGraphClient
 {
-    private const string ResourceGraphEndpoint = "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2021-06-01";
+    private const string ResourceGraphEndpoint = "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2024-04-01";
 
     private const string ResourceQuery = "Resources | project id, type, name, properties";
 
@@ -33,8 +34,13 @@ public sealed class AzureResourceGraphClient(
 
         if (!response.IsSuccessStatusCode)
         {
+            string detail = ExtractAzureErrorDetail(responseJson);
             logger.LogError("Azure Resource Graph query failed ({StatusCode}): {Response}", response.StatusCode, responseJson);
-            throw new InvalidOperationException($"Azure Resource Graph query failed ({response.StatusCode})");
+
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                throw new UnauthorizedAccessException($"Azure returned {(int)response.StatusCode}: {detail}");
+
+            throw new HttpRequestException($"Azure Resource Graph query failed ({(int)response.StatusCode}): {detail}", null, response.StatusCode);
         }
 
         return ParseResourceGraphResponse(responseJson);
@@ -68,10 +74,43 @@ public sealed class AzureResourceGraphClient(
         if (!root.TryGetProperty("data", out JsonElement data))
             return [];
 
-        if (data.TryGetProperty("columns", out JsonElement columns) && data.TryGetProperty("rows", out JsonElement rows))
+        if (data.ValueKind == JsonValueKind.Array)
+            return ParseObjectArrayResponse(data);
+
+        if (data.ValueKind == JsonValueKind.Object
+            && data.TryGetProperty("columns", out JsonElement columns)
+            && data.TryGetProperty("rows", out JsonElement rows))
             return ParseTabularResponse(columns, rows);
 
         return [];
+    }
+
+    private static IReadOnlyCollection<AzureResourceRecord> ParseObjectArrayResponse(JsonElement data)
+    {
+        List<AzureResourceRecord> results = [];
+        foreach (JsonElement element in data.EnumerateArray())
+        {
+            string resourceId = element.TryGetProperty("id", out JsonElement idProp) ? idProp.GetString() ?? string.Empty : string.Empty;
+            string resourceType = element.TryGetProperty("type", out JsonElement typeProp) ? typeProp.GetString() ?? string.Empty : string.Empty;
+            string name = element.TryGetProperty("name", out JsonElement nameProp) ? nameProp.GetString() ?? string.Empty : string.Empty;
+
+            string? parentResourceId = null;
+            string? appInsightsAppId = null;
+            if (element.TryGetProperty("properties", out JsonElement props) && props.ValueKind == JsonValueKind.Object)
+            {
+                if (props.TryGetProperty("parentResourceId", out JsonElement parentProp))
+                    parentResourceId = parentProp.GetString();
+
+                if (resourceType.Equals("microsoft.insights/components", StringComparison.OrdinalIgnoreCase)
+                    && props.TryGetProperty("AppId", out JsonElement appIdProp))
+                    appInsightsAppId = appIdProp.GetString();
+            }
+
+            if (!string.IsNullOrWhiteSpace(resourceId))
+                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId, appInsightsAppId));
+        }
+
+        return results;
     }
 
     private static IReadOnlyCollection<AzureResourceRecord> ParseTabularResponse(JsonElement columns, JsonElement rows)
@@ -97,17 +136,42 @@ public sealed class AzureResourceGraphClient(
             string name = cells[nameIndex].GetString() ?? string.Empty;
 
             string? parentResourceId = null;
+            string? appInsightsAppId = null;
             if (propsIndex >= 0 && cells[propsIndex].ValueKind == JsonValueKind.Object)
             {
                 if (cells[propsIndex].TryGetProperty("parentResourceId", out JsonElement parentProp))
                     parentResourceId = parentProp.GetString();
+
+                if (resourceType.Equals("microsoft.insights/components", StringComparison.OrdinalIgnoreCase)
+                    && cells[propsIndex].TryGetProperty("AppId", out JsonElement appIdProp))
+                    appInsightsAppId = appIdProp.GetString();
             }
 
             if (!string.IsNullOrWhiteSpace(resourceId))
-                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId));
+                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId, appInsightsAppId));
         }
 
         return results;
+    }
+
+    private static string ExtractAzureErrorDetail(string responseJson)
+    {
+        try
+        {
+            using JsonDocument doc = JsonDocument.Parse(responseJson);
+            if (doc.RootElement.TryGetProperty("error", out JsonElement errorElement))
+            {
+                string? code = errorElement.TryGetProperty("code", out JsonElement c) ? c.GetString() : null;
+                string? message = errorElement.TryGetProperty("message", out JsonElement m) ? m.GetString() : null;
+                if (code is not null || message is not null)
+                    return $"{code}: {message}";
+            }
+        }
+        catch
+        {
+        }
+
+        return responseJson.Length > 300 ? responseJson[..300] : responseJson;
     }
 
     private sealed record ResourceGraphRequest(
