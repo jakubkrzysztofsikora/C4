@@ -55,13 +55,17 @@ function isTokenExpired(token: string): boolean {
 }
 
 function loadStoredToken(): string | null {
-  const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
-  if (stored === null) return null;
-  if (isTokenExpired(stored)) {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
+  try {
+    const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (stored === null) return null;
+    if (isTokenExpired(stored)) {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+      return null;
+    }
+    return stored;
+  } catch {
     return null;
   }
-  return stored;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);

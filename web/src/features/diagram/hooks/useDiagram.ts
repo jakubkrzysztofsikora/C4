@@ -143,12 +143,11 @@ export function useDiagram(projectId?: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
 
-  const fetchGraph = useCallback(async (id: string, graphLevel?: string) => {
+  const fetchGraph = useCallback(async (id: string) => {
     setLoading(true);
     setError(undefined);
     try {
-      const levelParam = graphLevel !== undefined ? `?level=${graphLevel}` : '';
-      const dto = await getJson<GraphDto>(`/api/projects/${id}/graph${levelParam}`);
+      const dto = await getJson<GraphDto>(`/api/projects/${id}/graph`);
       const mapped = mapGraphDtoToDiagramData(dto);
       setApiData(mapped);
     } catch (err: unknown) {
@@ -162,9 +161,9 @@ export function useDiagram(projectId?: string) {
 
   useEffect(() => {
     if (projectId !== undefined) {
-      void fetchGraph(projectId, level);
+      void fetchGraph(projectId);
     }
-  }, [projectId, level, fetchGraph]);
+  }, [projectId, fetchGraph]);
 
   const handleHealthOverlayChanged = useCallback((_receivedProjectId: string, healthJson: string) => {
     setApiData((current) => {
@@ -177,9 +176,9 @@ export function useDiagram(projectId?: string) {
 
   const handleDiagramUpdated = useCallback(() => {
     if (projectId !== undefined) {
-      void fetchGraph(projectId, level);
+      void fetchGraph(projectId);
     }
-  }, [projectId, level, fetchGraph]);
+  }, [projectId, fetchGraph]);
 
   useSignalR(projectId, {
     onHealthOverlayChanged: handleHealthOverlayChanged,

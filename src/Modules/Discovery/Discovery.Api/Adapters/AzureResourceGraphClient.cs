@@ -16,7 +16,7 @@ public sealed class AzureResourceGraphClient(
 {
     private const string ResourceGraphEndpoint = "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2024-04-01";
 
-    private const string ResourceQuery = "Resources | project id, type, name, properties";
+    private const string ResourceQuery = "Resources | project id, type, name, properties | union (ResourceContainers | where type =~ 'microsoft.resources/subscriptions/resourcegroups' | project id, type, name, properties)";
 
     public async Task<IReadOnlyCollection<AzureResourceRecord>> GetResourcesAsync(string externalSubscriptionId, CancellationToken cancellationToken)
     {

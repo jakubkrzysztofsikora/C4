@@ -7,8 +7,8 @@ public static class AzureResourceTypeCatalog
         {
             // Context-level: System boundaries and grouping constructs
             ["Microsoft.Resources/subscriptions"] = new("Subscription", "boundary", "Context", false),
-            ["Microsoft.Resources/resourceGroups"] = new("Resource Group", "boundary", "Context", false),
-            ["Microsoft.Network/virtualNetworks"] = new("Virtual Network", "boundary", "Context", false),
+            ["Microsoft.Resources/resourceGroups"] = new("Resource Group", "boundary", "Context", true),
+            ["Microsoft.Network/virtualNetworks"] = new("Virtual Network", "boundary", "Context", true),
 
             // Container-level: Compute / App services
             ["Microsoft.Web/sites"] = new("App Service", "app", "Container", true),
