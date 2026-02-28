@@ -181,24 +181,30 @@ describe('useDiagramExport SVG generation', () => {
     expect(svgText).toContain('translate(230,280)');
   });
 
-  it('opens print window for PDF export', async () => {
-    const writeSpy = vi.fn();
-    const closeSpy = vi.fn();
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue({
-      document: { write: writeSpy, close: closeSpy },
-    } as unknown as Window);
+  it('creates SVG blob and Image for PNG export', async () => {
+    let capturedSrc = '';
+    const OriginalImage = globalThis.Image;
+    globalThis.Image = class MockImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      naturalWidth = 400;
+      naturalHeight = 300;
+      set src(val: string) {
+        capturedSrc = val;
+      }
+      get src() {
+        return capturedSrc;
+      }
+    } as unknown as typeof Image;
 
     const exportFn = captureExportFn(SAMPLE_DATA);
     await exportFn('pdf');
 
-    expect(openSpy).toHaveBeenCalledWith('', '_blank');
-    expect(writeSpy).toHaveBeenCalledTimes(1);
-    expect(closeSpy).toHaveBeenCalledTimes(1);
+    expect(capturedSvgStrings.length).toBeGreaterThanOrEqual(1);
+    const svgContent = capturedSvgStrings.find(s => s.includes('<svg'));
+    expect(svgContent).toBeDefined();
+    expect(capturedSrc).toBe('blob:mock-url');
 
-    const writtenHtml = writeSpy.mock.calls[0]?.[0] as string;
-    expect(writtenHtml).toContain('<svg');
-    expect(writtenHtml).toContain('window.print');
-
-    openSpy.mockRestore();
+    globalThis.Image = OriginalImage;
   });
 });

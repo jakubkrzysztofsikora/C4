@@ -20,6 +20,9 @@ const mockConnection = {
   stop: mockStop,
   invoke: mockInvoke,
   state: HubConnectionState.Connected,
+  onclose: vi.fn(),
+  onreconnecting: vi.fn(),
+  onreconnected: vi.fn(),
 };
 
 vi.mock('../../../shared/api/signalrClient', () => ({
