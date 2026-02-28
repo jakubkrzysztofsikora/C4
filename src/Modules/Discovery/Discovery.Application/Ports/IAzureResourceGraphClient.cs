@@ -5,4 +5,9 @@ public interface IAzureResourceGraphClient
     Task<IReadOnlyCollection<AzureResourceRecord>> GetResourcesAsync(string externalSubscriptionId, CancellationToken cancellationToken);
 }
 
-public sealed record AzureResourceRecord(string ResourceId, string ResourceType, string Name, string? ParentResourceId);
+public sealed record AzureResourceRecord(
+    string ResourceId,
+    string ResourceType,
+    string Name,
+    string? ParentResourceId,
+    string? AppInsightsAppId = null);

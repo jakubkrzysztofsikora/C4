@@ -95,14 +95,19 @@ public sealed class AzureResourceGraphClient(
             string name = element.TryGetProperty("name", out JsonElement nameProp) ? nameProp.GetString() ?? string.Empty : string.Empty;
 
             string? parentResourceId = null;
+            string? appInsightsAppId = null;
             if (element.TryGetProperty("properties", out JsonElement props) && props.ValueKind == JsonValueKind.Object)
             {
                 if (props.TryGetProperty("parentResourceId", out JsonElement parentProp))
                     parentResourceId = parentProp.GetString();
+
+                if (resourceType.Equals("microsoft.insights/components", StringComparison.OrdinalIgnoreCase)
+                    && props.TryGetProperty("AppId", out JsonElement appIdProp))
+                    appInsightsAppId = appIdProp.GetString();
             }
 
             if (!string.IsNullOrWhiteSpace(resourceId))
-                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId));
+                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId, appInsightsAppId));
         }
 
         return results;
@@ -131,14 +136,19 @@ public sealed class AzureResourceGraphClient(
             string name = cells[nameIndex].GetString() ?? string.Empty;
 
             string? parentResourceId = null;
+            string? appInsightsAppId = null;
             if (propsIndex >= 0 && cells[propsIndex].ValueKind == JsonValueKind.Object)
             {
                 if (cells[propsIndex].TryGetProperty("parentResourceId", out JsonElement parentProp))
                     parentResourceId = parentProp.GetString();
+
+                if (resourceType.Equals("microsoft.insights/components", StringComparison.OrdinalIgnoreCase)
+                    && cells[propsIndex].TryGetProperty("AppId", out JsonElement appIdProp))
+                    appInsightsAppId = appIdProp.GetString();
             }
 
             if (!string.IsNullOrWhiteSpace(resourceId))
-                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId));
+                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId, appInsightsAppId));
         }
 
         return results;

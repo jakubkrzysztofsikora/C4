@@ -93,6 +93,8 @@ public sealed class DiscoverResourcesHandler(
 
         await mediator.Publish(new ResourcesDiscoveredIntegrationEvent(request.ProjectId, diagramItems), cancellationToken);
 
+        await PublishAppInsightsEventIfDiscoveredAsync(request.ProjectId, descriptors, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         var escalation = dataQualityFailures > 0
@@ -107,6 +109,24 @@ public sealed class DiscoverResourcesHandler(
                 escalation.EscalationLevel,
                 escalation.UserActionHint,
                 dataQualityFailures));
+    }
+
+    private async Task PublishAppInsightsEventIfDiscoveredAsync(
+        Guid projectId,
+        IReadOnlyCollection<DiscoveryResourceDescriptor> descriptors,
+        CancellationToken cancellationToken)
+    {
+        DiscoveryResourceDescriptor? appInsightsDescriptor = descriptors
+            .FirstOrDefault(d =>
+                d.ResourceType.Equals("microsoft.insights/components", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(d.AppInsightsAppId));
+
+        if (appInsightsDescriptor is null)
+            return;
+
+        await mediator.Publish(
+            new AppInsightsDiscoveredEvent(projectId, appInsightsDescriptor.AppInsightsAppId!, string.Empty),
+            cancellationToken);
     }
 
     private static string MapSourceProvenance(DiscoverySourceKind source) => source switch

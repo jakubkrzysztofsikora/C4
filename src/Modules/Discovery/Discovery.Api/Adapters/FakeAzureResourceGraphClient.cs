@@ -22,6 +22,7 @@ public sealed class FakeAzureResourceGraphClient : IAzureResourceGraphClient
             new($"{rg}/Microsoft.Compute/disks/osdisk", "Microsoft.Compute/disks", "osdisk", null),
             new($"{rg}/Microsoft.Network/publicIPAddresses/pip", "Microsoft.Network/publicIPAddresses", "pip", null),
             new($"{rg}/Microsoft.ManagedIdentity/userAssignedIdentities/mi", "Microsoft.ManagedIdentity/userAssignedIdentities", "mi", null),
+            new($"{rg}/Microsoft.Insights/components/appinsights", "microsoft.insights/components", "appinsights", null, AppInsightsAppId: "fake-app-id-0000-0000"),
         };
 
         return Task.FromResult<IReadOnlyCollection<AzureResourceRecord>>(resources);

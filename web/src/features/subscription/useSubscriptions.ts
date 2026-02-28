@@ -4,6 +4,8 @@ import { postJson, getJson, getJsonOrNull, deleteJson, ApiError } from '../../sh
 type ConnectSubscriptionRequest = {
   externalSubscriptionId: string;
   displayName: string;
+  gitRepoUrl?: string | undefined;
+  gitPatToken?: string | undefined;
 };
 
 type ConnectSubscriptionResponse = {
@@ -114,12 +116,12 @@ export function useSubscriptions() {
     }
   }, []);
 
-  const connectSubscription = useCallback(async (externalSubscriptionId: string, displayName: string) => {
+  const connectSubscription = useCallback(async (externalSubscriptionId: string, displayName: string, gitRepoUrl?: string, gitPatToken?: string) => {
     setState((prev) => ({ ...prev, loading: true, error: undefined }));
     try {
       const response = await postJson<ConnectSubscriptionRequest, ConnectSubscriptionResponse>(
         '/api/discovery/subscriptions',
-        { externalSubscriptionId, displayName },
+        { externalSubscriptionId, displayName, gitRepoUrl, gitPatToken },
       );
       setState(prev => ({
         ...prev,

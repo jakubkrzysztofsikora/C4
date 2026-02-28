@@ -18,6 +18,10 @@ public sealed class AzureSubscription : AggregateRoot<AzureSubscriptionId>
 
     public DateTime ConnectedAtUtc { get; }
 
+    public string? GitRepoUrl { get; private set; }
+
+    public string? GitPatToken { get; private set; }
+
     public static Result<AzureSubscription> Connect(string externalSubscriptionId, string displayName)
     {
         if (string.IsNullOrWhiteSpace(externalSubscriptionId))
@@ -27,5 +31,11 @@ public sealed class AzureSubscription : AggregateRoot<AzureSubscriptionId>
 
         return Result<AzureSubscription>.Success(
             new AzureSubscription(AzureSubscriptionId.New(), externalSubscriptionId.Trim(), displayName.Trim()));
+    }
+
+    public void ConfigureGitRepository(string? repoUrl, string? patToken)
+    {
+        GitRepoUrl = repoUrl?.Trim();
+        GitPatToken = patToken?.Trim();
     }
 }

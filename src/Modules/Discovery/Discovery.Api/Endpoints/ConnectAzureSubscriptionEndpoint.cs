@@ -10,7 +10,11 @@ public sealed class ConnectAzureSubscriptionEndpoint : IEndpoint
     {
         app.MapPost("/api/discovery/subscriptions", async (ConnectAzureSubscriptionRequest request, ISender sender, CancellationToken cancellationToken) =>
         {
-            var result = await sender.Send(new ConnectAzureSubscriptionCommand(request.ExternalSubscriptionId, request.DisplayName), cancellationToken);
+            var result = await sender.Send(new ConnectAzureSubscriptionCommand(
+                request.ExternalSubscriptionId,
+                request.DisplayName,
+                request.GitRepoUrl,
+                request.GitPatToken), cancellationToken);
             return result.IsSuccess
                 ? Results.Created($"/api/discovery/subscriptions/{result.Value.SubscriptionId}", result.Value)
                 : Results.BadRequest(result.Error);
@@ -18,5 +22,9 @@ public sealed class ConnectAzureSubscriptionEndpoint : IEndpoint
         .RequireAuthorization();
     }
 
-    public sealed record ConnectAzureSubscriptionRequest(string ExternalSubscriptionId, string DisplayName);
+    public sealed record ConnectAzureSubscriptionRequest(
+        string ExternalSubscriptionId,
+        string DisplayName,
+        string? GitRepoUrl,
+        string? GitPatToken);
 }

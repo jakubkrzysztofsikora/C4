@@ -38,6 +38,7 @@ public static class ServiceCollectionExtensions
         }
 
         services.AddScoped<ITelemetryRepository, TelemetryRepository>();
+        services.AddScoped<IAppInsightsConfigStore, AppInsightsConfigStore>();
         services.AddKeyedScoped<IUnitOfWork>("Telemetry", (sp, _) => sp.GetRequiredService<TelemetryDbContext>());
         services.AddScoped<ITelemetryQueryService, TelemetryQueryService>();
         services.AddHttpClient();

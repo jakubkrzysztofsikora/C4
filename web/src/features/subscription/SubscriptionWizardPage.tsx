@@ -1,8 +1,12 @@
 import { MdCloud, MdCheckCircle } from 'react-icons/md';
 import { useSubscriptions } from './useSubscriptions';
+import { useOrganizations } from '../organization/useOrganizations';
+import { McpServersSection } from './McpServersSection';
 
 export function SubscriptionWizardPage() {
   const { connectedSubscription, loading, error, startAzureAuth, disconnectSubscription } = useSubscriptions();
+  const { projects } = useOrganizations();
+  const projectId = projects[0]?.id;
 
   if (loading) {
     return (
@@ -99,6 +103,8 @@ export function SubscriptionWizardPage() {
           </div>
         </div>
       )}
+
+      <McpServersSection projectId={projectId} />
     </section>
   );
 }

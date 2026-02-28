@@ -31,7 +31,12 @@ type DiscoverResponse = {
   dataQualityFailures: number;
 };
 
-type CallbackStatus = 'exchanging' | 'selecting' | 'connecting' | 'discovering' | 'discover-done' | 'discover-error' | 'error';
+type CallbackStatus = 'exchanging' | 'selecting' | 'configure-repo' | 'connecting' | 'discovering' | 'discover-done' | 'discover-error' | 'error';
+
+type SelectedSubscription = {
+  externalSubscriptionId: string;
+  displayName: string;
+};
 
 export function AzureCallbackPage() {
   const [searchParams] = useSearchParams();
@@ -39,6 +44,9 @@ export function AzureCallbackPage() {
   const { exchangeAzureCode, connectSubscription, error } = useSubscriptions();
   const [status, setStatus] = useState<CallbackStatus>('exchanging');
   const [subscriptions, setSubscriptions] = useState<ReadonlyArray<AzureSubscription>>([]);
+  const [selectedSub, setSelectedSub] = useState<SelectedSubscription | undefined>(undefined);
+  const [gitRepoUrl, setGitRepoUrl] = useState('');
+  const [gitPatToken, setGitPatToken] = useState('');
   const [discoverResult, setDiscoverResult] = useState<DiscoverResponse | undefined>(undefined);
   const [discoverError, setDiscoverError] = useState<string | undefined>(undefined);
 
@@ -68,9 +76,18 @@ export function AzureCallbackPage() {
     void exchange();
   }, [searchParams, exchangeAzureCode]);
 
-  async function handleSelect(externalSubscriptionId: string, displayName: string) {
+  function handleSelect(externalSubscriptionId: string, displayName: string) {
+    setSelectedSub({ externalSubscriptionId, displayName });
+    setStatus('configure-repo');
+  }
+
+  async function handleConnect() {
+    if (selectedSub === undefined) return;
     setStatus('connecting');
-    const result = await connectSubscription(externalSubscriptionId, displayName);
+
+    const repoUrl = gitRepoUrl.trim().length > 0 ? gitRepoUrl.trim() : undefined;
+    const pat = gitPatToken.trim().length > 0 ? gitPatToken.trim() : undefined;
+    const result = await connectSubscription(selectedSub.externalSubscriptionId, selectedSub.displayName, repoUrl, pat);
     if (result === undefined) {
       setStatus('error');
       return;
@@ -103,6 +120,62 @@ export function AzureCallbackPage() {
         <div className="auth-card" style={{ textAlign: 'center' }}>
           <span className="spinner" style={{ margin: '0 auto 16px' }} />
           <p>Authenticating with Azure...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'configure-repo') {
+    return (
+      <div style={{ maxWidth: 500, margin: '0 auto', padding: '40px 20px' }}>
+        <h1 style={{ marginTop: 0, marginBottom: 4 }}>IaC Repository</h1>
+        <p className="subtle" style={{ marginTop: 0, marginBottom: 20 }}>
+          Optionally connect a Git repository containing Bicep or Terraform files for enhanced discovery.
+        </p>
+        <div className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label htmlFor="git-repo-url" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                Repository URL
+              </label>
+              <input
+                id="git-repo-url"
+                type="url"
+                className="input"
+                placeholder="https://dev.azure.com/org/project/_git/infra"
+                value={gitRepoUrl}
+                onChange={e => setGitRepoUrl(e.target.value)}
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div>
+              <label htmlFor="git-pat" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                Personal Access Token
+              </label>
+              <input
+                id="git-pat"
+                type="password"
+                className="input"
+                placeholder="Paste your PAT here"
+                value={gitPatToken}
+                onChange={e => setGitPatToken(e.target.value)}
+                style={{ width: '100%' }}
+              />
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                Required for private repositories. Leave empty for public repos.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={() => void handleConnect()}
+              style={{ flex: 1 }}
+            >
+              {gitRepoUrl.trim().length > 0 ? 'Connect with Repo' : 'Skip & Connect'}
+            </button>
+          </div>
         </div>
       </div>
     );
