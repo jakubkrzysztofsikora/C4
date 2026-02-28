@@ -82,8 +82,30 @@ public sealed class ResourcesDiscoveredHandler(IArchitectureGraphRepository repo
                 graph.AddEdge(sourceNode, targetNode);
         }
 
-        var appServiceTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "app", "api" };
-        var backendServiceTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "database", "queue", "cache" };
+        InferParentChildEdges(graph, includedResources);
+        InferResourceGroupHeuristicEdges(graph, includedResources);
+    }
+
+    private static void InferParentChildEdges(
+        Domain.ArchitectureGraph.ArchitectureGraph graph,
+        DiscoveredResourceEventItem[] includedResources)
+    {
+        foreach (var resource in includedResources.Where(r => r.ParentResourceId is not null))
+        {
+            var childId = resource.StableResourceId ?? resource.ResourceId;
+            var childNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == childId);
+            var parentNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == resource.ParentResourceId);
+            if (childNode is not null && parentNode is not null)
+                graph.AddEdge(parentNode, childNode);
+        }
+    }
+
+    private static void InferResourceGroupHeuristicEdges(
+        Domain.ArchitectureGraph.ArchitectureGraph graph,
+        DiscoveredResourceEventItem[] includedResources)
+    {
+        var producerTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "app", "api" };
+        var consumerTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "database", "queue", "cache", "storage", "monitoring" };
 
         var byResourceGroup = includedResources
             .Select(r => new { Resource = r, ResourceGroup = ExtractResourceGroup(r.StableResourceId ?? r.ResourceId) })
@@ -93,17 +115,28 @@ public sealed class ResourcesDiscoveredHandler(IArchitectureGraphRepository repo
 
         foreach (var group in byResourceGroup)
         {
-            var apps = group.Where(x => appServiceTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
-            var backends = group.Where(x => backendServiceTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
+            var producers = group.Where(x => producerTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
+            var consumers = group.Where(x => consumerTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
+            var externals = group.Where(x => string.Equals(x.Resource.ServiceType, "external", StringComparison.OrdinalIgnoreCase)).ToArray();
 
-            foreach (var app in apps)
+            foreach (var producer in producers)
             {
-                foreach (var backend in backends)
+                foreach (var consumer in consumers)
                 {
-                    var appId = app.Resource.StableResourceId ?? app.Resource.ResourceId;
-                    var backendId = backend.Resource.StableResourceId ?? backend.Resource.ResourceId;
-                    var sourceNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == appId);
-                    var targetNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == backendId);
+                    var producerId = producer.Resource.StableResourceId ?? producer.Resource.ResourceId;
+                    var consumerId = consumer.Resource.StableResourceId ?? consumer.Resource.ResourceId;
+                    var sourceNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == producerId);
+                    var targetNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == consumerId);
+                    if (sourceNode is not null && targetNode is not null)
+                        graph.AddEdge(sourceNode, targetNode);
+                }
+
+                foreach (var ext in externals)
+                {
+                    var producerId = producer.Resource.StableResourceId ?? producer.Resource.ResourceId;
+                    var extId = ext.Resource.StableResourceId ?? ext.Resource.ResourceId;
+                    var sourceNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == producerId);
+                    var targetNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == extId);
                     if (sourceNode is not null && targetNode is not null)
                         graph.AddEdge(sourceNode, targetNode);
                 }

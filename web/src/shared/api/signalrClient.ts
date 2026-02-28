@@ -4,13 +4,12 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
 const TOKEN_STORAGE_KEY = 'c4_token';
 
 export function createDiagramHubConnection(): HubConnection {
-  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
   return new HubConnectionBuilder()
     .withUrl(`${API_BASE_URL}/hubs/diagram`, {
-      accessTokenFactory: () => token ?? ''
+      accessTokenFactory: () => localStorage.getItem(TOKEN_STORAGE_KEY) ?? '',
     })
-    .withAutomaticReconnect()
-    .configureLogging(LogLevel.Warning)
+    .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+    .configureLogging(LogLevel.Information)
     .build();
 }
 

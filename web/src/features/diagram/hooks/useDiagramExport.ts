@@ -114,14 +114,33 @@ export function useDiagramExport(data: DiagramData, projectId?: string) {
         const blob = new Blob([svg], { type: 'image/svg+xml' });
         downloadBlob(blob, 'architecture-diagram.svg');
       } else {
-        const win = window.open('', '_blank');
-        if (!win) return;
-        win.document.write(
-          `<!DOCTYPE html><html><head><title>Architecture Diagram</title>
-<style>body{margin:0;background:#0f1b2d}@media print{body{margin:0}}</style></head>
-<body>${svg}<script>window.onload=()=>window.print()<\/script></body></html>`,
-        );
-        win.document.close();
+        const svgBlob = new Blob([svg], { type: 'image/svg+xml' });
+        const svgUrl = URL.createObjectURL(svgBlob);
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth * 2;
+          canvas.height = img.naturalHeight * 2;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            URL.revokeObjectURL(svgUrl);
+            return;
+          }
+          ctx.scale(2, 2);
+          ctx.drawImage(img, 0, 0);
+          URL.revokeObjectURL(svgUrl);
+          canvas.toBlob((pngBlob) => {
+            if (pngBlob) {
+              downloadBlob(pngBlob, 'architecture-diagram.png');
+            }
+          }, 'image/png');
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(svgUrl);
+          const blob = new Blob([svg], { type: 'image/svg+xml' });
+          downloadBlob(blob, 'architecture-diagram.svg');
+        };
+        img.src = svgUrl;
       }
     },
     [data, projectId],
