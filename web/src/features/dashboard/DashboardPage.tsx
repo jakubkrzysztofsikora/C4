@@ -212,7 +212,7 @@ function DiscoveryProgressCard({ status }: { status: DiscoveryStatus }) {
                   {status.result.dataQualityFailures} resource{status.result.dataQualityFailures !== 1 ? 's' : ''} could not be classified
                 </div>
               )}
-              {status.result.userActionHint.length > 0 && (
+              {(status.result.userActionHint ?? '').length > 0 && (
                 <div className="subtle">{status.result.userActionHint}</div>
               )}
             </div>

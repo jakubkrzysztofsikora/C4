@@ -52,7 +52,8 @@ export function useDashboard(projectId?: string) {
   const fetchDashboardData = useCallback(async (id: string) => {
     setState((prev) => ({ ...prev, loading: true, error: undefined, graphNotFound: false }));
     try {
-      const graph = await getJson<GraphDto>(`/api/projects/${id}/graph`);
+      const raw = await getJson<GraphDto>(`/api/projects/${id}/graph`);
+      const graph: GraphDto = { ...raw, nodes: raw.nodes ?? [], edges: raw.edges ?? [] };
       setState({ graph, loading: false, error: undefined, graphNotFound: false });
     } catch (err: unknown) {
       if (isApiError(err) && err.status === 404) {
