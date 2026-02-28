@@ -5,10 +5,12 @@ using C4.Modules.Discovery.Application.Ports;
 using C4.Modules.Discovery.Infrastructure.AI;
 using C4.Modules.Discovery.Infrastructure.Persistence;
 using C4.Modules.Discovery.Infrastructure.Persistence.Repositories;
+using C4.Modules.Discovery.Infrastructure.Services;
 using C4.Shared.Infrastructure.AI;
 using C4.Shared.Infrastructure.Behaviors;
 using C4.Shared.Infrastructure.Endpoints;
 using C4.Shared.Kernel;
+using C4.Shared.Kernel.Contracts;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +41,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IAzureSubscriptionRepository, InMemoryAzureSubscriptionRepository>();
             services.AddSingleton<IDiscoveredResourceRepository, InMemoryDiscoveredResourceRepository>();
             services.AddSingleton<IDriftResultRepository, InMemoryDriftResultRepository>();
+            services.AddSingleton<IDriftQueryService, InMemoryDriftQueryService>();
             services.AddSingleton<IMcpServerConfigRepository, InMemoryMcpServerConfigRepository>();
             services.AddSingleton<NoOpDiscoveryUnitOfWork>();
             services.AddKeyedSingleton<IUnitOfWork>("Discovery", (sp, _) => sp.GetRequiredService<NoOpDiscoveryUnitOfWork>());
@@ -49,6 +52,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IAzureSubscriptionRepository, AzureSubscriptionRepository>();
             services.AddScoped<IDiscoveredResourceRepository, DiscoveredResourceRepository>();
             services.AddScoped<IDriftResultRepository, DriftResultRepository>();
+            services.AddScoped<IDriftQueryService, DriftQueryService>();
             services.AddScoped<IMcpServerConfigRepository, McpServerConfigRepository>();
             services.AddKeyedScoped<IUnitOfWork>("Discovery", (sp, _) => sp.GetRequiredService<DiscoveryDbContext>());
         }

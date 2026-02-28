@@ -11,12 +11,7 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var appId = configuration["ApplicationInsights:AppId"];
-        if (!string.IsNullOrWhiteSpace(appId))
-        {
-            services.AddSingleton<IApplicationInsightsClient, ApplicationInsightsClient>();
-        }
-
+        services.AddScoped<IApplicationInsightsClient, ApplicationInsightsClient>();
         return services;
     }
 }

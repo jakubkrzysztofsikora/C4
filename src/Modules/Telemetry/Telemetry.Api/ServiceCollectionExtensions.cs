@@ -42,16 +42,7 @@ public static class ServiceCollectionExtensions
         services.AddKeyedScoped<IUnitOfWork>("Telemetry", (sp, _) => sp.GetRequiredService<TelemetryDbContext>());
         services.AddScoped<ITelemetryQueryService, TelemetryQueryService>();
         services.AddHttpClient();
-
-        var appInsightsAppId = configuration["ApplicationInsights:AppId"];
-        if (!string.IsNullOrWhiteSpace(appInsightsAppId))
-        {
-            services.AddApplicationInsightsClient(configuration);
-        }
-        else
-        {
-            services.AddSingleton<IApplicationInsightsClient, FakeApplicationInsightsClient>();
-        }
+        services.AddApplicationInsightsClient(configuration);
 
         services.AddEndpoints(AssemblyReference.Assembly);
         return services;

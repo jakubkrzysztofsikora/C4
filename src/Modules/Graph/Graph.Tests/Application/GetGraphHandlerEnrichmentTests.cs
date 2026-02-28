@@ -18,7 +18,7 @@ public sealed class GetGraphHandlerEnrichmentTests
         [
             new ServiceHealthSummary("OrderApi", 0.9, "green")
         ]);
-        var handler = new GetGraphHandler(repository, telemetry);
+        var handler = new GetGraphHandler(repository, telemetry, new EmptyDriftQueryService());
 
         var result = await handler.Handle(new GetGraphQuery(projectId, null), CancellationToken.None);
 
@@ -36,7 +36,7 @@ public sealed class GetGraphHandlerEnrichmentTests
         graph.AddOrUpdateNode("/r/api", "OrderApi", Domain.C4Level.Container);
         var repository = new FakeRepository(graph);
         var telemetry = new FakeTelemetryQueryService([]);
-        var handler = new GetGraphHandler(repository, telemetry);
+        var handler = new GetGraphHandler(repository, telemetry, new EmptyDriftQueryService());
 
         var result = await handler.Handle(new GetGraphQuery(projectId, null), CancellationToken.None);
 
@@ -58,7 +58,7 @@ public sealed class GetGraphHandlerEnrichmentTests
         [
             new ServiceHealthSummary("OrderApi", 0.4, "red")
         ]);
-        var handler = new GetGraphHandler(repository, telemetry);
+        var handler = new GetGraphHandler(repository, telemetry, new EmptyDriftQueryService());
 
         var result = await handler.Handle(new GetGraphQuery(projectId, null), CancellationToken.None);
 
@@ -85,5 +85,11 @@ public sealed class GetGraphHandlerEnrichmentTests
     {
         public Task<IReadOnlyCollection<ServiceHealthSummary>> GetServiceHealthSummariesAsync(Guid projectId, CancellationToken cancellationToken)
             => Task.FromResult(summaries);
+    }
+
+    private sealed class EmptyDriftQueryService : IDriftQueryService
+    {
+        public Task<IReadOnlyCollection<string>> GetDriftedResourceIdsAsync(IReadOnlyCollection<string> resourceIds, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<string>>([]);
     }
 }

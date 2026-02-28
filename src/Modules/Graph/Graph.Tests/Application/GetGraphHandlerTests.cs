@@ -14,7 +14,8 @@ public sealed class GetGraphHandlerTests
         graph.AddOrUpdateNode("/r/1", "Api", Domain.C4Level.Container);
         var repo = new FakeRepository(graph);
         var telemetry = new EmptyTelemetryQueryService();
-        var handler = new GetGraphHandler(repo, telemetry);
+        var drift = new EmptyDriftQueryService();
+        var handler = new GetGraphHandler(repo, telemetry, drift);
 
         var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, null), CancellationToken.None);
 
@@ -36,5 +37,11 @@ public sealed class GetGraphHandlerTests
     {
         public Task<IReadOnlyCollection<ServiceHealthSummary>> GetServiceHealthSummariesAsync(Guid projectId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyCollection<ServiceHealthSummary>>([]);
+    }
+
+    private sealed class EmptyDriftQueryService : IDriftQueryService
+    {
+        public Task<IReadOnlyCollection<string>> GetDriftedResourceIdsAsync(IReadOnlyCollection<string> resourceIds, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<string>>([]);
     }
 }

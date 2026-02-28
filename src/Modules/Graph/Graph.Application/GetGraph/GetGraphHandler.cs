@@ -9,7 +9,8 @@ namespace C4.Modules.Graph.Application.GetGraph;
 
 public sealed class GetGraphHandler(
     IArchitectureGraphRepository repository,
-    ITelemetryQueryService telemetryQueryService
+    ITelemetryQueryService telemetryQueryService,
+    IDriftQueryService driftQueryService
 ) : IRequestHandler<GetGraphQuery, Result<GraphDto>>
 {
     public async Task<Result<GraphDto>> Handle(GetGraphQuery request, CancellationToken cancellationToken)
@@ -30,13 +31,18 @@ public sealed class GetGraphHandler(
         var healthSummaries = await telemetryQueryService.GetServiceHealthSummariesAsync(request.ProjectId, cancellationToken);
         var healthByService = healthSummaries.ToDictionary(s => s.Service, s => s, StringComparer.OrdinalIgnoreCase);
 
+        var resourceIds = nodeList.Select(n => n.ExternalResourceId).ToArray();
+        var driftedIds = await driftQueryService.GetDriftedResourceIdsAsync(resourceIds, cancellationToken);
+        var driftedSet = new HashSet<string>(driftedIds, StringComparer.OrdinalIgnoreCase);
+
         var nodeDtos = nodeList.Select(n =>
         {
+            var isDrifted = driftedSet.Contains(n.ExternalResourceId);
             if (healthByService.TryGetValue(n.Name, out var summary))
             {
-                return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), summary.Status.ToLower(), summary.Score, n.ParentId?.Value);
+                return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), summary.Status.ToLower(), summary.Score, n.ParentId?.Value, isDrifted);
             }
-            return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), "green", 1.0, n.ParentId?.Value);
+            return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), "green", 1.0, n.ParentId?.Value, isDrifted);
         }).ToArray();
 
         var healthScoreById = nodeDtos.ToDictionary(n => n.Id, n => n.HealthScore);

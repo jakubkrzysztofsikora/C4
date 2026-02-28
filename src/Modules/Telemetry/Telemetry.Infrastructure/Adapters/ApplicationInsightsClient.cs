@@ -7,29 +7,33 @@ namespace C4.Modules.Telemetry.Infrastructure.Adapters;
 
 public sealed class ApplicationInsightsClient(
     IHttpClientFactory httpClientFactory,
+    IAppInsightsConfigStore configStore,
     IConfiguration configuration,
     ILogger<ApplicationInsightsClient> logger) : IApplicationInsightsClient
 {
-    private string AppId => configuration["ApplicationInsights:AppId"] ?? string.Empty;
-    private string ApiKey => configuration["ApplicationInsights:ApiKey"] ?? string.Empty;
+    private string GlobalApiKey => configuration["ApplicationInsights:ApiKey"] ?? string.Empty;
 
     public async Task<IReadOnlyCollection<ApplicationInsightsHealthRecord>> QueryServiceHealthAsync(
         Guid projectId,
         TimeSpan lookbackWindow,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(AppId) || string.IsNullOrWhiteSpace(ApiKey))
+        var config = await configStore.GetAsync(projectId, cancellationToken);
+        var appId = config?.AppId ?? configuration["ApplicationInsights:AppId"] ?? string.Empty;
+        var apiKey = GlobalApiKey;
+
+        if (string.IsNullOrWhiteSpace(appId) || string.IsNullOrWhiteSpace(apiKey))
         {
-            logger.LogWarning("Application Insights not configured (missing AppId or ApiKey); returning empty results");
+            logger.LogWarning("Application Insights not configured for project {ProjectId} (missing AppId or ApiKey); returning empty results", projectId);
             return [];
         }
 
         var kql = BuildHealthQuery(lookbackWindow);
         var encodedQuery = Uri.EscapeDataString(kql);
-        var url = $"https://api.applicationinsights.io/v1/apps/{AppId}/query?query={encodedQuery}";
+        var url = $"https://api.applicationinsights.io/v1/apps/{appId}/query?query={encodedQuery}";
 
         using var client = httpClientFactory.CreateClient();
-        client.DefaultRequestHeaders.Add("x-api-key", ApiKey);
+        client.DefaultRequestHeaders.Add("x-api-key", apiKey);
 
         var response = await client.GetAsync(url, cancellationToken);
         var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);

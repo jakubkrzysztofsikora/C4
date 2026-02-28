@@ -67,7 +67,7 @@ public sealed class ResourcesDiscoveredHandlerTests
                 [new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "My App Service", "app", "Container", true, null)]),
             CancellationToken.None);
 
-        repository.Graph!.Nodes.Single().Name.Should().Be("My App Service");
+        repository.Graph!.Nodes.Single().Name.Should().Be("web (My App Service)");
     }
 
     [Fact]
@@ -178,7 +178,7 @@ public sealed class ResourcesDiscoveredHandlerTests
             CancellationToken.None);
 
         repository.Graph!.Nodes.Should().HaveCount(1);
-        repository.Graph.Nodes.Single().Name.Should().Be("Web Azure");
+        repository.Graph.Nodes.Single().Name.Should().Be("web (Web Azure)");
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public sealed class ResourcesDiscoveredHandlerTests
             CancellationToken.None);
 
         repository.Graph!.Nodes.Should().HaveCount(1);
-        repository.Graph.Nodes.Single().Name.Should().Be("Azure Name");
+        repository.Graph.Nodes.Single().Name.Should().Be("web (Azure Name)");
     }
 
     private sealed class FakeRepository : IArchitectureGraphRepository

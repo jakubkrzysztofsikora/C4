@@ -27,7 +27,9 @@ public sealed class ResourcesDiscoveredHandler(IArchitectureGraphRepository repo
         foreach (var resource in includedResources)
         {
             var level = ParseC4Level(resource.C4Level);
-            var displayName = resource.FriendlyName ?? resource.Name;
+            var displayName = resource.FriendlyName is not null
+                ? $"{resource.Name} ({resource.FriendlyName})"
+                : resource.Name;
             graph.AddOrUpdateNode(resource.StableResourceId ?? resource.ResourceId, displayName, level);
         }
 

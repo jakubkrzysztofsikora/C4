@@ -11,6 +11,7 @@ type GraphNodeDto = {
   health?: string;
   healthScore?: number;
   parentNodeId?: string;
+  drift?: boolean;
 };
 
 type GraphEdgeDto = {
@@ -61,6 +62,7 @@ function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
     health: resolveHealth(node.health),
     serviceType: inferServiceType(node.name),
     ...(node.parentNodeId !== undefined && { parentId: node.parentNodeId }),
+    ...(node.drift === true && { drift: true }),
   }));
 
   const edges: DiagramEdge[] = (dto.edges ?? []).map((edge) => ({
