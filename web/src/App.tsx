@@ -8,6 +8,7 @@ import { SubscriptionWizardPage } from './features/subscription/SubscriptionWiza
 import { AzureCallbackPage } from './features/subscription/AzureCallbackPage';
 import { DiagramPage } from './features/diagram/DiagramPage';
 import { AuthProvider, useAuth } from './shared/auth/AuthContext';
+import { ProjectProvider } from './shared/project/ProjectContext';
 import { SearchProvider } from './shared/search/SearchContext';
 
 class ErrorBoundary extends Component<
@@ -71,7 +72,6 @@ function AppRoutes() {
         <Route path="subscriptions" element={<ProtectedRoute><SubscriptionWizardPage /></ProtectedRoute>} />
         <Route path="azure/callback" element={<ProtectedRoute><AzureCallbackPage /></ProtectedRoute>} />
         <Route path="diagram" element={<ProtectedRoute><DiagramPage /></ProtectedRoute>} />
-        <Route path="diagram/:projectId" element={<ProtectedRoute><DiagramPage /></ProtectedRoute>} />
       </Route>
     </Routes>
   );
@@ -82,9 +82,11 @@ export function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
-          <SearchProvider>
-            <AppRoutes />
-          </SearchProvider>
+          <ProjectProvider>
+            <SearchProvider>
+              <AppRoutes />
+            </SearchProvider>
+          </ProjectProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

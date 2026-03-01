@@ -2,10 +2,12 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { CommandPalette } from './CommandPalette';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAuth } from '../auth/AuthContext';
+import { useProject } from '../project/ProjectContext';
 
 export function Layout() {
   const { mode, toggleMode } = useTheme();
   const { user, logout } = useAuth();
+  const { activeProject, projects, setActiveProject } = useProject();
 
   return (
     <main className="app-shell">
@@ -38,6 +40,17 @@ export function Layout() {
           </NavLink>
         </nav>
         <div className="header-right">
+          {projects.length > 0 && (
+            <select
+              className="project-switcher"
+              value={activeProject?.id ?? ''}
+              onChange={(e) => setActiveProject(e.target.value)}
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          )}
           {user !== null && (
             <span className="header-user">{user.email}</span>
           )}

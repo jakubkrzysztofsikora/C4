@@ -1,12 +1,12 @@
 import { MdCloud, MdCheckCircle } from 'react-icons/md';
 import { useSubscriptions } from './useSubscriptions';
-import { useOrganizations } from '../organization/useOrganizations';
+import { useProject } from '../../shared/project/ProjectContext';
 import { McpServersSection } from './McpServersSection';
 
 export function SubscriptionWizardPage() {
   const { connectedSubscription, loading, error, startAzureAuth, disconnectSubscription } = useSubscriptions();
-  const { projects } = useOrganizations();
-  const projectId = projects[0]?.id;
+  const { activeProject } = useProject();
+  const projectId = activeProject?.id;
 
   if (loading) {
     return (

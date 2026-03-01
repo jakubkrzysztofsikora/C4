@@ -4,13 +4,11 @@ import { MdBusiness, MdCloud, MdHub, MdCheckCircle, MdArrowForward, MdSearch, Md
 import { ApiError, getJsonOrNull, postJson, deleteJson } from '../../shared/api/client';
 import { useDashboard } from './useDashboard';
 import { useSearch } from '../../shared/search/SearchContext';
+import { useProject } from '../../shared/project/ProjectContext';
 
 type SetupStatus = {
   hasOrganization: boolean;
   organizationName: string;
-  hasProject: boolean;
-  projectId: string;
-  projectName: string;
   hasSubscription: boolean;
   subscriptionId: string;
   externalSubscriptionId: string;
@@ -34,9 +32,6 @@ function useSetupStatus(): SetupStatus {
   const [status, setStatus] = useState<SetupStatus>({
     hasOrganization: false,
     organizationName: '',
-    hasProject: false,
-    projectId: '',
-    projectName: '',
     hasSubscription: false,
     subscriptionId: '',
     externalSubscriptionId: '',
@@ -52,14 +47,9 @@ function useSetupStatus(): SetupStatus {
         getJsonOrNull<SubResponse>('/api/discovery/subscriptions/current'),
       ]);
       if (cancelled) return;
-      const hasOrg = org !== null;
-      const firstProject = org?.projects[0];
       setStatus({
-        hasOrganization: hasOrg,
+        hasOrganization: org !== null,
         organizationName: org?.name ?? '',
-        hasProject: firstProject !== undefined,
-        projectId: firstProject?.projectId ?? '',
-        projectName: firstProject?.name ?? '',
         hasSubscription: sub !== null,
         subscriptionId: sub?.subscriptionId ?? '',
         externalSubscriptionId: sub?.externalSubscriptionId ?? '',
@@ -233,13 +223,14 @@ export function DashboardPage() {
   const setup = useSetupStatus();
   const navigate = useNavigate();
   const { query: searchQuery } = useSearch();
-  const [projectIdInput, setProjectIdInput] = useState('');
-  const [activeProjectId, setActiveProjectId] = useState<string | undefined>(undefined);
+  const { activeProject } = useProject();
+  const projectId = activeProject?.id;
   const [discovery, setDiscovery] = useState<DiscoveryStatus>(initialDiscoveryStatus);
-  const { graph, loading, error, graphNotFound, refetch } = useDashboard(activeProjectId);
+  const { graph, loading, error, graphNotFound, refetch } = useDashboard(projectId);
 
   const discovering = discovery.phase !== 'idle' && discovery.phase !== 'done' && discovery.phase !== 'error';
-  const setupComplete = setup.hasOrganization && setup.hasProject && setup.hasSubscription;
+  const hasProject = activeProject !== undefined;
+  const setupComplete = setup.hasOrganization && hasProject && setup.hasSubscription;
 
   const [visibleCount, setVisibleCount] = useState(50);
 
@@ -256,30 +247,13 @@ export function DashboardPage() {
     setVisibleCount(50);
   }, [searchQuery]);
 
-  useEffect(() => {
-    if (setupComplete && setup.projectId.length > 0 && activeProjectId === undefined) {
-      setActiveProjectId(setup.projectId);
-    }
-  }, [setupComplete, setup.projectId, activeProjectId]);
-
-  useEffect(() => {
-    if (!setupComplete && setup.hasProject && setup.projectId.length > 0 && activeProjectId === undefined) {
-      setProjectIdInput(setup.projectId);
-    }
-  }, [setupComplete, setup.hasProject, setup.projectId, activeProjectId]);
-
-  function handleLoadProject() {
-    if (!projectIdInput) return;
-    setActiveProjectId(projectIdInput);
-  }
-
   const runDiscovery = useCallback(async (clearFirst: boolean) => {
-    if (!setup.subscriptionId || !setup.projectId) return;
+    if (!setup.subscriptionId || !projectId) return;
 
     if (clearFirst) {
       setDiscovery({ phase: 'clearing', result: undefined, errorMessage: undefined });
       try {
-        await deleteJson(`/api/projects/${setup.projectId}/graph`);
+        await deleteJson(`/api/projects/${projectId}/graph`);
       } catch {
         // Not critical if graph didn't exist
       }
@@ -292,13 +266,13 @@ export function DashboardPage() {
         `/api/discovery/subscriptions/${setup.subscriptionId}/discover`,
         {
           externalSubscriptionId: setup.externalSubscriptionId,
-          projectId: setup.projectId,
+          projectId,
           organizationId: null,
           sources: null,
         },
       );
       setDiscovery({ phase: 'done', result, errorMessage: undefined });
-      await refetch(setup.projectId);
+      await refetch(projectId);
     } catch (err: unknown) {
       const message = err instanceof ApiError
         ? `${err.status}: ${err.message}`
@@ -307,7 +281,7 @@ export function DashboardPage() {
           : 'An unexpected error occurred';
       setDiscovery({ phase: 'error', result: undefined, errorMessage: message });
     }
-  }, [setup.subscriptionId, setup.externalSubscriptionId, setup.projectId, refetch]);
+  }, [setup.subscriptionId, setup.externalSubscriptionId, projectId, refetch]);
 
   const handleDiscover = useCallback(() => void runDiscovery(false), [runDiscovery]);
   const handleRediscover = useCallback(() => void runDiscovery(true), [runDiscovery]);
@@ -333,7 +307,7 @@ export function DashboardPage() {
       <h1 style={{ marginTop: 0, marginBottom: 4 }}>Dashboard</h1>
       <p className="subtle" style={{ marginTop: 0, marginBottom: 20 }}>
         {setupComplete
-          ? `${setup.organizationName} \u2014 ${setup.projectName}`
+          ? `${setup.organizationName} \u2014 ${activeProject?.name ?? ''}`
           : 'Complete the setup steps below to start discovering your architecture.'}
       </p>
 
@@ -348,8 +322,8 @@ export function DashboardPage() {
               step={1}
               title="Create Organization"
               description="Register your organization and create a project."
-              done={setup.hasOrganization && setup.hasProject}
-              doneLabel={`${setup.organizationName} \u2014 ${setup.projectName}`}
+              done={setup.hasOrganization && hasProject}
+              doneLabel={`${setup.organizationName} \u2014 ${activeProject?.name ?? ''}`}
               actionLabel="Set up"
               to="/organizations"
             />
@@ -369,51 +343,13 @@ export function DashboardPage() {
               done={false}
               doneLabel=""
               actionLabel="Explore"
-              to={setup.projectId.length > 0 ? `/diagram/${setup.projectId}` : '/diagram'}
+              to="/diagram"
             />
           </div>
         </div>
       )}
 
-      {!setupComplete && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div className="form-group" style={{ flex: 1, minWidth: 200 }}>
-              <label className="form-label" htmlFor="project-id-input">Project ID</label>
-              <input
-                className="input"
-                id="project-id-input"
-                placeholder="Enter project ID to load graph"
-                value={projectIdInput}
-                onChange={(e) => setProjectIdInput(e.target.value)}
-                disabled={loading}
-                onKeyDown={(e) => e.key === 'Enter' && handleLoadProject()}
-              />
-            </div>
-            <button
-              className="btn btn-primary"
-              onClick={handleLoadProject}
-              disabled={loading || !projectIdInput}
-              style={{ alignSelf: 'flex-end' }}
-              type="button"
-            >
-              {loading ? (
-                <>
-                  <span className="spinner spinner-sm" />
-                  Loading...
-                </>
-              ) : (
-                <>
-                  <MdSearch size={16} />
-                  Load Project
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {graphNotFound && !loading && activeProjectId !== undefined && (
+      {graphNotFound && !loading && projectId !== undefined && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="empty-state">
             <MdCloud className="empty-state-icon" />
@@ -450,7 +386,7 @@ export function DashboardPage() {
 
       <DiscoveryProgressCard status={discovery} />
 
-      {loading && activeProjectId !== undefined && (
+      {loading && projectId !== undefined && (
         <div className="card">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div className="skeleton" style={{ height: 20, width: '40%' }} />
@@ -466,7 +402,7 @@ export function DashboardPage() {
 
       {graph !== undefined && !loading && (
         <div className="card fade-in">
-          <h2 style={{ marginTop: 0, marginBottom: 4 }}>Project: {setup.projectName || graph.projectId}</h2>
+          <h2 style={{ marginTop: 0, marginBottom: 4 }}>Project: {activeProject?.name ?? graph.projectId}</h2>
           <p className="subtle" style={{ marginTop: 0, marginBottom: 16 }}>
             {filteredNodes.length}{searchQuery.length > 0 ? ` / ${(graph.nodes ?? []).length}` : ''} node{filteredNodes.length !== 1 ? 's' : ''} &bull; {(graph.edges ?? []).length} edge{(graph.edges ?? []).length !== 1 ? 's' : ''}
           </p>
@@ -474,7 +410,7 @@ export function DashboardPage() {
             <button
               className="btn btn-primary btn-sm"
               type="button"
-              onClick={() => void navigate(`/diagram/${graph.projectId}`)}
+              onClick={() => void navigate('/diagram')}
             >
               <MdHub size={14} />
               View Diagram
@@ -535,13 +471,13 @@ export function DashboardPage() {
         </div>
       )}
 
-      {graph === undefined && activeProjectId === undefined && !loading && setupComplete && !discovering && (
+      {graph === undefined && projectId === undefined && !loading && !discovering && (
         <div className="card">
           <div className="empty-state">
             <MdHub className="empty-state-icon" />
-            <p className="empty-state-title">No project loaded</p>
+            <p className="empty-state-title">No project selected</p>
             <p className="empty-state-description">
-              Architecture data is still loading. If discovery has not run yet, use the Discover Resources button above.
+              Create a project on the Organizations page to get started.
             </p>
           </div>
         </div>
