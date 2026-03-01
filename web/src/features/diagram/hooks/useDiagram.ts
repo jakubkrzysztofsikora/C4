@@ -79,13 +79,13 @@ function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
 
 const seed: DiagramData = {
   nodes: [
-    { id: 'n1', label: 'Frontend SPA', level: 'Container', health: 'green', serviceType: 'app' },
-    { id: 'n2', label: 'Identity API', level: 'Container', health: 'green', serviceType: 'api' },
-    { id: 'n3', label: 'Discovery Worker', level: 'Component', health: 'yellow', serviceType: 'queue', parentId: 'n4' },
-    { id: 'n4', label: 'Graph Service', level: 'Container', health: 'green', serviceType: 'api' },
-    { id: 'n5', label: 'PostgreSQL', level: 'Container', health: 'green', serviceType: 'database' },
-    { id: 'n6', label: 'Redis Cache', level: 'Container', health: 'yellow', drift: true, serviceType: 'cache' },
-    { id: 'n7', label: 'Azure Resource Graph', level: 'Context', health: 'green', serviceType: 'external' },
+    { id: 'n1', label: 'Frontend SPA', level: 'Container', health: 'green', serviceType: 'app', environment: 'production' },
+    { id: 'n2', label: 'Identity API', level: 'Container', health: 'green', serviceType: 'api', environment: 'production' },
+    { id: 'n3', label: 'Discovery Worker', level: 'Component', health: 'yellow', serviceType: 'queue', parentId: 'n4', environment: 'production' },
+    { id: 'n4', label: 'Graph Service', level: 'Container', health: 'green', serviceType: 'api', environment: 'production' },
+    { id: 'n5', label: 'PostgreSQL', level: 'Container', health: 'green', serviceType: 'database', environment: 'production' },
+    { id: 'n6', label: 'Redis Cache', level: 'Container', health: 'yellow', drift: true, serviceType: 'cache', environment: 'production' },
+    { id: 'n7', label: 'Azure Resource Graph', level: 'Context', health: 'green', serviceType: 'external', environment: 'production' },
   ],
   edges: [
     { id: 'e1', from: 'n1', to: 'n2', traffic: 0.9 },
@@ -144,7 +144,7 @@ export function useDiagram(projectId?: string) {
   const [level, setLevel] = useState<'Context' | 'Container' | 'Component'>('Container');
   const [search, setSearch] = useState('');
   const [timeline, setTimeline] = useState(100);
-  const [environment, setEnvironment] = useState('all');
+  const [environment, setEnvironment] = useState('production');
   const [hideOrphans, setHideOrphans] = useState(true);
   const [apiData, setApiData] = useState<DiagramData | undefined>(undefined);
   const [loading, setLoading] = useState(false);

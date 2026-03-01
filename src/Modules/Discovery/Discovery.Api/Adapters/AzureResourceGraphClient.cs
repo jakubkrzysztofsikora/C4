@@ -25,25 +25,42 @@ public sealed class AzureResourceGraphClient(
         using var client = httpClientFactory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        var requestBody = new ResourceGraphRequest([externalSubscriptionId], ResourceQuery);
-        string json = JsonSerializer.Serialize(requestBody);
-        StringContent content = new(json, Encoding.UTF8, "application/json");
+        List<AzureResourceRecord> allResults = [];
+        string? skipToken = null;
 
-        var response = await client.PostAsync(ResourceGraphEndpoint, content, cancellationToken);
-        string responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
+        do
         {
-            string detail = ExtractAzureErrorDetail(responseJson);
-            logger.LogError("Azure Resource Graph query failed ({StatusCode}): {Response}", response.StatusCode, responseJson);
+            var requestBody = new ResourceGraphRequest(
+                [externalSubscriptionId],
+                ResourceQuery,
+                new ResourceGraphOptions(1000, skipToken));
 
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-                throw new UnauthorizedAccessException($"Azure returned {(int)response.StatusCode}: {detail}");
+            string json = JsonSerializer.Serialize(requestBody);
+            using StringContent content = new(json, Encoding.UTF8, "application/json");
 
-            throw new HttpRequestException($"Azure Resource Graph query failed ({(int)response.StatusCode}): {detail}", null, response.StatusCode);
-        }
+            var response = await client.PostAsync(ResourceGraphEndpoint, content, cancellationToken);
+            string responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
 
-        return ParseResourceGraphResponse(responseJson);
+            if (!response.IsSuccessStatusCode)
+            {
+                string detail = ExtractAzureErrorDetail(responseJson);
+                logger.LogError("Azure Resource Graph query failed ({StatusCode}): {Response}", response.StatusCode, responseJson);
+
+                if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+                    throw new UnauthorizedAccessException($"Azure returned {(int)response.StatusCode}: {detail}");
+
+                throw new HttpRequestException($"Azure Resource Graph query failed ({(int)response.StatusCode}): {detail}", null, response.StatusCode);
+            }
+
+            var page = ParseResourceGraphPage(responseJson);
+            allResults.AddRange(page.Records);
+            skipToken = page.SkipToken;
+
+            logger.LogInformation("Fetched {Count} resources from Azure Resource Graph (total so far: {Total}, has more: {HasMore})",
+                page.Records.Count, allResults.Count, skipToken is not null);
+        } while (skipToken is not null);
+
+        return allResults;
     }
 
     private async Task<string> ResolveAccessTokenAsync(string externalSubscriptionId, CancellationToken cancellationToken)
@@ -66,23 +83,30 @@ public sealed class AzureResourceGraphClient(
         return refreshed.AccessToken;
     }
 
-    private static IReadOnlyCollection<AzureResourceRecord> ParseResourceGraphResponse(string responseJson)
+    private static ResourceGraphPage ParseResourceGraphPage(string responseJson)
     {
         using JsonDocument document = JsonDocument.Parse(responseJson);
         JsonElement root = document.RootElement;
 
+        string? skipToken = root.TryGetProperty("$skipToken", out JsonElement skipTokenProp)
+            ? skipTokenProp.GetString()
+            : null;
+
         if (!root.TryGetProperty("data", out JsonElement data))
-            return [];
+            return new ResourceGraphPage([], skipToken);
+
+        IReadOnlyCollection<AzureResourceRecord> records;
 
         if (data.ValueKind == JsonValueKind.Array)
-            return ParseObjectArrayResponse(data);
-
-        if (data.ValueKind == JsonValueKind.Object
+            records = ParseObjectArrayResponse(data);
+        else if (data.ValueKind == JsonValueKind.Object
             && data.TryGetProperty("columns", out JsonElement columns)
             && data.TryGetProperty("rows", out JsonElement rows))
-            return ParseTabularResponse(columns, rows);
+            records = ParseTabularResponse(columns, rows);
+        else
+            records = [];
 
-        return [];
+        return new ResourceGraphPage(records, skipToken);
     }
 
     private static IReadOnlyCollection<AzureResourceRecord> ParseObjectArrayResponse(JsonElement data)
@@ -176,5 +200,14 @@ public sealed class AzureResourceGraphClient(
 
     private sealed record ResourceGraphRequest(
         [property: JsonPropertyName("subscriptions")] string[] Subscriptions,
-        [property: JsonPropertyName("query")] string Query);
+        [property: JsonPropertyName("query")] string Query,
+        [property: JsonPropertyName("options")] ResourceGraphOptions Options);
+
+    private sealed record ResourceGraphOptions(
+        [property: JsonPropertyName("$top")] int Top,
+        [property: JsonPropertyName("$skipToken"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? SkipToken);
+
+    private sealed record ResourceGraphPage(
+        IReadOnlyCollection<AzureResourceRecord> Records,
+        string? SkipToken);
 }

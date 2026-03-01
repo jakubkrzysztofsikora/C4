@@ -208,8 +208,8 @@ describe('useDiagram parentId mapping from API', () => {
     mockGetJson.mockResolvedValueOnce({
       projectId: 'proj-1',
       nodes: [
-        { id: 'parent-1', name: 'Graph Service', externalResourceId: 'r1', level: 'Container' },
-        { id: 'child-1', name: 'Discovery Worker', externalResourceId: 'r2', level: 'Component', parentNodeId: 'parent-1' },
+        { id: 'parent-1', name: 'Graph Service', externalResourceId: 'r1', level: 'Container', environment: 'production' },
+        { id: 'child-1', name: 'Discovery Worker', externalResourceId: 'r2', level: 'Component', parentNodeId: 'parent-1', environment: 'production' },
       ],
       edges: [
         { id: 'e1', sourceNodeId: 'parent-1', targetNodeId: 'child-1', traffic: 1 },
@@ -231,8 +231,8 @@ describe('useDiagram parentId mapping from API', () => {
     mockGetJson.mockResolvedValueOnce({
       projectId: 'proj-2',
       nodes: [
-        { id: 'standalone-1', name: 'Identity API', externalResourceId: 'r3', level: 'Container' },
-        { id: 'standalone-2', name: 'PostgreSQL', externalResourceId: 'r4', level: 'Container' },
+        { id: 'standalone-1', name: 'Identity API', externalResourceId: 'r3', level: 'Container', environment: 'production' },
+        { id: 'standalone-2', name: 'PostgreSQL', externalResourceId: 'r4', level: 'Container', environment: 'production' },
       ],
       edges: [
         { id: 'e1', sourceNodeId: 'standalone-1', targetNodeId: 'standalone-2', traffic: 1 },
