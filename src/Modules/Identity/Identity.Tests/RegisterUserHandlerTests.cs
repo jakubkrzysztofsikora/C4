@@ -115,7 +115,7 @@ public sealed class RegisterUserHandlerTests
 
     internal sealed class FakeTokenService : ITokenService
     {
-        public string GenerateToken(UserId userId, string email, string displayName) => GeneratedToken;
+        public string GenerateToken(UserId userId, string email, string displayName, IReadOnlyList<ProjectMembership> memberships) => GeneratedToken;
     }
 
     internal sealed class FakeUnitOfWork : IUnitOfWork

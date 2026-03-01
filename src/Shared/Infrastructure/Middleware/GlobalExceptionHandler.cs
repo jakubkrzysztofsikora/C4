@@ -1,3 +1,4 @@
+using System.Security;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -12,16 +13,35 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
         Exception exception,
         CancellationToken cancellationToken)
     {
-        logger.LogError(exception, "Unhandled exception for {Method} {Path}", httpContext.Request.Method, httpContext.Request.Path);
+        var (statusCode, title, type) = exception switch
+        {
+            UnauthorizedAccessException => (
+                StatusCodes.Status401Unauthorized,
+                "Unauthorized",
+                "https://datatracker.ietf.org/doc/html/rfc9110#section-15.5.2"),
+            SecurityException => (
+                StatusCodes.Status403Forbidden,
+                "Forbidden",
+                "https://datatracker.ietf.org/doc/html/rfc9110#section-15.5.4"),
+            _ => (
+                StatusCodes.Status500InternalServerError,
+                "An unexpected error occurred",
+                "https://datatracker.ietf.org/doc/html/rfc9110#section-15.6.1")
+        };
+
+        if (statusCode == StatusCodes.Status500InternalServerError)
+            logger.LogError(exception, "Unhandled exception for {Method} {Path}", httpContext.Request.Method, httpContext.Request.Path);
+        else
+            logger.LogWarning("Auth exception for {Method} {Path}: {Message}", httpContext.Request.Method, httpContext.Request.Path, exception.Message);
 
         var problemDetails = new ProblemDetails
         {
-            Status = StatusCodes.Status500InternalServerError,
-            Title = "An unexpected error occurred",
-            Type = "https://datatracker.ietf.org/doc/html/rfc9110#section-15.6.1"
+            Status = statusCode,
+            Title = title,
+            Type = type
         };
 
-        httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        httpContext.Response.StatusCode = statusCode;
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
 
         return true;

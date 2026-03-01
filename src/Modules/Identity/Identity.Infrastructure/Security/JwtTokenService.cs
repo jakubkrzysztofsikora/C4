@@ -10,7 +10,7 @@ namespace C4.Modules.Identity.Infrastructure.Security;
 
 public sealed class JwtTokenService(IConfiguration configuration) : ITokenService
 {
-    public string GenerateToken(UserId userId, string email, string displayName)
+    public string GenerateToken(UserId userId, string email, string displayName, IReadOnlyList<ProjectMembership> memberships)
     {
         string signingKey = configuration["Jwt:SigningKey"]
             ?? throw new InvalidOperationException("Jwt:SigningKey must be configured. Set via environment variable 'Jwt__SigningKey'.");
@@ -21,7 +21,7 @@ public sealed class JwtTokenService(IConfiguration configuration) : ITokenServic
         SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(signingKey));
         SigningCredentials credentials = new(key, SecurityAlgorithms.HmacSha256);
 
-        Claim[] claims =
+        List<Claim> claims =
         [
             new(JwtRegisteredClaimNames.Sub, userId.Value.ToString()),
             new(JwtRegisteredClaimNames.Email, email),
@@ -30,6 +30,11 @@ public sealed class JwtTokenService(IConfiguration configuration) : ITokenServic
                 DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(),
                 ClaimValueTypes.Integer64)
         ];
+
+        foreach (var membership in memberships)
+        {
+            claims.Add(new Claim("project_role", $"{membership.ProjectId.Value}:{membership.Role}"));
+        }
 
         JwtSecurityToken token = new(
             issuer: issuer,

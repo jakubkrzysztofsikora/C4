@@ -27,7 +27,7 @@ internal sealed class RegisterUserHandler(
         await userRepository.AddAsync(user, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        string token = tokenService.GenerateToken(user.Id, user.Email, user.DisplayName);
+        string token = tokenService.GenerateToken(user.Id, user.Email, user.DisplayName, []);
 
         return Result<RegisterUserResponse>.Success(new RegisterUserResponse(user.Id.Value, user.Email, user.DisplayName, token));
     }
