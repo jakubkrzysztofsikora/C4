@@ -9,6 +9,7 @@ namespace C4.Modules.Graph.Infrastructure.AI;
 public sealed class ResourceRelationshipPlugin(Kernel kernel, ILearningProvider? learningProvider = null, ILogger<ResourceRelationshipPlugin>? logger = null) : IResourceRelationshipInferrer
 {
     private const double MinimumConfidenceThreshold = 0.6;
+    private volatile bool _aiAvailable = true;
 
     public async Task<IReadOnlyCollection<InferredRelationship>> InferRelationshipsAsync(
         Guid projectId,
@@ -16,6 +17,9 @@ public sealed class ResourceRelationshipPlugin(Kernel kernel, ILearningProvider?
         IReadOnlyCollection<string> existingEdgeDescriptions,
         CancellationToken cancellationToken)
     {
+        if (!_aiAvailable)
+            return [];
+
         var learningsSection = await BuildLearningsSectionAsync(projectId, cancellationToken);
         var allRelationships = new List<InferredRelationship>();
 
@@ -25,10 +29,19 @@ public sealed class ResourceRelationshipPlugin(Kernel kernel, ILearningProvider?
 
         foreach (var group in byResourceGroup)
         {
-            var prompt = BuildPrompt(group.Key, group.ToArray(), existingEdgeDescriptions, learningsSection);
-            var result = await kernel.InvokePromptAsync(prompt, cancellationToken: cancellationToken);
-            var text = result.GetValue<string>() ?? string.Empty;
-            allRelationships.AddRange(ParseRelationships(text));
+            try
+            {
+                var prompt = BuildPrompt(group.Key, group.ToArray(), existingEdgeDescriptions, learningsSection);
+                var result = await kernel.InvokePromptAsync(prompt, cancellationToken: cancellationToken);
+                var text = result.GetValue<string>() ?? string.Empty;
+                allRelationships.AddRange(ParseRelationships(text));
+            }
+            catch (HttpRequestException)
+            {
+                logger?.LogWarning("AI backend unreachable; skipping relationship inference for remaining resource groups");
+                _aiAvailable = false;
+                break;
+            }
         }
 
         return allRelationships
