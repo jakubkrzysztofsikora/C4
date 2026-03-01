@@ -9,7 +9,7 @@ import './diagram.css';
 export function DiagramPage() {
   const { activeProject, loading: projectLoading } = useProject();
   const projectId = activeProject?.id;
-  const { data, level, setLevel, search, setSearch, timeline, setTimeline, environment, setEnvironment, environments, loading, error } = useDiagram(projectId);
+  const { data, level, setLevel, search, setSearch, timeline, setTimeline, environment, setEnvironment, environments, hideOrphans, setHideOrphans, loading, error } = useDiagram(projectId);
   const layouted = useGraphLayout(data);
   const { zoom, setZoom } = usePanZoom();
   const { exportAs } = useDiagramExport(layouted, projectId);
@@ -69,6 +69,10 @@ export function DiagramPage() {
                 <option key={env} value={env}>{env}</option>
               ))}
             </select>
+          </label>
+          <label className="checkbox-label">
+            <input type="checkbox" checked={hideOrphans} onChange={(e) => setHideOrphans(e.target.checked)} />
+            Hide unconnected
           </label>
           <label>
             Filter

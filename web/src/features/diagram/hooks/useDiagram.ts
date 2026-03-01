@@ -144,6 +144,7 @@ export function useDiagram(projectId?: string) {
   const [search, setSearch] = useState('');
   const [timeline, setTimeline] = useState(100);
   const [environment, setEnvironment] = useState('all');
+  const [hideOrphans, setHideOrphans] = useState(true);
   const [apiData, setApiData] = useState<DiagramData | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -208,14 +209,25 @@ export function useDiagram(projectId?: string) {
       n.label.toLowerCase().includes(search.toLowerCase()),
     );
     const visibleNodeIds = new Set(searchFiltered.map((n) => n.id));
+    const edges = sourceData.edges.filter(
+      (e) => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to) && e.traffic <= timeline / 100,
+    );
+
+    if (!hideOrphans) {
+      return { nodes: searchFiltered, edges };
+    }
+
+    const connectedNodeIds = new Set<string>();
+    for (const e of edges) {
+      connectedNodeIds.add(e.from);
+      connectedNodeIds.add(e.to);
+    }
 
     return {
-      nodes: searchFiltered,
-      edges: sourceData.edges.filter(
-        (e) => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to) && e.traffic <= timeline / 100,
-      ),
+      nodes: searchFiltered.filter((n) => connectedNodeIds.has(n.id)),
+      edges,
     };
-  }, [sourceData, level, search, timeline, environment]);
+  }, [sourceData, level, search, timeline, environment, hideOrphans]);
 
-  return { data, level, setLevel, search, setSearch, timeline, setTimeline, environment, setEnvironment, environments, loading, error, refetch: fetchGraph };
+  return { data, level, setLevel, search, setSearch, timeline, setTimeline, environment, setEnvironment, environments, hideOrphans, setHideOrphans, loading, error, refetch: fetchGraph };
 }
