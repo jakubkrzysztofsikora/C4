@@ -45,11 +45,13 @@ public sealed class GetGraphHandler(
         {
             var isDrifted = driftedSet.Contains(n.ExternalResourceId);
             var environment = EnvironmentClassifier.InferEnvironment(n.Name);
+            var serviceType = n.Properties.Technology is "unknown" or "" ? "external" : n.Properties.Technology;
+            var resourceGroup = ExtractResourceGroup(n.ExternalResourceId) ?? "";
             if (healthByService.TryGetValue(n.Name, out var summary))
             {
-                return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), summary.Status.ToLower(), summary.Score, n.ParentId?.Value, isDrifted, environment);
+                return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), summary.Status.ToLower(), summary.Score, n.ParentId?.Value, isDrifted, environment, serviceType, resourceGroup);
             }
-            return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), "green", 1.0, n.ParentId?.Value, isDrifted, environment);
+            return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), "green", 1.0, n.ParentId?.Value, isDrifted, environment, serviceType, resourceGroup);
         }).ToArray();
 
         var healthScoreById = nodeDtos.ToDictionary(n => n.Id, n => n.HealthScore);
@@ -63,5 +65,18 @@ public sealed class GetGraphHandler(
         }).ToArray();
 
         return Result<GraphDto>.Success(new GraphDto(request.ProjectId, nodeDtos, edgeDtos));
+    }
+
+    private static string? ExtractResourceGroup(string resourceId)
+    {
+        var lower = resourceId.ToLowerInvariant();
+        var rgIndex = lower.IndexOf("/resourcegroups/", StringComparison.Ordinal);
+        if (rgIndex < 0) return null;
+
+        var start = rgIndex + "/resourcegroups/".Length;
+        var end = lower.IndexOf('/', start);
+        if (end < 0) return lower[start..];
+
+        return lower[start..end];
     }
 }

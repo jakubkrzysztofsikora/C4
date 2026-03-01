@@ -5,7 +5,7 @@ import type { ServiceType } from '../../diagram/types';
 import { StarRating } from './StarRating';
 
 const C4_LEVELS: readonly ('Context' | 'Container' | 'Component')[] = ['Context', 'Container', 'Component'];
-const SERVICE_TYPE_OPTIONS: readonly ServiceType[] = ['app', 'api', 'database', 'queue', 'cache', 'external'];
+const SERVICE_TYPE_OPTIONS: readonly ServiceType[] = ['app', 'api', 'database', 'queue', 'cache', 'storage', 'monitoring', 'external', 'boundary'];
 
 type C4Level = (typeof C4_LEVELS)[number];
 

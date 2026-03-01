@@ -1,7 +1,7 @@
 import { DiagramCanvas } from './components/DiagramCanvas';
 import { useDiagram } from './hooks/useDiagram';
 import { useDiagramExport } from './hooks/useDiagramExport';
-import { useGraphLayout } from './hooks/useGraphLayout';
+import { useElkLayout } from './hooks/useElkLayout';
 import { usePanZoom } from './hooks/usePanZoom';
 import { useProject } from '../../shared/project/ProjectContext';
 import './diagram.css';
@@ -10,9 +10,9 @@ export function DiagramPage() {
   const { activeProject, loading: projectLoading } = useProject();
   const projectId = activeProject?.id;
   const { data, level, setLevel, search, setSearch, timeline, setTimeline, environment, setEnvironment, environments, hideOrphans, setHideOrphans, loading, error } = useDiagram(projectId);
-  const layouted = useGraphLayout(data);
+  const { layoutedData, groupNodes, isLayouting } = useElkLayout(data);
   const { zoom, setZoom } = usePanZoom();
-  const { exportAs } = useDiagramExport(layouted, projectId);
+  const { exportAs } = useDiagramExport(layoutedData, projectId);
 
   if (projectLoading) {
     return (
@@ -41,10 +41,10 @@ export function DiagramPage() {
         <h2 style={{ marginTop: 0 }}>Architecture Diagram</h2>
         <p className="subtle">Professional C4-style view with service icons, health overlays, and drift highlights.</p>
 
-        {loading && (
+        {(loading || isLayouting) && (
           <div className="loading-state">
             <span className="spinner" />
-            Loading graph data...
+            {isLayouting ? 'Computing layout...' : 'Loading graph data...'}
           </div>
         )}
 
@@ -98,7 +98,7 @@ export function DiagramPage() {
           <span className="badge drift">Drift detected</span>
         </div>
       </aside>
-      <DiagramCanvas data={layouted} />
+      <DiagramCanvas data={layoutedData} groupNodes={groupNodes} />
     </section>
   );
 }

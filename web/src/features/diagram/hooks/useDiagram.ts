@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getJson, ApiError } from '../../../shared/api/client';
-import { DiagramData, DiagramNode, DiagramEdge } from '../types';
+import { DiagramData, DiagramNode, DiagramEdge, ServiceType } from '../types';
 import { useSignalR } from './useSignalR';
 
 type GraphNodeDto = {
@@ -13,6 +13,8 @@ type GraphNodeDto = {
   parentNodeId?: string;
   drift?: boolean;
   environment?: string;
+  serviceType?: string;
+  resourceGroup?: string;
 };
 
 type GraphEdgeDto = {
@@ -50,6 +52,12 @@ function inferServiceType(name: string): DiagramNode['serviceType'] {
   return 'app';
 }
 
+const VALID_SERVICE_TYPES: ReadonlySet<string> = new Set<ServiceType>(['app', 'api', 'database', 'queue', 'cache', 'storage', 'monitoring', 'external', 'boundary']);
+
+function isValidServiceType(value: unknown): value is ServiceType {
+  return typeof value === 'string' && VALID_SERVICE_TYPES.has(value);
+}
+
 function resolveHealth(value: string | undefined): DiagramNode['health'] {
   if (isValidHealth(value)) return value;
   return 'green';
@@ -61,8 +69,9 @@ function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
     label: node.name,
     level: mapLevel(node.level),
     health: resolveHealth(node.health),
-    serviceType: inferServiceType(node.name),
+    serviceType: isValidServiceType(node.serviceType) ? node.serviceType : inferServiceType(node.name),
     environment: node.environment ?? 'unknown',
+    ...(node.resourceGroup ? { resourceGroup: node.resourceGroup } : {}),
     ...(node.parentNodeId !== undefined && { parentId: node.parentNodeId }),
     ...(node.drift === true && { drift: true }),
   }));

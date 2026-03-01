@@ -33,7 +33,7 @@ public sealed class ResourcesDiscoveredHandler(
             var displayName = resource.FriendlyName is not null
                 ? $"{resource.Name} ({resource.FriendlyName})"
                 : resource.Name;
-            graph.AddOrUpdateNode(resource.StableResourceId ?? resource.ResourceId, displayName, level);
+            graph.AddOrUpdateNode(resource.StableResourceId ?? resource.ResourceId, displayName, level, resource.ServiceType ?? "external");
         }
 
         var parentMappings = includedResources

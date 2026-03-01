@@ -182,6 +182,40 @@ public sealed class ResourcesDiscoveredHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ResourceWithServiceType_StoresServiceTypeInNodeProperties()
+    {
+        var projectId = Guid.NewGuid();
+        var repository = new FakeRepository();
+        var unitOfWork = new FakeUnitOfWork();
+        var handler = new ResourcesDiscoveredHandler(repository, unitOfWork);
+
+        await handler.Handle(
+            new ResourcesDiscoveredIntegrationEvent(
+                projectId,
+                [new DiscoveredResourceEventItem("/subscriptions/1/db", "Microsoft.DBforPostgreSQL/flexibleServers", "mydb", "PostgreSQL", "database", "Container", true, null)]),
+            CancellationToken.None);
+
+        repository.Graph!.Nodes.Single().Properties.Technology.Should().Be("database");
+    }
+
+    [Fact]
+    public async Task Handle_ResourceWithNullServiceType_DefaultsToExternal()
+    {
+        var projectId = Guid.NewGuid();
+        var repository = new FakeRepository();
+        var unitOfWork = new FakeUnitOfWork();
+        var handler = new ResourcesDiscoveredHandler(repository, unitOfWork);
+
+        await handler.Handle(
+            new ResourcesDiscoveredIntegrationEvent(
+                projectId,
+                [new DiscoveredResourceEventItem("/subscriptions/1/unknown", "Unknown/type", "thing", null, null, null, true, null)]),
+            CancellationToken.None);
+
+        repository.Graph!.Nodes.Single().Properties.Technology.Should().Be("external");
+    }
+
+    [Fact]
     public async Task Handle_SameConfidencePrefersAzureSource()
     {
         var projectId = Guid.NewGuid();

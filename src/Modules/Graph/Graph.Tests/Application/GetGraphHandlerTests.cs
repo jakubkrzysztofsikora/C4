@@ -24,6 +24,45 @@ public sealed class GetGraphHandlerTests
         result.Value.Nodes.Should().HaveCount(1);
     }
 
+    [Fact]
+    public async Task Handle_NodeWithServiceType_DtoIncludesServiceType()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        graph.AddOrUpdateNode("/r/1", "Api", Domain.C4Level.Container, "api");
+        var repo = new FakeRepository(graph);
+        var handler = new GetGraphHandler(repo, new EmptyTelemetryQueryService(), new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, null), CancellationToken.None);
+
+        result.Value.Nodes.Single().ServiceType.Should().Be("api");
+    }
+
+    [Fact]
+    public async Task Handle_NodeWithUnknownTechnology_DefaultsToExternalServiceType()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        graph.AddOrUpdateNode("/r/1", "Legacy", Domain.C4Level.Container);
+        var repo = new FakeRepository(graph);
+        var handler = new GetGraphHandler(repo, new EmptyTelemetryQueryService(), new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, null), CancellationToken.None);
+
+        result.Value.Nodes.Single().ServiceType.Should().Be("external");
+    }
+
+    [Fact]
+    public async Task Handle_NodeWithResourceGroupInId_DtoIncludesResourceGroup()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/my-rg/providers/Microsoft.Web/sites/app1", "app1", Domain.C4Level.Container, "app");
+        var repo = new FakeRepository(graph);
+        var handler = new GetGraphHandler(repo, new EmptyTelemetryQueryService(), new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, null), CancellationToken.None);
+
+        result.Value.Nodes.Single().ResourceGroup.Should().Be("my-rg");
+    }
+
     private sealed class FakeRepository(ArchitectureGraph graph) : IArchitectureGraphRepository
     {
         public Task<ArchitectureGraph?> GetByProjectIdAsync(Guid projectId, CancellationToken cancellationToken)

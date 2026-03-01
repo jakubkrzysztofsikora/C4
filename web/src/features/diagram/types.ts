@@ -1,4 +1,4 @@
-export type ServiceType = 'app' | 'api' | 'database' | 'queue' | 'cache' | 'external';
+export type ServiceType = 'app' | 'api' | 'database' | 'queue' | 'cache' | 'storage' | 'monitoring' | 'external' | 'boundary';
 
 export type DiagramNode = {
   id: string;
@@ -10,6 +10,7 @@ export type DiagramNode = {
   position?: { x: number; y: number };
   parentId?: string;
   environment?: string;
+  resourceGroup?: string;
 };
 
 export type DiagramEdge = { id: string; from: string; to: string; traffic: number };

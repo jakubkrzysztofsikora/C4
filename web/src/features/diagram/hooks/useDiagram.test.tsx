@@ -226,6 +226,52 @@ describe('useDiagram parentId mapping from API', () => {
     expect(child?.parentId).toBe('parent-1');
   });
 
+  it('uses serviceType from API response when available', async () => {
+    const mockGetJson = vi.mocked(getJson);
+    mockGetJson.mockResolvedValueOnce({
+      projectId: 'proj-st',
+      nodes: [
+        { id: 'db-1', name: 'my-storage-account', externalResourceId: 'r5', level: 'Container', serviceType: 'storage', environment: 'production' },
+        { id: 'db-2', name: 'my-app', externalResourceId: 'r6', level: 'Container', serviceType: 'app', environment: 'production' },
+      ],
+      edges: [
+        { id: 'e1', sourceNodeId: 'db-2', targetNodeId: 'db-1', traffic: 1 },
+      ],
+    });
+
+    await act(async () => {
+      root.render(createElement(ApiHarness, { projectId: 'proj-st' }));
+    });
+
+    const nodes = parseNodes(container.innerHTML);
+    const storageNode = nodes.find((n) => n.id === 'db-1');
+    expect(storageNode?.serviceType).toBe('storage');
+    const appNode = nodes.find((n) => n.id === 'db-2');
+    expect(appNode?.serviceType).toBe('app');
+  });
+
+  it('falls back to name inference when serviceType is not provided', async () => {
+    const mockGetJson = vi.mocked(getJson);
+    mockGetJson.mockResolvedValueOnce({
+      projectId: 'proj-fb',
+      nodes: [
+        { id: 'n1', name: 'postgres-db', externalResourceId: 'r7', level: 'Container', environment: 'production' },
+        { id: 'n2', name: 'web-api', externalResourceId: 'r8', level: 'Container', environment: 'production' },
+      ],
+      edges: [
+        { id: 'e1', sourceNodeId: 'n2', targetNodeId: 'n1', traffic: 1 },
+      ],
+    });
+
+    await act(async () => {
+      root.render(createElement(ApiHarness, { projectId: 'proj-fb' }));
+    });
+
+    const nodes = parseNodes(container.innerHTML);
+    const dbNode = nodes.find((n) => n.id === 'n1');
+    expect(dbNode?.serviceType).toBe('database');
+  });
+
   it('maps missing parentNodeId to undefined parentId on node', async () => {
     const mockGetJson = vi.mocked(getJson);
     mockGetJson.mockResolvedValueOnce({
