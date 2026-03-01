@@ -38,6 +38,15 @@
   color: var(--text);
   box-shadow: 0 6px 24px var(--shadow);
   padding: 10px;
+  position: relative;
+}
+
+.service-node .react-flow__handle {
+  width: 8px;
+  height: 8px;
+  background: var(--border);
+  border: 1px solid var(--text);
+  opacity: 0.5;
 }
 
 .service-node .header {

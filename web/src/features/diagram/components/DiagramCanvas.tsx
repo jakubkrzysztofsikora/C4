@@ -1,4 +1,4 @@
-import { Background, Controls, Edge, MarkerType, MiniMap, Node, ReactFlow } from '@xyflow/react';
+import { Background, Controls, Edge, Handle, MarkerType, MiniMap, Node, Position, ReactFlow } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { SiPostgresql, SiRedis, SiDocker } from 'react-icons/si';
 import { LuBoxes, LuCloud, LuGlobe, LuNetwork } from 'react-icons/lu';
@@ -22,6 +22,7 @@ function ServiceNode({ data }: { data: { node: DiagramNode } }) {
   const { node } = data;
   return (
     <div className="service-node" style={{ borderColor: healthColor(node.health) }}>
+      <Handle type="target" position={Position.Left} />
       <div className="header">
         <div className="title">{iconFor(node.serviceType)} <span>{node.label}</span></div>
         <span className={`badge ${node.health}`}>{node.health.toUpperCase()}</span>
@@ -30,6 +31,7 @@ function ServiceNode({ data }: { data: { node: DiagramNode } }) {
         <span className="subtle" style={{ fontSize: 12 }}>{node.level}</span>
         {node.drift ? <span className="badge drift">DRIFT</span> : null}
       </div>
+      <Handle type="source" position={Position.Right} />
     </div>
   );
 }
