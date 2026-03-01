@@ -12,6 +12,7 @@ type GraphNodeDto = {
   healthScore?: number;
   parentNodeId?: string;
   drift?: boolean;
+  environment?: string;
 };
 
 type GraphEdgeDto = {
@@ -61,6 +62,7 @@ function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
     level: mapLevel(node.level),
     health: resolveHealth(node.health),
     serviceType: inferServiceType(node.name),
+    environment: node.environment ?? 'unknown',
     ...(node.parentNodeId !== undefined && { parentId: node.parentNodeId }),
     ...(node.drift === true && { drift: true }),
   }));
@@ -141,6 +143,7 @@ export function useDiagram(projectId?: string) {
   const [level, setLevel] = useState<'Context' | 'Container' | 'Component'>('Container');
   const [search, setSearch] = useState('');
   const [timeline, setTimeline] = useState(100);
+  const [environment, setEnvironment] = useState('all');
   const [apiData, setApiData] = useState<DiagramData | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -189,11 +192,19 @@ export function useDiagram(projectId?: string) {
 
   const sourceData = apiData ?? (error !== undefined ? { nodes: [], edges: [] } : seed);
 
+  const environments = useMemo(() => {
+    const envSet = new Set(sourceData.nodes.map((n) => n.environment ?? 'unknown'));
+    return Array.from(envSet).sort();
+  }, [sourceData]);
+
   const data = useMemo(() => {
     const levelFiltered = sourceData.nodes.filter((n) =>
       level === 'Container' ? n.level !== 'Context' : n.level === level,
     );
-    const searchFiltered = levelFiltered.filter((n) =>
+    const envFiltered = environment === 'all'
+      ? levelFiltered
+      : levelFiltered.filter((n) => n.environment === environment);
+    const searchFiltered = envFiltered.filter((n) =>
       n.label.toLowerCase().includes(search.toLowerCase()),
     );
     const visibleNodeIds = new Set(searchFiltered.map((n) => n.id));
@@ -204,7 +215,7 @@ export function useDiagram(projectId?: string) {
         (e) => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to) && e.traffic <= timeline / 100,
       ),
     };
-  }, [sourceData, level, search, timeline]);
+  }, [sourceData, level, search, timeline, environment]);
 
-  return { data, level, setLevel, search, setSearch, timeline, setTimeline, loading, error, refetch: fetchGraph };
+  return { data, level, setLevel, search, setSearch, timeline, setTimeline, environment, setEnvironment, environments, loading, error, refetch: fetchGraph };
 }

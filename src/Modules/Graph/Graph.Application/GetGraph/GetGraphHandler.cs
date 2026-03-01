@@ -38,11 +38,12 @@ public sealed class GetGraphHandler(
         var nodeDtos = nodeList.Select(n =>
         {
             var isDrifted = driftedSet.Contains(n.ExternalResourceId);
+            var environment = EnvironmentClassifier.InferEnvironment(n.Name);
             if (healthByService.TryGetValue(n.Name, out var summary))
             {
-                return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), summary.Status.ToLower(), summary.Score, n.ParentId?.Value, isDrifted);
+                return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), summary.Status.ToLower(), summary.Score, n.ParentId?.Value, isDrifted, environment);
             }
-            return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), "green", 1.0, n.ParentId?.Value, isDrifted);
+            return new GraphNodeDto(n.Id.Value, n.Name, n.ExternalResourceId, n.Level.ToString(), "green", 1.0, n.ParentId?.Value, isDrifted, environment);
         }).ToArray();
 
         var healthScoreById = nodeDtos.ToDictionary(n => n.Id, n => n.HealthScore);

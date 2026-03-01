@@ -42,7 +42,7 @@ function useAutoRedirect(projectId: string | undefined) {
 export function DiagramPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const resolved = useAutoRedirect(projectId);
-  const { data, level, setLevel, search, setSearch, timeline, setTimeline, loading, error } = useDiagram(projectId);
+  const { data, level, setLevel, search, setSearch, timeline, setTimeline, environment, setEnvironment, environments, loading, error } = useDiagram(projectId);
   const layouted = useGraphLayout(data);
   const { zoom, setZoom } = usePanZoom();
   const { exportAs } = useDiagramExport(layouted, projectId);
@@ -82,6 +82,15 @@ export function DiagramPage() {
               <option>Context</option>
               <option>Container</option>
               <option>Component</option>
+            </select>
+          </label>
+          <label>
+            Environment
+            <select value={environment} onChange={(e) => setEnvironment(e.target.value)}>
+              <option value="all">All environments</option>
+              {environments.map((env) => (
+                <option key={env} value={env}>{env}</option>
+              ))}
             </select>
           </label>
           <label>
