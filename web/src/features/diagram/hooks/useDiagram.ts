@@ -93,6 +93,7 @@ const seed: DiagramData = {
     { id: 'e3', from: 'n4', to: 'n5', traffic: 0.63 },
     { id: 'e4', from: 'n3', to: 'n7', traffic: 0.52 },
     { id: 'e5', from: 'n4', to: 'n6', traffic: 0.45 },
+    { id: 'e6', from: 'n4', to: 'n3', traffic: 0.7 },
   ],
 };
 

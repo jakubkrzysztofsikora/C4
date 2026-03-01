@@ -211,7 +211,9 @@ describe('useDiagram parentId mapping from API', () => {
         { id: 'parent-1', name: 'Graph Service', externalResourceId: 'r1', level: 'Container' },
         { id: 'child-1', name: 'Discovery Worker', externalResourceId: 'r2', level: 'Component', parentNodeId: 'parent-1' },
       ],
-      edges: [],
+      edges: [
+        { id: 'e1', sourceNodeId: 'parent-1', targetNodeId: 'child-1', traffic: 1 },
+      ],
     });
 
     await act(async () => {
@@ -230,8 +232,11 @@ describe('useDiagram parentId mapping from API', () => {
       projectId: 'proj-2',
       nodes: [
         { id: 'standalone-1', name: 'Identity API', externalResourceId: 'r3', level: 'Container' },
+        { id: 'standalone-2', name: 'PostgreSQL', externalResourceId: 'r4', level: 'Container' },
       ],
-      edges: [],
+      edges: [
+        { id: 'e1', sourceNodeId: 'standalone-1', targetNodeId: 'standalone-2', traffic: 1 },
+      ],
     });
 
     await act(async () => {
