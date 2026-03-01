@@ -21,10 +21,38 @@ public static class SeedDataService
         await DatabaseMigrator.MigrateAsync<VisualizationDbContext>(app.Services);
         await DatabaseMigrator.MigrateAsync<FeedbackDbContext>(app.Services);
 
+        await BackfillProjectMembershipsAsync(app.Services);
+
         if (app.Environment.IsDevelopment())
         {
             await SeedDevelopmentDataAsync(app.Services);
         }
+    }
+
+    private static async Task BackfillProjectMembershipsAsync(IServiceProvider services)
+    {
+        using var scope = services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+
+        var projects = await context.Projects.ToListAsync();
+        var users = await context.Users.ToListAsync();
+
+        foreach (var project in projects)
+        {
+            var hasMembers = await context.Members.AnyAsync(m => m.ProjectId == project.Id);
+            if (hasMembers) continue;
+
+            var firstUser = users.FirstOrDefault();
+            if (firstUser is null) continue;
+
+            var member = C4.Modules.Identity.Domain.Member.Member.Invite(
+                project.Id,
+                firstUser.Id.ToString(),
+                C4.Modules.Identity.Domain.Member.Role.Owner);
+            context.Members.Add(member);
+        }
+
+        await context.SaveChangesAsync();
     }
 
     private static async Task SeedDevelopmentDataAsync(IServiceProvider services)
