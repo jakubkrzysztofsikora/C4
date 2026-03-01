@@ -9,10 +9,15 @@ namespace C4.Modules.Discovery.Infrastructure.AI;
 
 public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? learningProvider = null, ILogger<ResourceClassifierPlugin>? logger = null) : IResourceClassifier
 {
+    private volatile bool _aiAvailable = true;
+
     public async Task<AzureResourceClassification> ClassifyAsync(Guid projectId, string armResourceType, string resourceName, CancellationToken cancellationToken)
     {
         var catalogResult = AzureResourceTypeCatalog.Classify(armResourceType);
         if (IsKnownType(armResourceType))
+            return catalogResult;
+
+        if (!_aiAvailable)
             return catalogResult;
 
         var learningsSection = await BuildLearningsSectionAsync(projectId, cancellationToken);
@@ -34,6 +39,12 @@ public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? l
             var result = await kernel.InvokePromptAsync(prompt, cancellationToken: cancellationToken);
             var text = result.GetValue<string>() ?? string.Empty;
             return ParseClassification(text, armResourceType) ?? catalogResult;
+        }
+        catch (HttpRequestException)
+        {
+            logger?.LogWarning("AI backend unreachable; disabling AI classification for remaining resources");
+            _aiAvailable = false;
+            return catalogResult;
         }
         catch
         {
