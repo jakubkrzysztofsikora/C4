@@ -1,5 +1,6 @@
 using C4.Modules.Visualization.Application.ExportDiagram;
 using C4.Modules.Visualization.Application.Ports;
+using C4.Shared.Kernel;
 
 namespace C4.Modules.Visualization.Tests.Application;
 
@@ -12,7 +13,7 @@ public sealed class ExportDiagramHandlerTests
         var expectedBytes = "<svg></svg>"u8.ToArray();
         var readModel = new FakeReadModel("{}");
         var exporter = new FakeExporter("svg", expectedBytes);
-        var handler = new ExportDiagramHandler(readModel, [exporter]);
+        var handler = new ExportDiagramHandler(readModel, [exporter], new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new ExportDiagramCommand(projectId, "svg"), CancellationToken.None);
 
@@ -28,7 +29,7 @@ public sealed class ExportDiagramHandlerTests
         var pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 };
         var readModel = new FakeReadModel("{}");
         var exporter = new FakeExporter("pdf", pdfBytes);
-        var handler = new ExportDiagramHandler(readModel, [exporter]);
+        var handler = new ExportDiagramHandler(readModel, [exporter], new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new ExportDiagramCommand(projectId, "pdf"), CancellationToken.None);
 
@@ -41,7 +42,7 @@ public sealed class ExportDiagramHandlerTests
     {
         var readModel = new FakeReadModel(null);
         var exporter = new FakeExporter("svg", []);
-        var handler = new ExportDiagramHandler(readModel, [exporter]);
+        var handler = new ExportDiagramHandler(readModel, [exporter], new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new ExportDiagramCommand(Guid.NewGuid(), "svg"), CancellationToken.None);
 
@@ -55,7 +56,7 @@ public sealed class ExportDiagramHandlerTests
         var projectId = Guid.NewGuid();
         var readModel = new FakeReadModel("{}");
         var svgExporter = new FakeExporter("svg", []);
-        var handler = new ExportDiagramHandler(readModel, [svgExporter]);
+        var handler = new ExportDiagramHandler(readModel, [svgExporter], new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new ExportDiagramCommand(projectId, "bmp"), CancellationToken.None);
 
@@ -69,11 +70,24 @@ public sealed class ExportDiagramHandlerTests
         var projectId = Guid.NewGuid();
         var readModel = new FakeReadModel("{}");
         var exporter = new FakeExporter("svg", "<svg/>"u8.ToArray());
-        var handler = new ExportDiagramHandler(readModel, [exporter]);
+        var handler = new ExportDiagramHandler(readModel, [exporter], new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new ExportDiagramCommand(projectId, "SVG"), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_UnauthorizedProject_ReturnsFailure()
+    {
+        var readModel = new FakeReadModel("{}");
+        var exporter = new FakeExporter("svg", []);
+        var handler = new ExportDiagramHandler(readModel, [exporter], new DenyingAuthorizationService());
+
+        var result = await handler.Handle(new ExportDiagramCommand(Guid.NewGuid(), "svg"), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("authorization.denied");
     }
 
     private sealed class FakeReadModel(string? diagramJson) : IDiagramReadModel
@@ -88,5 +102,23 @@ public sealed class ExportDiagramHandlerTests
 
         public Task<byte[]> ExportAsync(string diagramJson, CancellationToken cancellationToken)
             => Task.FromResult(content);
+    }
+
+    private sealed class AlwaysAuthorizingService : IProjectAuthorizationService
+    {
+        public Task<Result<bool>> AuthorizeAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
+
+        public Task<Result<bool>> AuthorizeOwnerAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
+    }
+
+    private sealed class DenyingAuthorizationService : IProjectAuthorizationService
+    {
+        public Task<Result<bool>> AuthorizeAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Failure(new Error("authorization.denied", "Access denied.")));
+
+        public Task<Result<bool>> AuthorizeOwnerAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Failure(new Error("authorization.denied", "Access denied.")));
     }
 }

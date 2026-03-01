@@ -1,6 +1,7 @@
 using C4.Modules.Graph.Application.GetGraph;
 using C4.Modules.Graph.Application.Ports;
 using C4.Modules.Graph.Domain.ArchitectureGraph;
+using C4.Shared.Kernel;
 using C4.Shared.Kernel.Contracts;
 
 namespace C4.Modules.Graph.Tests.Application;
@@ -15,7 +16,7 @@ public sealed class GetGraphHandlerTests
         var repo = new FakeRepository(graph);
         var telemetry = new EmptyTelemetryQueryService();
         var drift = new EmptyDriftQueryService();
-        var handler = new GetGraphHandler(repo, telemetry, drift);
+        var handler = new GetGraphHandler(repo, telemetry, drift, new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, null), CancellationToken.None);
 
@@ -43,5 +44,14 @@ public sealed class GetGraphHandlerTests
     {
         public Task<IReadOnlyCollection<string>> GetDriftedResourceIdsAsync(IReadOnlyCollection<string> resourceIds, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyCollection<string>>([]);
+    }
+
+    private sealed class AlwaysAuthorizingService : IProjectAuthorizationService
+    {
+        public Task<Result<bool>> AuthorizeAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
+
+        public Task<Result<bool>> AuthorizeOwnerAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
     }
 }

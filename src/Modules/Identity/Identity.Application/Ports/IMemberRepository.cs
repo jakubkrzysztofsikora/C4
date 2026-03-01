@@ -12,4 +12,8 @@ public interface IMemberRepository
     Task<Member?> GetByIdAsync(MemberId memberId, CancellationToken cancellationToken);
 
     Task<int> CountOwnersAsync(ProjectId projectId, CancellationToken cancellationToken);
+
+    Task<Member?> GetByProjectAndUserAsync(ProjectId projectId, string externalUserId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Member>> GetByExternalUserIdAsync(string externalUserId, CancellationToken cancellationToken);
 }

@@ -13,11 +13,15 @@ public sealed class AggregateLearningsHandler(
     ILearningInsightRepository insightRepository,
     [FromKeyedServices("Feedback")] IUnitOfWork unitOfWork,
     IMediator mediator,
-    ILogger<AggregateLearningsHandler> logger)
+    ILogger<AggregateLearningsHandler> logger,
+    IProjectAuthorizationService authorizationService)
     : IRequestHandler<AggregateLearningsCommand, Result<AggregateLearningsResponse>>
 {
     public async Task<Result<AggregateLearningsResponse>> Handle(AggregateLearningsCommand request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<AggregateLearningsResponse>.Failure(authCheck.Error);
+
         var entries = await feedbackRepository.GetByProjectForAggregationAsync(request.ProjectId, request.Category, cancellationToken);
 
         if (entries.Count == 0)

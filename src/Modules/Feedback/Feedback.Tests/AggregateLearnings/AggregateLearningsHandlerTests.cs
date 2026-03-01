@@ -16,7 +16,7 @@ public sealed class AggregateLearningsHandlerTests
     private readonly Guid _projectId = Guid.NewGuid();
 
     private AggregateLearningsHandler CreateHandler() =>
-        new(_feedbackRepository, _aggregator, _insightRepository, _unitOfWork, _mediator, NullLogger<AggregateLearningsHandler>.Instance);
+        new(_feedbackRepository, _aggregator, _insightRepository, _unitOfWork, _mediator, NullLogger<AggregateLearningsHandler>.Instance, new AlwaysAuthorizingService());
 
     [Fact]
     public async Task Handle_WithFeedback_CreatesInsights()

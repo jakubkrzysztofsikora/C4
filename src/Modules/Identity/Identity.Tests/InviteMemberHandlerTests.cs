@@ -14,7 +14,12 @@ public sealed class InviteMemberHandlerTests
     {
         var organization = Organization.Create("Acme").Value;
         var project = Project.Create(organization.Id, "Portal").Value;
-        var handler = new InviteMemberHandler(new FakeProjectRepository(project), new FakeMemberRepository(), new FakeUnitOfWork());
+        var handler = new InviteMemberHandler(
+            new FakeProjectRepository(project),
+            new FakeMemberRepository(),
+            new AlwaysAuthorizingService(),
+            new FakeCurrentUserService(),
+            new FakeUnitOfWork());
 
         var result = await handler.Handle(new InviteMemberCommand(project.Id.Value, "user-1", Role.Contributor), CancellationToken.None);
 
@@ -29,7 +34,12 @@ public sealed class InviteMemberHandlerTests
         var project = Project.Create(organization.Id, "Portal").Value;
         var members = new FakeMemberRepository();
         await members.AddAsync(Member.Invite(project.Id, "user-1", Role.Viewer), CancellationToken.None);
-        var handler = new InviteMemberHandler(new FakeProjectRepository(project), members, new FakeUnitOfWork());
+        var handler = new InviteMemberHandler(
+            new FakeProjectRepository(project),
+            members,
+            new AlwaysAuthorizingService(),
+            new FakeCurrentUserService(),
+            new FakeUnitOfWork());
 
         var result = await handler.Handle(new InviteMemberCommand(project.Id.Value, "user-1", Role.Contributor), CancellationToken.None);
 
@@ -75,6 +85,27 @@ public sealed class InviteMemberHandlerTests
 
         public Task<int> CountOwnersAsync(ProjectId projectId, CancellationToken cancellationToken)
             => Task.FromResult(_members.Count(member => member.ProjectId == projectId && member.Role == Role.Owner));
+
+        public Task<Member?> GetByProjectAndUserAsync(ProjectId projectId, string externalUserId, CancellationToken cancellationToken)
+            => Task.FromResult(_members.FirstOrDefault(member => member.ProjectId == projectId && member.ExternalUserId == externalUserId));
+
+        public Task<IReadOnlyList<Member>> GetByExternalUserIdAsync(string externalUserId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<Member>>(_members.Where(member => member.ExternalUserId == externalUserId).ToList());
+    }
+
+    private sealed class AlwaysAuthorizingService : IProjectAuthorizationService
+    {
+        public Task<Result<bool>> AuthorizeAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
+
+        public Task<Result<bool>> AuthorizeOwnerAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
+    }
+
+    private sealed class FakeCurrentUserService : ICurrentUserService
+    {
+        public Guid UserId { get; } = Guid.NewGuid();
+        public string Email { get; } = "inviter@example.com";
     }
 
     private sealed class FakeUnitOfWork : IUnitOfWork

@@ -50,6 +50,8 @@ public sealed class LearningAggregatorPlugin(Kernel kernel) : ILearningAggregato
         return ParseInsights(text, projectId, primaryCategory);
     }
 
+    private static readonly int MaxCommentLength = 500;
+
     private static string BuildFeedbackDescription(IReadOnlyCollection<FeedbackEntry> entries)
     {
         var sb = new StringBuilder();
@@ -57,15 +59,24 @@ public sealed class LearningAggregatorPlugin(Kernel kernel) : ILearningAggregato
         {
             sb.AppendLine($"- Category: {entry.Category}, Rating: {entry.Rating.Score}/5, Target: {entry.Target.TargetType}");
             if (!string.IsNullOrWhiteSpace(entry.Comment))
-                sb.AppendLine($"  Comment: {entry.Comment}");
+                sb.AppendLine($"  Comment: {SanitizeUserInput(entry.Comment)}");
             if (entry.NodeCorrection is not null)
-                sb.AppendLine($"  NodeCorrection: {entry.NodeCorrection.OriginalName} -> {entry.NodeCorrection.CorrectedName}, Level: {entry.NodeCorrection.OriginalLevel} -> {entry.NodeCorrection.CorrectedLevel}");
+                sb.AppendLine($"  NodeCorrection: {SanitizeUserInput(entry.NodeCorrection.OriginalName)} -> {SanitizeUserInput(entry.NodeCorrection.CorrectedName)}, Level: {entry.NodeCorrection.OriginalLevel} -> {entry.NodeCorrection.CorrectedLevel}");
             if (entry.ClassificationCorrection is not null)
-                sb.AppendLine($"  ClassificationCorrection: {entry.ClassificationCorrection.ArmResourceType}, ServiceType: {entry.ClassificationCorrection.OriginalServiceType} -> {entry.ClassificationCorrection.CorrectedServiceType}");
+                sb.AppendLine($"  ClassificationCorrection: {SanitizeUserInput(entry.ClassificationCorrection.ArmResourceType)}, ServiceType: {SanitizeUserInput(entry.ClassificationCorrection.OriginalServiceType)} -> {SanitizeUserInput(entry.ClassificationCorrection.CorrectedServiceType)}");
             if (entry.EdgeCorrection is not null)
-                sb.AppendLine($"  EdgeCorrection: {entry.EdgeCorrection.OriginalRelationship} -> {entry.EdgeCorrection.CorrectedRelationship}, ShouldExist: {entry.EdgeCorrection.ShouldExist}");
+                sb.AppendLine($"  EdgeCorrection: {SanitizeUserInput(entry.EdgeCorrection.OriginalRelationship)} -> {SanitizeUserInput(entry.EdgeCorrection.CorrectedRelationship)}, ShouldExist: {entry.EdgeCorrection.ShouldExist}");
         }
         return sb.ToString();
+    }
+
+    private static string SanitizeUserInput(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return string.Empty;
+
+        var truncated = input.Length > MaxCommentLength ? input[..MaxCommentLength] : input;
+        return System.Text.Json.JsonSerializer.Serialize(truncated).Trim('"');
     }
 
     private static List<LearningInsight> ParseInsights(string text, Guid projectId, FeedbackCategory category)

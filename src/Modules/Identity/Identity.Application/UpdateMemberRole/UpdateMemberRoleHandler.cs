@@ -8,11 +8,18 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Identity.Application.UpdateMemberRole;
 
-public sealed class UpdateMemberRoleHandler(IMemberRepository memberRepository, [FromKeyedServices("Identity")] IUnitOfWork unitOfWork)
+public sealed class UpdateMemberRoleHandler(
+    IMemberRepository memberRepository,
+    IProjectAuthorizationService authorizationService,
+    [FromKeyedServices("Identity")] IUnitOfWork unitOfWork)
     : IRequestHandler<UpdateMemberRoleCommand, Result<UpdateMemberRoleResponse>>
 {
     public async Task<Result<UpdateMemberRoleResponse>> Handle(UpdateMemberRoleCommand request, CancellationToken cancellationToken)
     {
+        var ownerCheck = await authorizationService.AuthorizeOwnerAsync(request.ProjectId, cancellationToken);
+        if (ownerCheck.IsFailure)
+            return Result<UpdateMemberRoleResponse>.Failure(ownerCheck.Error);
+
         var projectId = new ProjectId(request.ProjectId);
         var memberId = new MemberId(request.MemberId);
 

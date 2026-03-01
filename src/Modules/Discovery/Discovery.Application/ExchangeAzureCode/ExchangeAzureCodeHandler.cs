@@ -4,11 +4,23 @@ using MediatR;
 
 namespace C4.Modules.Discovery.Application.ExchangeAzureCode;
 
-public sealed class ExchangeAzureCodeHandler(IAzureIdentityService azureIdentityService, IAzureTokenStore tokenStore)
+public sealed class ExchangeAzureCodeHandler(
+    IAzureIdentityService azureIdentityService,
+    IAzureTokenStore tokenStore,
+    IOAuthStateStore oAuthStateStore)
     : IRequestHandler<ExchangeAzureCodeCommand, Result<ExchangeAzureCodeResponse>>
 {
+    private static readonly Error InvalidOAuthState = new("AzureAuth.InvalidState", "OAuth state parameter is invalid or expired.");
+
     public async Task<Result<ExchangeAzureCodeResponse>> Handle(ExchangeAzureCodeCommand request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.State))
+            return Result<ExchangeAzureCodeResponse>.Failure(InvalidOAuthState);
+
+        bool stateValid = await oAuthStateStore.ValidateAndConsumeAsync(request.State, cancellationToken);
+        if (!stateValid)
+            return Result<ExchangeAzureCodeResponse>.Failure(InvalidOAuthState);
+
         try
         {
             AzureTokenResponse tokenResponse = await azureIdentityService.ExchangeAuthorizationCodeAsync(request.Code, request.RedirectUri, cancellationToken);

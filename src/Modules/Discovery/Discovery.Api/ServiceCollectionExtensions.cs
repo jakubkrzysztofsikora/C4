@@ -5,6 +5,7 @@ using C4.Modules.Discovery.Application.Ports;
 using C4.Modules.Discovery.Infrastructure.AI;
 using C4.Modules.Discovery.Infrastructure.Persistence;
 using C4.Modules.Discovery.Infrastructure.Persistence.Repositories;
+using C4.Modules.Discovery.Infrastructure.Security;
 using C4.Modules.Discovery.Infrastructure.Services;
 using C4.Shared.Infrastructure.AI;
 using C4.Shared.Infrastructure.Behaviors;
@@ -69,6 +70,7 @@ public static class ServiceCollectionExtensions
         }
         services.AddHttpClient();
         services.AddSingleton<IAzureIdentityService, AzureIdentityService>();
+        services.AddSingleton<IOAuthStateStore, InMemoryOAuthStateStore>();
 
         var azureClientId = configuration["AzureAd:ClientId"];
         if (!string.IsNullOrWhiteSpace(azureClientId))

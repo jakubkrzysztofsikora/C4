@@ -10,11 +10,15 @@ namespace C4.Modules.Graph.Application.GetGraph;
 public sealed class GetGraphHandler(
     IArchitectureGraphRepository repository,
     ITelemetryQueryService telemetryQueryService,
-    IDriftQueryService driftQueryService
+    IDriftQueryService driftQueryService,
+    IProjectAuthorizationService authorizationService
 ) : IRequestHandler<GetGraphQuery, Result<GraphDto>>
 {
     public async Task<Result<GraphDto>> Handle(GetGraphQuery request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<GraphDto>.Failure(authCheck.Error);
+
         var graph = await repository.GetByProjectIdAsync(request.ProjectId, cancellationToken);
         if (graph is null) return Result<GraphDto>.Failure(GraphErrors.GraphNotFound(request.ProjectId));
 

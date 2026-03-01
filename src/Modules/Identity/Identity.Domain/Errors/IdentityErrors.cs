@@ -36,4 +36,7 @@ public static class IdentityErrors
 
     public static Error WeakPassword() =>
         new("identity.user.weak_password", "Password must be at least 8 characters.");
+
+    public static Error CannotInviteSelf() =>
+        new("identity.member.cannot_invite_self", "Cannot invite yourself to a project.");
 }

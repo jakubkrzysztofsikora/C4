@@ -10,7 +10,7 @@ public sealed class GetEvalMetricsHandlerTests
     private readonly InMemoryFeedbackEntryRepository _repository = new();
     private readonly Guid _projectId = Guid.NewGuid();
 
-    private GetEvalMetricsHandler CreateHandler() => new(_repository);
+    private GetEvalMetricsHandler CreateHandler() => new(_repository, new AlwaysAuthorizingService());
 
     [Fact]
     public async Task Handle_NoData_ReturnsEmptyMetrics()

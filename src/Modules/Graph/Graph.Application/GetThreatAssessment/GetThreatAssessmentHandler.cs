@@ -5,11 +5,17 @@ using MediatR;
 
 namespace C4.Modules.Graph.Application.GetThreatAssessment;
 
-public sealed class GetThreatAssessmentHandler(IArchitectureGraphRepository repository, IThreatDetector threatDetector)
-    : IRequestHandler<GetThreatAssessmentQuery, Result<ThreatAssessmentResponse>>
+public sealed class GetThreatAssessmentHandler(
+    IArchitectureGraphRepository repository,
+    IThreatDetector threatDetector,
+    IProjectAuthorizationService authorizationService
+) : IRequestHandler<GetThreatAssessmentQuery, Result<ThreatAssessmentResponse>>
 {
     public async Task<Result<ThreatAssessmentResponse>> Handle(GetThreatAssessmentQuery request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<ThreatAssessmentResponse>.Failure(authCheck.Error);
+
         var graph = await repository.GetByProjectIdAsync(request.ProjectId, cancellationToken);
         if (graph is null) return Result<ThreatAssessmentResponse>.Failure(GraphErrors.GraphNotFound(request.ProjectId));
 

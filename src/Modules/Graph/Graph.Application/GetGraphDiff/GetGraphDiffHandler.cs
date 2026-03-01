@@ -5,11 +5,16 @@ using MediatR;
 
 namespace C4.Modules.Graph.Application.GetGraphDiff;
 
-public sealed class GetGraphDiffHandler(IArchitectureGraphRepository repository)
-    : IRequestHandler<GetGraphDiffQuery, Result<GetGraphDiffResponse>>
+public sealed class GetGraphDiffHandler(
+    IArchitectureGraphRepository repository,
+    IProjectAuthorizationService authorizationService
+) : IRequestHandler<GetGraphDiffQuery, Result<GetGraphDiffResponse>>
 {
     public async Task<Result<GetGraphDiffResponse>> Handle(GetGraphDiffQuery request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<GetGraphDiffResponse>.Failure(authCheck.Error);
+
         var graph = await repository.GetByProjectIdAsync(request.ProjectId, cancellationToken);
         if (graph is null) return Result<GetGraphDiffResponse>.Failure(GraphErrors.GraphNotFound(request.ProjectId));
 

@@ -4,11 +4,16 @@ using MediatR;
 
 namespace C4.Modules.Visualization.Application.GetViewPresets;
 
-public sealed class GetViewPresetsHandler(IViewPresetRepository repository)
+public sealed class GetViewPresetsHandler(
+    IViewPresetRepository repository,
+    IProjectAuthorizationService authorizationService)
     : IRequestHandler<GetViewPresetsQuery, Result<GetViewPresetsResponse>>
 {
     public async Task<Result<GetViewPresetsResponse>> Handle(GetViewPresetsQuery request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<GetViewPresetsResponse>.Failure(authCheck.Error);
+
         var presets = await repository.GetByProjectAsync(request.ProjectId, cancellationToken);
         return Result<GetViewPresetsResponse>.Success(new GetViewPresetsResponse(
             presets.Select(p => new ViewPresetDto(p.Id, p.Name, p.Json)).ToArray()));

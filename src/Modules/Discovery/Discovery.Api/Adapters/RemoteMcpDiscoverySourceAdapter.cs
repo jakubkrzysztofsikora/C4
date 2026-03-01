@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using C4.Modules.Discovery.Application.Ports;
+using C4.Shared.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -43,11 +44,18 @@ public sealed class RemoteMcpDiscoverySourceAdapter(
     {
         try
         {
+            var urlValidation = await UrlValidator.ValidateExternalUrlWithDnsAsync(config.Endpoint, cancellationToken);
+            if (urlValidation.IsFailure)
+            {
+                logger.LogWarning("MCP server {ServerName} endpoint blocked: {Error}", config.Name, urlValidation.Error.Message);
+                return Array.Empty<DiscoveryResourceDescriptor>();
+            }
+
             using var client = httpClientFactory.CreateClient();
             string requestJson = JsonSerializer.Serialize(new McpDiscoverRequest(config.ProjectId.ToString()));
             StringContent content = new(requestJson, Encoding.UTF8, "application/json");
 
-            string url = $"{config.Endpoint.TrimEnd('/')}/tools/discover";
+            string url = $"{urlValidation.Value.ToString().TrimEnd('/')}/tools/discover";
             HttpResponseMessage response = await client.PostAsync(url, content, cancellationToken);
 
             if (!response.IsSuccessStatusCode)

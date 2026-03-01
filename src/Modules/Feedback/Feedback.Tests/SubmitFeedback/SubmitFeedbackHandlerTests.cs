@@ -14,7 +14,7 @@ public sealed class SubmitFeedbackHandlerTests
     private readonly NullMediator _mediator = new();
 
     private SubmitFeedbackHandler CreateHandler() =>
-        new(_repository, _unitOfWork, _mediator, NullLogger<SubmitFeedbackHandler>.Instance);
+        new(_repository, _unitOfWork, _mediator, NullLogger<SubmitFeedbackHandler>.Instance, new AlwaysAuthorizingService());
 
     [Fact]
     public async Task Handle_ValidFeedback_CreatesFeedbackEntry()

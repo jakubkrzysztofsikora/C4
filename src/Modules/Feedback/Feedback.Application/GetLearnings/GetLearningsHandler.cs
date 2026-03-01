@@ -4,11 +4,16 @@ using MediatR;
 
 namespace C4.Modules.Feedback.Application.GetLearnings;
 
-public sealed class GetLearningsHandler(ILearningInsightRepository repository)
+public sealed class GetLearningsHandler(
+    ILearningInsightRepository repository,
+    IProjectAuthorizationService authorizationService)
     : IRequestHandler<GetLearningsQuery, Result<GetLearningsResponse>>
 {
     public async Task<Result<GetLearningsResponse>> Handle(GetLearningsQuery request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<GetLearningsResponse>.Failure(authCheck.Error);
+
         var insights = request.Category.HasValue
             ? await repository.FindByProjectAndCategoryAsync(request.ProjectId, request.Category.Value, cancellationToken)
             : await repository.GetActiveByProjectAsync(request.ProjectId, cancellationToken);

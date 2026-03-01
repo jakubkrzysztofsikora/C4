@@ -5,11 +5,16 @@ using MediatR;
 
 namespace C4.Modules.Telemetry.Application.GetServiceHealth;
 
-public sealed class GetServiceHealthHandler(ITelemetryRepository repository)
+public sealed class GetServiceHealthHandler(
+    ITelemetryRepository repository,
+    IProjectAuthorizationService authorizationService)
     : IRequestHandler<GetServiceHealthQuery, Result<GetServiceHealthResponse>>
 {
     public async Task<Result<GetServiceHealthResponse>> Handle(GetServiceHealthQuery request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<GetServiceHealthResponse>.Failure(authCheck.Error);
+
         var health = await repository.GetServiceHealthAsync(request.ProjectId, request.Service.Trim(), cancellationToken);
         if (health is null) return Result<GetServiceHealthResponse>.Failure(TelemetryErrors.HealthNotFound(request.ProjectId, request.Service));
 

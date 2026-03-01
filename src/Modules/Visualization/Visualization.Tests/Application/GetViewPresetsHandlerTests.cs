@@ -1,6 +1,7 @@
 using C4.Modules.Visualization.Application.GetViewPresets;
 using C4.Modules.Visualization.Application.Ports;
 using C4.Modules.Visualization.Domain.Preset;
+using C4.Shared.Kernel;
 
 namespace C4.Modules.Visualization.Tests.Application;
 
@@ -16,7 +17,7 @@ public sealed class GetViewPresetsHandlerTests
             ViewPreset.Create(projectId, "Security View", "{\"zoom\":2}")
         };
         var repository = new FakeRepository(presets);
-        var handler = new GetViewPresetsHandler(repository);
+        var handler = new GetViewPresetsHandler(repository, new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new GetViewPresetsQuery(projectId), CancellationToken.None);
 
@@ -28,7 +29,7 @@ public sealed class GetViewPresetsHandlerTests
     public async Task Handle_ProjectWithNoPresets_ReturnsEmptyCollection()
     {
         var repository = new FakeRepository([]);
-        var handler = new GetViewPresetsHandler(repository);
+        var handler = new GetViewPresetsHandler(repository, new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new GetViewPresetsQuery(Guid.NewGuid()), CancellationToken.None);
 
@@ -42,7 +43,7 @@ public sealed class GetViewPresetsHandlerTests
         var projectId = Guid.NewGuid();
         var preset = ViewPreset.Create(projectId, "Overview", "{\"layout\":\"tree\"}");
         var repository = new FakeRepository([preset]);
-        var handler = new GetViewPresetsHandler(repository);
+        var handler = new GetViewPresetsHandler(repository, new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new GetViewPresetsQuery(projectId), CancellationToken.None);
 
@@ -52,11 +53,40 @@ public sealed class GetViewPresetsHandlerTests
         dto.Json.Should().Be("{\"layout\":\"tree\"}");
     }
 
+    [Fact]
+    public async Task Handle_UnauthorizedProject_ReturnsFailure()
+    {
+        var handler = new GetViewPresetsHandler(new FakeRepository([]), new DenyingAuthorizationService());
+
+        var result = await handler.Handle(new GetViewPresetsQuery(Guid.NewGuid()), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("authorization.denied");
+    }
+
     private sealed class FakeRepository(IReadOnlyCollection<ViewPreset> presets) : IViewPresetRepository
     {
         public Task AddAsync(ViewPreset preset, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task<IReadOnlyCollection<ViewPreset>> GetByProjectAsync(Guid projectId, CancellationToken cancellationToken)
             => Task.FromResult(presets);
+    }
+
+    private sealed class AlwaysAuthorizingService : IProjectAuthorizationService
+    {
+        public Task<Result<bool>> AuthorizeAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
+
+        public Task<Result<bool>> AuthorizeOwnerAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
+    }
+
+    private sealed class DenyingAuthorizationService : IProjectAuthorizationService
+    {
+        public Task<Result<bool>> AuthorizeAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Failure(new Error("authorization.denied", "Access denied.")));
+
+        public Task<Result<bool>> AuthorizeOwnerAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Failure(new Error("authorization.denied", "Access denied.")));
     }
 }

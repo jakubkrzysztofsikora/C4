@@ -7,11 +7,18 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Telemetry.Application.IngestTelemetry;
 
-public sealed class IngestTelemetryHandler(ITelemetryRepository repository, IMediator mediator, [FromKeyedServices("Telemetry")] IUnitOfWork unitOfWork)
+public sealed class IngestTelemetryHandler(
+    ITelemetryRepository repository,
+    IMediator mediator,
+    [FromKeyedServices("Telemetry")] IUnitOfWork unitOfWork,
+    IProjectAuthorizationService authorizationService)
     : IRequestHandler<IngestTelemetryCommand, Result<IngestTelemetryResponse>>
 {
     public async Task<Result<IngestTelemetryResponse>> Handle(IngestTelemetryCommand request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<IngestTelemetryResponse>.Failure(authCheck.Error);
+
         var metric = new MetricDataPoint(request.ProjectId, request.Service.Trim(), request.Value, DateTime.UtcNow);
         await repository.AddMetricAsync(metric, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);

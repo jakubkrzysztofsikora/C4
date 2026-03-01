@@ -10,11 +10,11 @@ public sealed class ExchangeAzureCodeEndpoint : IEndpoint
     {
         app.MapPost("/api/azure/auth/callback", async (ExchangeAzureCodeRequest request, ISender sender, CancellationToken ct) =>
         {
-            var result = await sender.Send(new ExchangeAzureCodeCommand(request.Code, request.RedirectUri), ct);
+            var result = await sender.Send(new ExchangeAzureCodeCommand(request.Code, request.RedirectUri, request.State), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         })
         .RequireAuthorization();
     }
 
-    public sealed record ExchangeAzureCodeRequest(string Code, string RedirectUri);
+    public sealed record ExchangeAzureCodeRequest(string Code, string RedirectUri, string State);
 }

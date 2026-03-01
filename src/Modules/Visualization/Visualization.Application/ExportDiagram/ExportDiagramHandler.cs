@@ -5,11 +5,17 @@ using MediatR;
 
 namespace C4.Modules.Visualization.Application.ExportDiagram;
 
-public sealed class ExportDiagramHandler(IDiagramReadModel readModel, IEnumerable<IDiagramExporter> exporters)
+public sealed class ExportDiagramHandler(
+    IDiagramReadModel readModel,
+    IEnumerable<IDiagramExporter> exporters,
+    IProjectAuthorizationService authorizationService)
     : IRequestHandler<ExportDiagramCommand, Result<ExportDiagramResponse>>
 {
     public async Task<Result<ExportDiagramResponse>> Handle(ExportDiagramCommand request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<ExportDiagramResponse>.Failure(authCheck.Error);
+
         string? diagram = await readModel.GetDiagramJsonAsync(request.ProjectId, cancellationToken);
         if (diagram is null) return Result<ExportDiagramResponse>.Failure(VisualizationErrors.DiagramNotFound(request.ProjectId));
 

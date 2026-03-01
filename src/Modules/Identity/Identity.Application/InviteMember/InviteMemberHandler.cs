@@ -11,10 +11,16 @@ namespace C4.Modules.Identity.Application.InviteMember;
 public sealed class InviteMemberHandler(
     IProjectRepository projectRepository,
     IMemberRepository memberRepository,
+    IProjectAuthorizationService authorizationService,
+    ICurrentUserService currentUserService,
     [FromKeyedServices("Identity")] IUnitOfWork unitOfWork) : IRequestHandler<InviteMemberCommand, Result<InviteMemberResponse>>
 {
     public async Task<Result<InviteMemberResponse>> Handle(InviteMemberCommand request, CancellationToken cancellationToken)
     {
+        var ownerCheck = await authorizationService.AuthorizeOwnerAsync(request.ProjectId, cancellationToken);
+        if (ownerCheck.IsFailure)
+            return Result<InviteMemberResponse>.Failure(ownerCheck.Error);
+
         var projectId = new ProjectId(request.ProjectId);
         var project = await projectRepository.GetByIdAsync(projectId, cancellationToken);
         if (project is null)
@@ -23,6 +29,12 @@ public sealed class InviteMemberHandler(
         }
 
         var normalizedExternalUserId = request.ExternalUserId.Trim();
+
+        if (normalizedExternalUserId == currentUserService.UserId.ToString())
+        {
+            return Result<InviteMemberResponse>.Failure(IdentityErrors.CannotInviteSelf());
+        }
+
         if (await memberRepository.ExistsByExternalUserAsync(projectId, normalizedExternalUserId, cancellationToken))
         {
             return Result<InviteMemberResponse>.Failure(IdentityErrors.MemberAlreadyExists(normalizedExternalUserId));

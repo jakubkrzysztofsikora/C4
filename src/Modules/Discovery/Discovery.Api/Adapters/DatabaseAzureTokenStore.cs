@@ -1,10 +1,11 @@
 using C4.Modules.Discovery.Application.Ports;
+using C4.Shared.Infrastructure.Security;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 
 namespace C4.Modules.Discovery.Api.Adapters;
 
-public sealed class DatabaseAzureTokenStore(IConfiguration configuration) : IAzureTokenStore
+public sealed class DatabaseAzureTokenStore(IConfiguration configuration, IDataProtectionService dataProtection) : IAzureTokenStore
 {
     private readonly string _connectionString = configuration.GetConnectionString("Discovery")
         ?? throw new InvalidOperationException("Connection string 'Discovery' is not configured.");
@@ -13,6 +14,11 @@ public sealed class DatabaseAzureTokenStore(IConfiguration configuration) : IAzu
     {
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
+
+        string encryptedAccessToken = dataProtection.Protect(tokenInfo.AccessToken);
+        string? encryptedRefreshToken = tokenInfo.RefreshToken is not null
+            ? dataProtection.Protect(tokenInfo.RefreshToken)
+            : null;
 
         await using var command = new NpgsqlCommand(
             """
@@ -26,8 +32,8 @@ public sealed class DatabaseAzureTokenStore(IConfiguration configuration) : IAzu
             connection);
 
         command.Parameters.AddWithValue("externalSubscriptionId", externalSubscriptionId);
-        command.Parameters.AddWithValue("accessToken", tokenInfo.AccessToken);
-        command.Parameters.AddWithValue("refreshToken", (object?)tokenInfo.RefreshToken ?? DBNull.Value);
+        command.Parameters.AddWithValue("accessToken", encryptedAccessToken);
+        command.Parameters.AddWithValue("refreshToken", (object?)encryptedRefreshToken ?? DBNull.Value);
         command.Parameters.AddWithValue("expiresAtUtc", DateTime.SpecifyKind(tokenInfo.ExpiresAtUtc, DateTimeKind.Utc));
 
         await command.ExecuteNonQueryAsync(cancellationToken);
@@ -53,8 +59,8 @@ public sealed class DatabaseAzureTokenStore(IConfiguration configuration) : IAzu
         if (!await reader.ReadAsync(cancellationToken))
             return null;
 
-        string accessToken = reader.GetString(0);
-        string? refreshToken = reader.IsDBNull(1) ? null : reader.GetString(1);
+        string accessToken = dataProtection.Unprotect(reader.GetString(0));
+        string? refreshToken = reader.IsDBNull(1) ? null : dataProtection.Unprotect(reader.GetString(1));
         DateTime expiresAtUtc = DateTime.SpecifyKind(reader.GetDateTime(2), DateTimeKind.Utc);
 
         return new AzureTokenInfo(accessToken, refreshToken, expiresAtUtc);

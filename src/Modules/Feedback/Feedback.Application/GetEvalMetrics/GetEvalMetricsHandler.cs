@@ -4,13 +4,18 @@ using MediatR;
 
 namespace C4.Modules.Feedback.Application.GetEvalMetrics;
 
-public sealed class GetEvalMetricsHandler(IFeedbackEntryRepository feedbackRepository)
+public sealed class GetEvalMetricsHandler(
+    IFeedbackEntryRepository feedbackRepository,
+    IProjectAuthorizationService authorizationService)
     : IRequestHandler<GetEvalMetricsQuery, Result<EvalMetricsDto>>
 {
     private const int WeeksToAnalyze = 12;
 
     public async Task<Result<EvalMetricsDto>> Handle(GetEvalMetricsQuery request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<EvalMetricsDto>.Failure(authCheck.Error);
+
         var totalCount = await feedbackRepository.CountByProjectAsync(request.ProjectId, cancellationToken);
 
         if (totalCount == 0)

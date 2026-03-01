@@ -12,7 +12,8 @@ public sealed class JwtTokenService(IConfiguration configuration) : ITokenServic
 {
     public string GenerateToken(UserId userId, string email, string displayName)
     {
-        string signingKey = configuration["Jwt:SigningKey"] ?? "c4-development-signing-key-min-32-chars!!";
+        string signingKey = configuration["Jwt:SigningKey"]
+            ?? throw new InvalidOperationException("Jwt:SigningKey must be configured. Set via environment variable 'Jwt__SigningKey'.");
         string issuer = configuration["Jwt:Issuer"] ?? "c4-api";
         string audience = configuration["Jwt:Audience"] ?? "c4-web";
         int expirationMinutes = configuration.GetValue<int>("Jwt:ExpirationMinutes", 1440);

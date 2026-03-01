@@ -10,7 +10,7 @@ public sealed class GetLearningsHandlerTests
     private readonly InMemoryLearningInsightRepository _repository = new();
     private readonly Guid _projectId = Guid.NewGuid();
 
-    private GetLearningsHandler CreateHandler() => new(_repository);
+    private GetLearningsHandler CreateHandler() => new(_repository, new AlwaysAuthorizingService());
 
     [Fact]
     public async Task Handle_HasActiveInsights_ReturnsInsights()

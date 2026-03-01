@@ -19,4 +19,14 @@ public sealed class MemberRepository(IdentityDbContext dbContext) : IMemberRepos
 
     public Task<int> CountOwnersAsync(ProjectId projectId, CancellationToken cancellationToken) =>
         dbContext.Members.CountAsync(member => member.ProjectId == projectId && member.Role == Role.Owner, cancellationToken);
+
+    public Task<Member?> GetByProjectAndUserAsync(ProjectId projectId, string externalUserId, CancellationToken cancellationToken) =>
+        dbContext.Members.FirstOrDefaultAsync(
+            member => member.ProjectId == projectId && member.ExternalUserId == externalUserId,
+            cancellationToken);
+
+    public async Task<IReadOnlyList<Member>> GetByExternalUserIdAsync(string externalUserId, CancellationToken cancellationToken) =>
+        await dbContext.Members
+            .Where(member => member.ExternalUserId == externalUserId)
+            .ToListAsync(cancellationToken);
 }

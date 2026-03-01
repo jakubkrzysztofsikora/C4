@@ -11,11 +11,15 @@ public sealed class SyncApplicationInsightsTelemetryHandler(
     IApplicationInsightsClient applicationInsightsClient,
     ITelemetryRepository telemetryRepository,
     IMediator mediator,
-    [FromKeyedServices("Telemetry")] IUnitOfWork unitOfWork)
+    [FromKeyedServices("Telemetry")] IUnitOfWork unitOfWork,
+    IProjectAuthorizationService authorizationService)
     : IRequestHandler<SyncApplicationInsightsTelemetryCommand, Result<SyncApplicationInsightsTelemetryResponse>>
 {
     public async Task<Result<SyncApplicationInsightsTelemetryResponse>> Handle(SyncApplicationInsightsTelemetryCommand request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<SyncApplicationInsightsTelemetryResponse>.Failure(authCheck.Error);
+
         var records = await applicationInsightsClient.QueryServiceHealthAsync(request.ProjectId, TimeSpan.FromMinutes(request.LookbackMinutes), cancellationToken);
 
         foreach (var record in records)

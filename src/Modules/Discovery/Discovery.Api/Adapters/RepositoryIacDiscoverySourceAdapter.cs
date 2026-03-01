@@ -1,10 +1,11 @@
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 using C4.Modules.Discovery.Application.Ports;
 using Microsoft.Extensions.DependencyInjection;
-using System.Diagnostics;
 
 namespace C4.Modules.Discovery.Api.Adapters;
 
-public sealed class RepositoryIacDiscoverySourceAdapter(
+public sealed partial class RepositoryIacDiscoverySourceAdapter(
     IServiceScopeFactory scopeFactory,
     IIacStateParser iacStateParser) : IDiscoverySourceAdapter
 {
@@ -30,6 +31,8 @@ public sealed class RepositoryIacDiscoverySourceAdapter(
             gitRepoUrl = subscription.GitRepoUrl;
             gitPatToken = subscription.GitPatToken;
         }
+
+        ValidateGitUrl(gitRepoUrl);
 
         string tempDirectory = Path.Combine(Path.GetTempPath(), $"c4-iac-{Guid.NewGuid():N}");
         try
@@ -68,6 +71,21 @@ public sealed class RepositoryIacDiscoverySourceAdapter(
         }
     }
 
+    private static void ValidateGitUrl(string repoUrl)
+    {
+        if (!Uri.TryCreate(repoUrl, UriKind.Absolute, out var uri))
+            throw new ArgumentException("Git repository URL is not a valid URI.");
+
+        if (uri.Scheme != Uri.UriSchemeHttps)
+            throw new ArgumentException("Only HTTPS Git repository URLs are allowed.");
+
+        if (repoUrl.StartsWith('-'))
+            throw new ArgumentException("Git repository URL must not start with a dash.");
+
+        if (ShellMetacharsPattern().IsMatch(repoUrl))
+            throw new ArgumentException("Git repository URL contains disallowed characters.");
+    }
+
     private static string BuildAuthenticatedCloneUrl(string repoUrl, string? patToken)
     {
         if (string.IsNullOrWhiteSpace(patToken))
@@ -84,12 +102,16 @@ public sealed class RepositoryIacDiscoverySourceAdapter(
         ProcessStartInfo startInfo = new()
         {
             FileName = "git",
-            Arguments = $"clone --depth 1 {cloneUrl} {targetDirectory}",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
             UseShellExecute = false,
-            CreateNoWindow = true
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
         };
+        startInfo.ArgumentList.Add("clone");
+        startInfo.ArgumentList.Add("--depth");
+        startInfo.ArgumentList.Add("1");
+        startInfo.ArgumentList.Add(cloneUrl);
+        startInfo.ArgumentList.Add(targetDirectory);
 
         using Process process = new() { StartInfo = startInfo };
         process.Start();
@@ -113,4 +135,7 @@ public sealed class RepositoryIacDiscoverySourceAdapter(
             "tf" => "terraform",
             _ => string.Empty
         };
+
+    [GeneratedRegex(@"[;|&`$(){}\[\]<>!]")]
+    private static partial Regex ShellMetacharsPattern();
 }

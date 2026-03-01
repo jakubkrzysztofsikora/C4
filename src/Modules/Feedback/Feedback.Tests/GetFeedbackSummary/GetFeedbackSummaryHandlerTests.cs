@@ -9,7 +9,7 @@ public sealed class GetFeedbackSummaryHandlerTests
     private readonly InMemoryFeedbackEntryRepository _repository = new();
     private readonly Guid _projectId = Guid.NewGuid();
 
-    private GetFeedbackSummaryHandler CreateHandler() => new(_repository);
+    private GetFeedbackSummaryHandler CreateHandler() => new(_repository, new AlwaysAuthorizingService());
 
     [Fact]
     public async Task Handle_NoFeedback_ReturnsZeroCounts()

@@ -8,11 +8,18 @@ namespace C4.Modules.Discovery.Application.McpServers;
 
 internal sealed class AddMcpServerHandler(
     IMcpServerConfigRepository repository,
-    [FromKeyedServices("Discovery")] IUnitOfWork unitOfWork)
+    [FromKeyedServices("Discovery")] IUnitOfWork unitOfWork,
+    IProjectAuthorizationService authorizationService)
     : IRequestHandler<AddMcpServerCommand, Result<McpServerItem>>
 {
     public async Task<Result<McpServerItem>> Handle(AddMcpServerCommand request, CancellationToken cancellationToken)
     {
+        Result<bool> authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (authCheck.IsFailure)
+        {
+            return Result<McpServerItem>.Failure(authCheck.Error);
+        }
+
         McpServerConfig config = McpServerConfig.Create(request.ProjectId, request.Name, request.Endpoint, request.AuthMode);
         await repository.AddAsync(config, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);

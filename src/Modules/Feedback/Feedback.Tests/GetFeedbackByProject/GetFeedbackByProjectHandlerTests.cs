@@ -9,7 +9,7 @@ public sealed class GetFeedbackByProjectHandlerTests
     private readonly InMemoryFeedbackEntryRepository _repository = new();
     private readonly Guid _projectId = Guid.NewGuid();
 
-    private GetFeedbackByProjectHandler CreateHandler() => new(_repository);
+    private GetFeedbackByProjectHandler CreateHandler() => new(_repository, new AlwaysAuthorizingService());
 
     [Fact]
     public async Task Handle_HasFeedback_ReturnsPaginatedList()

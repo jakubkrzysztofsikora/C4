@@ -44,6 +44,7 @@ public static class ServiceCollectionExtensions
         services.AddKeyedScoped<IUnitOfWork>("Identity", (sp, _) => sp.GetRequiredService<IdentityDbContext>());
         services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
         services.AddSingleton<ITokenService, JwtTokenService>();
+        services.AddScoped<IProjectAuthorizationService, ProjectAuthorizationService>();
 
         services.AddEndpoints(AssemblyReference.Assembly);
         return services;

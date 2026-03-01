@@ -12,11 +12,15 @@ public sealed class SubmitFeedbackHandler(
     IFeedbackEntryRepository repository,
     [FromKeyedServices("Feedback")] IUnitOfWork unitOfWork,
     IMediator mediator,
-    ILogger<SubmitFeedbackHandler> logger)
+    ILogger<SubmitFeedbackHandler> logger,
+    IProjectAuthorizationService authorizationService)
     : IRequestHandler<SubmitFeedbackCommand, Result<SubmitFeedbackResponse>>
 {
     public async Task<Result<SubmitFeedbackResponse>> Handle(SubmitFeedbackCommand request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<SubmitFeedbackResponse>.Failure(authCheck.Error);
+
         var ratingResult = FeedbackRating.Create(request.Rating);
         if (ratingResult.IsFailure)
         {

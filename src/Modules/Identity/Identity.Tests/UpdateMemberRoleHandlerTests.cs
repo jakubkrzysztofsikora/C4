@@ -14,7 +14,7 @@ public sealed class UpdateMemberRoleHandlerTests
         var projectId = ProjectId.New();
         var member = Member.Invite(projectId, "user-1", Role.Owner);
         var members = new FakeMemberRepository(member, Member.Invite(projectId, "user-2", Role.Owner));
-        var handler = new UpdateMemberRoleHandler(members, new FakeUnitOfWork());
+        var handler = new UpdateMemberRoleHandler(members, new AlwaysAuthorizingService(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new UpdateMemberRoleCommand(projectId.Value, member.Id.Value, Role.Admin), CancellationToken.None);
 
@@ -28,7 +28,7 @@ public sealed class UpdateMemberRoleHandlerTests
         var projectId = ProjectId.New();
         var member = Member.Invite(projectId, "user-1", Role.Owner);
         var members = new FakeMemberRepository(member);
-        var handler = new UpdateMemberRoleHandler(members, new FakeUnitOfWork());
+        var handler = new UpdateMemberRoleHandler(members, new AlwaysAuthorizingService(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new UpdateMemberRoleCommand(projectId.Value, member.Id.Value, Role.Admin), CancellationToken.None);
 
@@ -54,6 +54,21 @@ public sealed class UpdateMemberRoleHandlerTests
 
         public Task<int> CountOwnersAsync(ProjectId projectId, CancellationToken cancellationToken)
             => Task.FromResult(_members.Count(member => member.ProjectId == projectId && member.Role == Role.Owner));
+
+        public Task<Member?> GetByProjectAndUserAsync(ProjectId projectId, string externalUserId, CancellationToken cancellationToken)
+            => Task.FromResult(_members.FirstOrDefault(member => member.ProjectId == projectId && member.ExternalUserId == externalUserId));
+
+        public Task<IReadOnlyList<Member>> GetByExternalUserIdAsync(string externalUserId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<Member>>(_members.Where(member => member.ExternalUserId == externalUserId).ToList());
+    }
+
+    private sealed class AlwaysAuthorizingService : IProjectAuthorizationService
+    {
+        public Task<Result<bool>> AuthorizeAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
+
+        public Task<Result<bool>> AuthorizeOwnerAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
     }
 
     private sealed class FakeUnitOfWork : IUnitOfWork

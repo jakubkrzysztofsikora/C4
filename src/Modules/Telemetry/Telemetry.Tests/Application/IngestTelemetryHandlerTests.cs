@@ -15,7 +15,7 @@ public sealed class IngestTelemetryHandlerTests
         var repo = new FakeTelemetryRepository();
         var mediator = new FakeMediator();
         var unitOfWork = new FakeUnitOfWork();
-        var handler = new IngestTelemetryHandler(repo, mediator, unitOfWork);
+        var handler = new IngestTelemetryHandler(repo, mediator, unitOfWork, new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new IngestTelemetryCommand(Guid.NewGuid(), "api", 0.92), CancellationToken.None);
 
@@ -23,6 +23,17 @@ public sealed class IngestTelemetryHandlerTests
         mediator.PublishedTelemetryEvents.Should().HaveCount(1);
         mediator.PublishedTelemetryEvents[0].Services.Should().ContainSingle(s => s.Service == "api" && s.Status == "Green");
         unitOfWork.SaveCalls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Handle_UnauthorizedProject_ReturnsFailure()
+    {
+        var handler = new IngestTelemetryHandler(new FakeTelemetryRepository(), new FakeMediator(), new FakeUnitOfWork(), new DenyingAuthorizationService());
+
+        var result = await handler.Handle(new IngestTelemetryCommand(Guid.NewGuid(), "api", 0.92), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("authorization.denied");
     }
 
     private sealed class FakeTelemetryRepository : ITelemetryRepository
@@ -83,5 +94,23 @@ public sealed class IngestTelemetryHandlerTests
             SaveCalls++;
             return Task.FromResult(1);
         }
+    }
+
+    private sealed class AlwaysAuthorizingService : IProjectAuthorizationService
+    {
+        public Task<Result<bool>> AuthorizeAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
+
+        public Task<Result<bool>> AuthorizeOwnerAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
+    }
+
+    private sealed class DenyingAuthorizationService : IProjectAuthorizationService
+    {
+        public Task<Result<bool>> AuthorizeAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Failure(new Error("authorization.denied", "Access denied.")));
+
+        public Task<Result<bool>> AuthorizeOwnerAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Failure(new Error("authorization.denied", "Access denied.")));
     }
 }

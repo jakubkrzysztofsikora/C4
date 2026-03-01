@@ -4,11 +4,16 @@ using MediatR;
 
 namespace C4.Modules.Feedback.Application.GetFeedbackSummary;
 
-public sealed class GetFeedbackSummaryHandler(IFeedbackEntryRepository repository)
+public sealed class GetFeedbackSummaryHandler(
+    IFeedbackEntryRepository repository,
+    IProjectAuthorizationService authorizationService)
     : IRequestHandler<GetFeedbackSummaryQuery, Result<FeedbackSummaryDto>>
 {
     public async Task<Result<FeedbackSummaryDto>> Handle(GetFeedbackSummaryQuery request, CancellationToken cancellationToken)
     {
+        var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (!authCheck.IsSuccess) return Result<FeedbackSummaryDto>.Failure(authCheck.Error);
+
         var entries = await repository.GetByProjectForAggregationAsync(request.ProjectId, null, cancellationToken);
 
         if (entries.Count == 0)
