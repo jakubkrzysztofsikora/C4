@@ -39,15 +39,22 @@ public static class SeedDataService
 
         foreach (var project in projects)
         {
-            var hasMembers = await context.Members.AnyAsync(m => m.ProjectId == project.Id);
-            if (hasMembers) continue;
-
             var firstUser = users.FirstOrDefault();
             if (firstUser is null) continue;
 
+            var correctExternalUserId = firstUser.Id.Value.ToString();
+            var hasValidMember = await context.Members.AnyAsync(m =>
+                m.ProjectId == project.Id && m.ExternalUserId == correctExternalUserId);
+            if (hasValidMember) continue;
+
+            var badMembers = await context.Members
+                .Where(m => m.ProjectId == project.Id && m.ExternalUserId != correctExternalUserId)
+                .ToListAsync();
+            context.Members.RemoveRange(badMembers);
+
             var member = C4.Modules.Identity.Domain.Member.Member.Invite(
                 project.Id,
-                firstUser.Id.ToString(),
+                correctExternalUserId,
                 C4.Modules.Identity.Domain.Member.Role.Owner);
             context.Members.Add(member);
         }
