@@ -102,8 +102,8 @@ file sealed class AzureTokenEntityConfiguration : IEntityTypeConfiguration<Azure
         builder.ToTable("azure_tokens");
         builder.HasKey(t => t.ExternalSubscriptionId);
         builder.Property(t => t.ExternalSubscriptionId).HasColumnName("external_subscription_id").HasMaxLength(200);
-        builder.Property(t => t.AccessToken).HasColumnName("access_token").HasMaxLength(4000).IsRequired();
-        builder.Property(t => t.RefreshToken).HasColumnName("refresh_token").HasMaxLength(4000);
+        builder.Property(t => t.AccessToken).HasColumnName("access_token").HasColumnType("text").IsRequired();
+        builder.Property(t => t.RefreshToken).HasColumnName("refresh_token").HasColumnType("text");
         builder.Property(t => t.ExpiresAtUtc).HasColumnName("expires_at_utc").IsRequired();
     }
 }
