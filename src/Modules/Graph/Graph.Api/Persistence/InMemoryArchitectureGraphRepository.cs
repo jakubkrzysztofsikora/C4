@@ -13,6 +13,9 @@ public sealed class InMemoryArchitectureGraphRepository : IArchitectureGraphRepo
         return Task.FromResult(graph);
     }
 
+    public Task<ArchitectureGraph?> GetByProjectIdReadOnlyAsync(Guid projectId, CancellationToken cancellationToken) =>
+        GetByProjectIdAsync(projectId, cancellationToken);
+
     public Task UpsertAsync(ArchitectureGraph graph, CancellationToken cancellationToken)
     {
         _graphs[graph.ProjectId] = graph;

@@ -13,6 +13,14 @@ public sealed class ArchitectureGraphRepository(GraphDbContext dbContext) : IArc
             .Include(g => g.Snapshots)
             .FirstOrDefaultAsync(g => g.ProjectId == projectId, cancellationToken);
 
+    public async Task<ArchitectureGraph?> GetByProjectIdReadOnlyAsync(Guid projectId, CancellationToken cancellationToken) =>
+        await dbContext.Graphs
+            .AsNoTracking()
+            .Include(g => g.Nodes)
+            .Include(g => g.Edges)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(g => g.ProjectId == projectId, cancellationToken);
+
     public async Task UpsertAsync(ArchitectureGraph graph, CancellationToken cancellationToken)
     {
         var existing = await dbContext.Graphs.FindAsync([graph.Id], cancellationToken);

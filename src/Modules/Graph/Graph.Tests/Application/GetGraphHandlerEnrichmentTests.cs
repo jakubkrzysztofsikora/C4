@@ -91,6 +91,9 @@ public sealed class GetGraphHandlerEnrichmentTests
         public Task<ArchitectureGraph?> GetByProjectIdAsync(Guid projectId, CancellationToken cancellationToken)
             => Task.FromResult<ArchitectureGraph?>(graph.ProjectId == projectId ? graph : null);
 
+        public Task<ArchitectureGraph?> GetByProjectIdReadOnlyAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult<ArchitectureGraph?>(graph.ProjectId == projectId ? graph : null);
+
         public Task UpsertAsync(ArchitectureGraph graph, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task DeleteAsync(ArchitectureGraph graph, CancellationToken cancellationToken) => Task.CompletedTask;

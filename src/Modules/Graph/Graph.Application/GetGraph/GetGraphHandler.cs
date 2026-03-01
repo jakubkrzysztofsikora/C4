@@ -19,7 +19,7 @@ public sealed class GetGraphHandler(
         var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
         if (!authCheck.IsSuccess) return Result<GraphDto>.Failure(authCheck.Error);
 
-        var graph = await repository.GetByProjectIdAsync(request.ProjectId, cancellationToken);
+        var graph = await repository.GetByProjectIdReadOnlyAsync(request.ProjectId, cancellationToken);
         if (graph is null) return Result<GraphDto>.Failure(GraphErrors.GraphNotFound(request.ProjectId));
 
         var nodes = graph.Nodes.AsEnumerable();
@@ -32,12 +32,14 @@ public sealed class GetGraphHandler(
         var nodeIds = nodeList.Select(n => n.Id).ToHashSet();
         var edges = graph.Edges.Where(e => nodeIds.Contains(e.SourceNodeId) && nodeIds.Contains(e.TargetNodeId)).ToArray();
 
-        var healthSummaries = await telemetryQueryService.GetServiceHealthSummariesAsync(request.ProjectId, cancellationToken);
-        var healthByService = healthSummaries.ToDictionary(s => s.Service, s => s, StringComparer.OrdinalIgnoreCase);
-
         var resourceIds = nodeList.Select(n => n.ExternalResourceId).ToArray();
-        var driftedIds = await driftQueryService.GetDriftedResourceIdsAsync(resourceIds, cancellationToken);
-        var driftedSet = new HashSet<string>(driftedIds, StringComparer.OrdinalIgnoreCase);
+
+        var healthTask = telemetryQueryService.GetServiceHealthSummariesAsync(request.ProjectId, cancellationToken);
+        var driftTask = driftQueryService.GetDriftedResourceIdsAsync(resourceIds, cancellationToken);
+        await Task.WhenAll(healthTask, driftTask);
+
+        var healthByService = healthTask.Result.ToDictionary(s => s.Service, s => s, StringComparer.OrdinalIgnoreCase);
+        var driftedSet = new HashSet<string>(driftTask.Result, StringComparer.OrdinalIgnoreCase);
 
         var nodeDtos = nodeList.Select(n =>
         {
