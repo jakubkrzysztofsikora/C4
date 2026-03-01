@@ -7,7 +7,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Identity.Application.CreateProject;
 
-public sealed class CreateProjectHandler(IOrganizationRepository organizationRepository, IProjectRepository projectRepository, [FromKeyedServices("Identity")] IUnitOfWork unitOfWork)
+public sealed class CreateProjectHandler(
+    IOrganizationRepository organizationRepository,
+    IProjectRepository projectRepository,
+    IMemberRepository memberRepository,
+    ICurrentUserService currentUserService,
+    [FromKeyedServices("Identity")] IUnitOfWork unitOfWork)
     : IRequestHandler<CreateProjectCommand, Result<CreateProjectResponse>>
 {
     public async Task<Result<CreateProjectResponse>> Handle(CreateProjectCommand request, CancellationToken cancellationToken)
@@ -28,6 +33,13 @@ public sealed class CreateProjectHandler(IOrganizationRepository organizationRep
         }
 
         await projectRepository.AddAsync(projectResult.Value, cancellationToken);
+
+        var ownerMember = Domain.Member.Member.Invite(
+            projectResult.Value.Id,
+            currentUserService.UserId.ToString(),
+            Domain.Member.Role.Owner);
+        await memberRepository.AddAsync(ownerMember, cancellationToken);
+
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result<CreateProjectResponse>.Success(

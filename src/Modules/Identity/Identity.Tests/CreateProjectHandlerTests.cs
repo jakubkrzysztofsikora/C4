@@ -1,5 +1,6 @@
 using C4.Modules.Identity.Application.CreateProject;
 using C4.Modules.Identity.Application.Ports;
+using C4.Modules.Identity.Domain.Member;
 using C4.Modules.Identity.Domain.Organization;
 using C4.Modules.Identity.Domain.Project;
 using C4.Shared.Kernel;
@@ -15,7 +16,7 @@ public sealed class CreateProjectHandlerTests
         var organizationRepository = new FakeOrganizationRepository(organization);
         var projectRepository = new FakeProjectRepository();
         var unitOfWork = new FakeUnitOfWork();
-        var handler = new CreateProjectHandler(organizationRepository, projectRepository, unitOfWork);
+        var handler = new CreateProjectHandler(organizationRepository, projectRepository, new FakeMemberRepository(), new FakeCurrentUserService(), unitOfWork);
 
         var result = await handler.Handle(new CreateProjectCommand(organization.Id.Value, "Portal"), CancellationToken.None);
 
@@ -27,7 +28,7 @@ public sealed class CreateProjectHandlerTests
     [Fact]
     public async Task Handle_OrganizationNotFound_ReturnsError()
     {
-        var handler = new CreateProjectHandler(new FakeOrganizationRepository(), new FakeProjectRepository(), new FakeUnitOfWork());
+        var handler = new CreateProjectHandler(new FakeOrganizationRepository(), new FakeProjectRepository(), new FakeMemberRepository(), new FakeCurrentUserService(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new CreateProjectCommand(Guid.NewGuid(), "Portal"), CancellationToken.None);
 
@@ -42,7 +43,7 @@ public sealed class CreateProjectHandlerTests
         var organizationRepository = new FakeOrganizationRepository(organization);
         var projectRepository = new FakeProjectRepository();
         await projectRepository.AddAsync(Project.Create(organization.Id, "Portal").Value, CancellationToken.None);
-        var handler = new CreateProjectHandler(organizationRepository, projectRepository, new FakeUnitOfWork());
+        var handler = new CreateProjectHandler(organizationRepository, projectRepository, new FakeMemberRepository(), new FakeCurrentUserService(), new FakeUnitOfWork());
 
         var result = await handler.Handle(new CreateProjectCommand(organization.Id.Value, "Portal"), CancellationToken.None);
 
@@ -94,6 +95,53 @@ public sealed class CreateProjectHandlerTests
 
         public Task<IReadOnlyList<Project>> GetByOrganizationIdAsync(OrganizationId organizationId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<Project>>(_projects.Where(project => project.OrganizationId == organizationId).ToList());
+    }
+
+    [Fact]
+    public async Task Handle_ValidCommand_AddsCreatorAsOwnerMember()
+    {
+        var organization = Organization.Create("Acme").Value;
+        var organizationRepository = new FakeOrganizationRepository(organization);
+        var projectRepository = new FakeProjectRepository();
+        var memberRepository = new FakeMemberRepository();
+        var handler = new CreateProjectHandler(organizationRepository, projectRepository, memberRepository, new FakeCurrentUserService(), new FakeUnitOfWork());
+
+        await handler.Handle(new CreateProjectCommand(organization.Id.Value, "Portal"), CancellationToken.None);
+
+        memberRepository.Members.Should().ContainSingle();
+        memberRepository.Members[0].Role.Should().Be(Role.Owner);
+    }
+
+    private sealed class FakeMemberRepository : IMemberRepository
+    {
+        public List<Domain.Member.Member> Members { get; } = [];
+
+        public Task<bool> ExistsByExternalUserAsync(ProjectId projectId, string externalUserId, CancellationToken cancellationToken)
+            => Task.FromResult(Members.Any(m => m.ProjectId == projectId && m.ExternalUserId == externalUserId));
+
+        public Task AddAsync(Domain.Member.Member member, CancellationToken cancellationToken)
+        {
+            Members.Add(member);
+            return Task.CompletedTask;
+        }
+
+        public Task<Domain.Member.Member?> GetByIdAsync(MemberId memberId, CancellationToken cancellationToken)
+            => Task.FromResult(Members.FirstOrDefault(m => m.Id == memberId));
+
+        public Task<int> CountOwnersAsync(ProjectId projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Members.Count(m => m.ProjectId == projectId && m.Role == Role.Owner));
+
+        public Task<Domain.Member.Member?> GetByProjectAndUserAsync(ProjectId projectId, string externalUserId, CancellationToken cancellationToken)
+            => Task.FromResult(Members.FirstOrDefault(m => m.ProjectId == projectId && m.ExternalUserId == externalUserId));
+
+        public Task<IReadOnlyList<Domain.Member.Member>> GetByExternalUserIdAsync(string externalUserId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<Domain.Member.Member>>(Members.Where(m => m.ExternalUserId == externalUserId).ToList());
+    }
+
+    private sealed class FakeCurrentUserService : ICurrentUserService
+    {
+        public Guid UserId => Guid.Parse("00000000-0000-0000-0000-000000000001");
+        public string Email => "test@example.com";
     }
 
     private sealed class FakeUnitOfWork : IUnitOfWork
