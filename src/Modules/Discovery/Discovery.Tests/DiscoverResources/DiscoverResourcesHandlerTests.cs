@@ -34,7 +34,7 @@ public sealed class DiscoverResourcesHandlerTests
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FaultyResourceClassifier();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance, new AlwaysAuthorizingService());
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FaultyDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance, new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -182,11 +182,21 @@ public sealed class DiscoverResourcesHandlerTests
         }
     }
 
+    private sealed class FaultyDiscoveryInputProvider : IDiscoveryInputProvider
+    {
+        public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(
+            [
+                new("/r1", "Microsoft.Web/sites", "frontend", null, DiscoverySourceKind.AzureSubscription),
+                new("/r2", "Microsoft.ApiManagement/service", "api", "/r1", DiscoverySourceKind.AzureSubscription),
+            ]);
+    }
+
     private sealed class FaultyResourceClassifier : IResourceClassifier
     {
         public Task<AzureResourceClassification> ClassifyAsync(Guid projectId, string armResourceType, string resourceName, CancellationToken cancellationToken)
         {
-            if (resourceName == "api")
+            if (armResourceType.Equals("Microsoft.ApiManagement/service", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException("Bad resource payload");
             }

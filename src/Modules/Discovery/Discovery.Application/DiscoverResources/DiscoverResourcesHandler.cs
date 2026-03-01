@@ -64,11 +64,16 @@ public sealed class DiscoverResourcesHandler(
 
         int dataQualityFailures = 0;
         var classifiedPairs = new List<(PreparedDiscoveryRecord Record, DiscoveredResource Resource)>();
+        var classificationCache = new Dictionary<string, AzureResourceClassification>(StringComparer.OrdinalIgnoreCase);
         foreach (var record in preparedRecords)
         {
             try
             {
-                var classification = await classifier.ClassifyAsync(request.ProjectId, record.ResourceType, record.Name, cancellationToken);
+                if (!classificationCache.TryGetValue(record.ResourceType, out var classification))
+                {
+                    classification = await classifier.ClassifyAsync(request.ProjectId, record.ResourceType, record.Name, cancellationToken);
+                    classificationCache[record.ResourceType] = classification;
+                }
                 var resource = DiscoveredResource.Create(record.RawResourceId ?? record.StableResourceId, record.ResourceType, record.Name, classification);
                 classifiedPairs.Add((record, resource));
             }
