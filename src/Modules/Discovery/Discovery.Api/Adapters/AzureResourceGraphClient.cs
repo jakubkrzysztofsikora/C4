@@ -120,6 +120,7 @@ public sealed class AzureResourceGraphClient(
 
             string? parentResourceId = null;
             string? appInsightsAppId = null;
+            IReadOnlyCollection<string> propertyRefs = Array.Empty<string>();
             if (element.TryGetProperty("properties", out JsonElement props) && props.ValueKind == JsonValueKind.Object)
             {
                 if (props.TryGetProperty("parentResourceId", out JsonElement parentProp))
@@ -128,10 +129,12 @@ public sealed class AzureResourceGraphClient(
                 if (resourceType.Equals("microsoft.insights/components", StringComparison.OrdinalIgnoreCase)
                     && props.TryGetProperty("AppId", out JsonElement appIdProp))
                     appInsightsAppId = appIdProp.GetString();
+
+                propertyRefs = ExtractPropertyReferences(props, resourceId);
             }
 
             if (!string.IsNullOrWhiteSpace(resourceId))
-                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId, appInsightsAppId));
+                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId, appInsightsAppId, propertyRefs));
         }
 
         return results;
@@ -161,6 +164,7 @@ public sealed class AzureResourceGraphClient(
 
             string? parentResourceId = null;
             string? appInsightsAppId = null;
+            IReadOnlyCollection<string> propertyRefs = Array.Empty<string>();
             if (propsIndex >= 0 && cells[propsIndex].ValueKind == JsonValueKind.Object)
             {
                 if (cells[propsIndex].TryGetProperty("parentResourceId", out JsonElement parentProp))
@@ -169,10 +173,12 @@ public sealed class AzureResourceGraphClient(
                 if (resourceType.Equals("microsoft.insights/components", StringComparison.OrdinalIgnoreCase)
                     && cells[propsIndex].TryGetProperty("AppId", out JsonElement appIdProp))
                     appInsightsAppId = appIdProp.GetString();
+
+                propertyRefs = ExtractPropertyReferences(cells[propsIndex], resourceId);
             }
 
             if (!string.IsNullOrWhiteSpace(resourceId))
-                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId, appInsightsAppId));
+                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId, appInsightsAppId, propertyRefs));
         }
 
         return results;
@@ -196,6 +202,46 @@ public sealed class AzureResourceGraphClient(
         }
 
         return responseJson.Length > 300 ? responseJson[..300] : responseJson;
+    }
+
+    private static IReadOnlyCollection<string> ExtractPropertyReferences(JsonElement props, string selfResourceId)
+    {
+        var collected = new List<string>();
+        CollectArmReferences(props, selfResourceId.ToLowerInvariant(), collected);
+        return collected;
+    }
+
+    private static void CollectArmReferences(JsonElement element, string selfResourceIdLower, List<string> collected)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (JsonProperty property in element.EnumerateObject())
+                    CollectArmReferences(property.Value, selfResourceIdLower, collected);
+                break;
+
+            case JsonValueKind.Array:
+                foreach (JsonElement item in element.EnumerateArray())
+                    CollectArmReferences(item, selfResourceIdLower, collected);
+                break;
+
+            case JsonValueKind.String:
+                string? value = element.GetString();
+                if (value is not null && IsArmResourceId(value) && !value.Equals(selfResourceIdLower, StringComparison.OrdinalIgnoreCase))
+                    collected.Add(value);
+                break;
+        }
+    }
+
+    private static bool IsArmResourceId(string value)
+    {
+        var lower = value.AsSpan();
+        bool hasSubscriptions = lower.Contains("/subscriptions/", StringComparison.OrdinalIgnoreCase);
+        if (!hasSubscriptions) return false;
+
+        bool hasProviders = lower.Contains("/providers/", StringComparison.OrdinalIgnoreCase);
+        bool hasResourceGroups = lower.Contains("/resourcegroups/", StringComparison.OrdinalIgnoreCase);
+        return hasProviders || hasResourceGroups;
     }
 
     private sealed record ResourceGraphRequest(

@@ -61,7 +61,7 @@ public static class AzureResourceTypeCatalog
 
             // Container-level: Monitoring / Observability
             ["Microsoft.Insights/components"] = new("Application Insights", "monitoring", "Container", true),
-            ["Microsoft.OperationalInsights/workspaces"] = new("Log Analytics", "monitoring", "Container", false),
+            ["Microsoft.OperationalInsights/workspaces"] = new("Log Analytics", "monitoring", "Container", true),
             ["Microsoft.AlertsManagement/smartDetectorAlertRules"] = new("Smart Detection", "monitoring", "Component", false),
 
             // Container-level: Logic / Workflow
@@ -71,7 +71,7 @@ public static class AzureResourceTypeCatalog
             // Component-level: Sub-resources within containers
             ["Microsoft.Web/sites/functions"] = new("Function App", "app", "Component", true),
             ["Microsoft.Web/sites/slots"] = new("Deployment Slot", "app", "Component", true),
-            ["Microsoft.Web/serverfarms"] = new("App Service Plan", "app", "Component", false),
+            ["Microsoft.Web/serverfarms"] = new("App Service Plan", "app", "Component", true),
             ["Microsoft.Sql/servers/databases"] = new("SQL Database", "database", "Component", true),
             ["Microsoft.DocumentDB/databaseAccounts/sqlDatabases"] = new("Cosmos Database", "database", "Component", true),
             ["Microsoft.DocumentDB/databaseAccounts/mongodbDatabases"] = new("Cosmos MongoDB", "database", "Component", true),
@@ -89,7 +89,7 @@ public static class AzureResourceTypeCatalog
             ["Microsoft.Network/publicIPAddresses"] = new("Public IP", "external", "Component", false),
             ["Microsoft.Network/virtualNetworks/subnets"] = new("Subnet", "external", "Component", false),
             ["Microsoft.Network/privateDnsZones"] = new("Private DNS Zone", "external", "Component", false),
-            ["Microsoft.Network/privateEndpoints"] = new("Private Endpoint", "external", "Component", false),
+            ["Microsoft.Network/privateEndpoints"] = new("Private Endpoint", "external", "Component", true),
 
             // Component-level: Identity / Security
             ["Microsoft.ManagedIdentity/userAssignedIdentities"] = new("Managed Identity", "external", "Component", false),

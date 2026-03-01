@@ -16,7 +16,7 @@ public sealed class DiscoverResourcesHandlerTests
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance);
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance, new AlwaysAuthorizingService());
 
         var subscriptionId = Guid.NewGuid();
 
@@ -34,7 +34,7 @@ public sealed class DiscoverResourcesHandlerTests
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FaultyResourceClassifier();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance);
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance, new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -49,7 +49,7 @@ public sealed class DiscoverResourcesHandlerTests
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new UnavailableDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance);
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new UnavailableDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), new FakeMediator(), new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance, new AlwaysAuthorizingService());
 
         var result = await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -63,7 +63,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new MixedDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance);
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new MixedDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance, new AlwaysAuthorizingService());
 
         var subscriptionId = Guid.NewGuid();
 
@@ -79,7 +79,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance);
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance, new AlwaysAuthorizingService());
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -93,14 +93,14 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance);
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance, new AlwaysAuthorizingService());
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
         mediator.PublishedEvent.Should().NotBeNull();
         var childItem = mediator.PublishedEvent!.Resources.Single(r => r.ResourceId == "/r2");
         childItem.ParentResourceId.Should().Be("/r1");
-        childItem.NormalizedRelatedResourceId.Should().Be("/r1");
+        childItem.Relationships.Should().ContainSingle(r => r.Type == "parent" && r.TargetResourceId == "/r1");
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public sealed class DiscoverResourcesHandlerTests
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
         var mediator = new CapturingMediator();
-        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance);
+        var handler = new DiscoverResourcesHandler(new FakeDiscoveryInputPlanner(), new FakeDiscoveryInputProvider(), repo, classifier, new DiscoveryDataPreparer(), mediator, new FakeUnitOfWork(), NullLogger<DiscoverResourcesHandler>.Instance, new AlwaysAuthorizingService());
 
         await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
 
@@ -251,5 +251,14 @@ public sealed class DiscoverResourcesHandlerTests
     private sealed class FakeUnitOfWork : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+    }
+
+    private sealed class AlwaysAuthorizingService : IProjectAuthorizationService
+    {
+        public Task<Result<bool>> AuthorizeAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
+
+        public Task<Result<bool>> AuthorizeOwnerAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(Result<bool>.Success(true));
     }
 }

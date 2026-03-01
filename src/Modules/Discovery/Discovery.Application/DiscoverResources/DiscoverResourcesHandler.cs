@@ -16,12 +16,19 @@ public sealed class DiscoverResourcesHandler(
     IDiscoveryDataPreparer discoveryDataPreparer,
     IMediator mediator,
     [FromKeyedServices("Discovery")] IUnitOfWork unitOfWork,
-    ILogger<DiscoverResourcesHandler> logger) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
+    ILogger<DiscoverResourcesHandler> logger,
+    IProjectAuthorizationService authorizationService) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
     private const string DefaultUserIntent = "Discover Azure resources for connected subscription";
 
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
+        Result<bool> authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
+        if (authCheck.IsFailure)
+        {
+            return Result<DiscoverResourcesResponse>.Failure(authCheck.Error);
+        }
+
         try
         {
             await planner.BuildPlanAsync(
@@ -51,7 +58,8 @@ public sealed class DiscoverResourcesHandler(
         }
 
         var rawRecords = descriptors.Select(d => new RawDiscoveryRecord(
-            d.ResourceId, d.ResourceType, d.Name, MapSourceProvenance(d.Source), d.ParentResourceId)).ToArray();
+            d.ResourceId, d.ResourceType, d.Name, MapSourceProvenance(d.Source), d.ParentResourceId,
+            RawPropertyReferences: d.PropertyReferences)).ToArray();
         var preparedRecords = discoveryDataPreparer.Prepare(rawRecords);
 
         int dataQualityFailures = 0;
@@ -75,20 +83,25 @@ public sealed class DiscoverResourcesHandler(
 
         var diagramItems = classifiedPairs
             .Where(p => p.Resource.Classification?.IncludeInDiagram ?? true)
-            .Select(p => new DiscoveredResourceEventItem(
-                p.Resource.ResourceId,
-                p.Resource.ResourceType,
-                p.Resource.Name,
-                p.Resource.Classification?.FriendlyName,
-                p.Resource.Classification?.ServiceType,
-                p.Resource.Classification?.C4Level,
-                p.Resource.Classification?.IncludeInDiagram ?? true,
-                p.Record.RawParentResourceId,
-                p.Record.SourceProvenance,
-                p.Record.ConfidenceScore,
-                p.Record.Relationships.FirstOrDefault()?.RelationshipType,
-                p.Record.Relationships.FirstOrDefault()?.RelatedStableResourceId,
-                p.Record.StableResourceId))
+            .Select(p =>
+            {
+                IReadOnlyCollection<ResourceRelationship>? relationships = p.Record.Relationships.Count > 0
+                    ? p.Record.Relationships.Select(r => new ResourceRelationship(r.RelationshipType, r.RelatedStableResourceId)).ToArray()
+                    : null;
+                return new DiscoveredResourceEventItem(
+                    p.Resource.ResourceId,
+                    p.Resource.ResourceType,
+                    p.Resource.Name,
+                    p.Resource.Classification?.FriendlyName,
+                    p.Resource.Classification?.ServiceType,
+                    p.Resource.Classification?.C4Level,
+                    p.Resource.Classification?.IncludeInDiagram ?? true,
+                    p.Record.RawParentResourceId,
+                    p.Record.SourceProvenance,
+                    p.Record.ConfidenceScore,
+                    relationships,
+                    p.Record.StableResourceId);
+            })
             .ToArray();
 
         await mediator.Publish(new ResourcesDiscoveredIntegrationEvent(request.ProjectId, diagramItems), cancellationToken);

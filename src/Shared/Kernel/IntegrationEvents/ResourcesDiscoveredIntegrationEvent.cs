@@ -4,6 +4,8 @@ namespace C4.Shared.Kernel.IntegrationEvents;
 
 public sealed record ResourcesDiscoveredIntegrationEvent(Guid ProjectId, IReadOnlyCollection<DiscoveredResourceEventItem> Resources) : INotification;
 
+public sealed record ResourceRelationship(string Type, string TargetResourceId);
+
 public sealed record DiscoveredResourceEventItem(
     string ResourceId,
     string ResourceType,
@@ -15,6 +17,5 @@ public sealed record DiscoveredResourceEventItem(
     string? ParentResourceId,
     string SourceProvenance = "azure",
     double ConfidenceScore = 1.0,
-    string? NormalizedRelationshipType = null,
-    string? NormalizedRelatedResourceId = null,
+    IReadOnlyCollection<ResourceRelationship>? Relationships = null,
     string? StableResourceId = null);

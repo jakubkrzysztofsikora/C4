@@ -32,6 +32,16 @@ public sealed class DiscoveryDataPreparer : IDiscoveryDataPreparer
                     relationships.Add(new NormalizedRelationship("parent", parentStableId));
                 }
 
+                if (raw.RawPropertyReferences is { Count: > 0 })
+                {
+                    foreach (string refId in raw.RawPropertyReferences)
+                    {
+                        string normalizedRefId = NormalizeRawResourceId(refId);
+                        if (!string.IsNullOrWhiteSpace(normalizedRefId))
+                            relationships.Add(new NormalizedRelationship("property-ref", normalizedRefId));
+                    }
+                }
+
                 return new PreparedDiscoveryRecord(
                     stableIdMap[raw],
                     raw.ResourceId,

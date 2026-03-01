@@ -24,7 +24,7 @@ public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? l
             {learningsSection}
             Respond in this exact format:
             FRIENDLY_NAME: <short friendly name>
-            SERVICE_TYPE: <one of: app, api, database, queue, cache, external>
+            SERVICE_TYPE: <one of: app, api, database, queue, cache, storage, monitoring, external, boundary>
             C4_LEVEL: <one of: Context, Container, Component>
             INCLUDE: <true or false - true for workload resources, false for infrastructure plumbing>
             """;
@@ -95,7 +95,7 @@ public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? l
         if (string.IsNullOrWhiteSpace(friendlyName) || string.IsNullOrWhiteSpace(serviceType) || string.IsNullOrWhiteSpace(c4Level))
             return null;
 
-        var validServiceTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "app", "api", "database", "queue", "cache", "external" };
+        var validServiceTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "app", "api", "database", "queue", "cache", "storage", "monitoring", "external", "boundary" };
         var validC4Levels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Context", "Container", "Component" };
 
         if (!validServiceTypes.Contains(serviceType) || !validC4Levels.Contains(c4Level))

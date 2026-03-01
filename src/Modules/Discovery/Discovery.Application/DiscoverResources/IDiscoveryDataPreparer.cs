@@ -12,7 +12,8 @@ public sealed record RawDiscoveryRecord(
     string SourceProvenance,
     string? ParentResourceId,
     string? SourceServer = null,
-    double? ConfidenceScore = null);
+    double? ConfidenceScore = null,
+    IReadOnlyCollection<string>? RawPropertyReferences = null);
 
 public sealed record NormalizedRelationship(string RelationshipType, string RelatedStableResourceId);
 

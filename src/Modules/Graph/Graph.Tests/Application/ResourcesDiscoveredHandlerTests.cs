@@ -172,8 +172,8 @@ public sealed class ResourcesDiscoveredHandlerTests
             new ResourcesDiscoveredIntegrationEvent(
                 projectId,
                 [
-                    new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "Web Repo", "app", "Container", true, null, "repo", 0.8, null, null, "resource:web"),
-                    new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "Web Azure", "app", "Container", true, null, "azure", 0.95, null, null, "resource:web")
+                    new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "Web Repo", "app", "Container", true, null, "repo", 0.8, null, "resource:web"),
+                    new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "Web Azure", "app", "Container", true, null, "azure", 0.95, null, "resource:web")
                 ]),
             CancellationToken.None);
 
@@ -193,8 +193,8 @@ public sealed class ResourcesDiscoveredHandlerTests
             new ResourcesDiscoveredIntegrationEvent(
                 projectId,
                 [
-                    new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "Repo Name", "app", "Container", true, null, "repo", 0.95, null, null, "resource:web"),
-                    new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "Azure Name", "app", "Container", true, null, "azure", 0.95, null, null, "resource:web")
+                    new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "Repo Name", "app", "Container", true, null, "repo", 0.95, null, "resource:web"),
+                    new DiscoveredResourceEventItem("/subscriptions/1/web", "Microsoft.Web/sites", "web", "Azure Name", "app", "Container", true, null, "azure", 0.95, null, "resource:web")
                 ]),
             CancellationToken.None);
 
