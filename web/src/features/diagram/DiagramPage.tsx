@@ -139,6 +139,7 @@ export function DiagramPage() {
     setTagFilter('');
     setSearch('');
     setDriftOnly(false);
+    setTimelineIndex(-1);
     setDiffEnabled(false);
   }
 
@@ -305,16 +306,18 @@ export function DiagramPage() {
             Snapshot Timeline
             <input
               type="range"
-              min={0}
+              min={-1}
               max={Math.max(0, snapshots.length - 1)}
-              value={Math.min(timelineIndex, Math.max(0, snapshots.length - 1))}
+              value={timelineIndex < 0 ? -1 : Math.min(timelineIndex, Math.max(0, snapshots.length - 1))}
               onChange={(e) => setTimelineIndex(Number(e.target.value))}
-              disabled={snapshots.length <= 1}
+              disabled={snapshots.length === 0}
             />
             <small className="subtle">
-              {selectedSnapshot !== undefined
-                ? `${new Date(selectedSnapshot.createdAtUtc).toLocaleString()} (${selectedSnapshot.source})`
-                : 'No snapshots available'}
+              {snapshots.length === 0
+                ? 'No snapshots available'
+                : selectedSnapshot !== undefined
+                  ? `${new Date(selectedSnapshot.createdAtUtc).toLocaleString()} (${selectedSnapshot.source})`
+                  : 'Live data (current graph)'}
             </small>
           </label>
 

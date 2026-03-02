@@ -174,6 +174,7 @@ const DISCONNECTED_SIGNALR_STATE = {
 beforeEach(() => {
   vi.mocked(getJson).mockReset();
   vi.mocked(useSignalR).mockReturnValue(DISCONNECTED_SIGNALR_STATE);
+  window.history.replaceState({}, '', '/');
 });
 
 async function flushEffects() {
@@ -253,6 +254,64 @@ describe('useDiagram parentId mapping from API', () => {
     const child = nodes.find((n) => n.id === 'child-1');
     expect(child).toBeDefined();
     expect(child?.parentId).toBe('parent-1');
+  });
+
+  it('defaults to live graph fetch when snapshots exist', async () => {
+    const mockGetJson = vi.mocked(getJson);
+    mockGetJson.mockImplementation((url: string) => {
+      if (url.includes('/graph/snapshots')) {
+        return Promise.resolve({
+          projectId: 'proj-live',
+          snapshots: [{ snapshotId: 'snap-1', createdAtUtc: '2026-03-02T08:34:52Z', source: 'discovery' }],
+        });
+      }
+      if (url.includes('/graph?')) {
+        return Promise.resolve({ projectId: 'proj-live', nodes: [], edges: [] });
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    });
+
+    await act(async () => {
+      root.render(createElement(ApiHarness, { projectId: 'proj-live' }));
+    });
+    await flushEffects();
+    await flushEffects();
+
+    const graphCalls = mockGetJson.mock.calls
+      .map(([url]) => String(url))
+      .filter((url) => url.includes('/graph?'));
+
+    expect(graphCalls).toHaveLength(1);
+    expect(graphCalls[0]).not.toContain('snapshotId=');
+  });
+
+  it('honors snapshotId from URL when provided', async () => {
+    window.history.replaceState({}, '', '/diagram?snapshotId=snap-1');
+    const mockGetJson = vi.mocked(getJson);
+    mockGetJson.mockImplementation((url: string) => {
+      if (url.includes('/graph/snapshots')) {
+        return Promise.resolve({
+          projectId: 'proj-snap',
+          snapshots: [{ snapshotId: 'snap-1', createdAtUtc: '2026-03-02T08:34:52Z', source: 'discovery' }],
+        });
+      }
+      if (url.includes('/graph?')) {
+        return Promise.resolve({ projectId: 'proj-snap', nodes: [], edges: [] });
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    });
+
+    await act(async () => {
+      root.render(createElement(ApiHarness, { projectId: 'proj-snap' }));
+    });
+    await flushEffects();
+
+    const graphCalls = mockGetJson.mock.calls
+      .map(([url]) => String(url))
+      .filter((url) => url.includes('/graph?'));
+
+    expect(graphCalls.length).toBeGreaterThan(0);
+    expect(graphCalls[0]).toContain('snapshotId=snap-1');
   });
 
   it('uses serviceType from API response when available', async () => {

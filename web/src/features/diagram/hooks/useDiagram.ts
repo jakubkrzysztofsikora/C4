@@ -231,7 +231,10 @@ export function useDiagram(projectId?: string) {
   const [driftOnly, setDriftOnly] = useState(() => getInitialBoolParam('driftOnly', false));
 
   const [snapshots, setSnapshots] = useState<ReadonlyArray<{ snapshotId: string; createdAtUtc: string; source: string }>>([]);
-  const [timelineIndex, setTimelineIndex] = useState(0);
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | undefined>(() => {
+    const initialSnapshotId = getInitialParam('snapshotId', '').trim();
+    return initialSnapshotId.length > 0 ? initialSnapshotId : undefined;
+  });
   const [diffEnabled, setDiffEnabled] = useState(false);
   const [diffFromSnapshotId, setDiffFromSnapshotId] = useState<string>('');
   const [diffToSnapshotId, setDiffToSnapshotId] = useState<string>('');
@@ -245,11 +248,20 @@ export function useDiagram(projectId?: string) {
   const [error, setError] = useState<string | undefined>(undefined);
   const [lastRefreshAt, setLastRefreshAt] = useState<number | undefined>(undefined);
 
-  const selectedSnapshotId = useMemo(() => {
-    if (snapshots.length === 0) return undefined;
-    const index = Math.min(Math.max(timelineIndex, 0), snapshots.length - 1);
-    return snapshots[index]?.snapshotId;
-  }, [snapshots, timelineIndex]);
+  const timelineIndex = useMemo(() => {
+    if (selectedSnapshotId === undefined) return -1;
+    return snapshots.findIndex((snapshot) => snapshot.snapshotId === selectedSnapshotId);
+  }, [snapshots, selectedSnapshotId]);
+
+  const setTimelineIndex = useCallback((nextIndex: number) => {
+    if (!Number.isFinite(nextIndex) || nextIndex < 0 || snapshots.length === 0) {
+      setSelectedSnapshotId(undefined);
+      return;
+    }
+
+    const clampedIndex = Math.min(Math.max(Math.trunc(nextIndex), 0), snapshots.length - 1);
+    setSelectedSnapshotId(snapshots[clampedIndex]?.snapshotId);
+  }, [snapshots]);
 
   const fetchGraph = useCallback(async (id: string, snapshotId?: string) => {
     setLoading(true);
@@ -285,19 +297,29 @@ export function useDiagram(projectId?: string) {
         new Date(a.createdAtUtc).getTime() - new Date(b.createdAtUtc).getTime(),
       );
       setSnapshots(ordered);
+      const snapshotIds = new Set(ordered.map((snapshot) => snapshot.snapshotId));
+
+      setSelectedSnapshotId((current) => {
+        if (current === undefined) return current;
+        return snapshotIds.has(current) ? current : undefined;
+      });
+
       if (ordered.length > 0) {
-        setTimelineIndex(ordered.length - 1);
-        if (diffFromSnapshotId.length === 0) {
-          setDiffFromSnapshotId(ordered[Math.max(0, ordered.length - 2)]?.snapshotId ?? ordered[0]!.snapshotId);
-        }
-        if (diffToSnapshotId.length === 0) {
-          setDiffToSnapshotId(ordered[ordered.length - 1]!.snapshotId);
-        }
+        const defaultFrom = ordered[Math.max(0, ordered.length - 2)]?.snapshotId ?? ordered[0]!.snapshotId;
+        const defaultTo = ordered[ordered.length - 1]!.snapshotId;
+
+        setDiffFromSnapshotId((current) => (snapshotIds.has(current) ? current : defaultFrom));
+        setDiffToSnapshotId((current) => (snapshotIds.has(current) ? current : defaultTo));
+      } else {
+        setDiffFromSnapshotId('');
+        setDiffToSnapshotId('');
+        setDiffResult(undefined);
       }
     } catch {
       setSnapshots([]);
+      setSelectedSnapshotId(undefined);
     }
-  }, [diffFromSnapshotId.length, diffToSnapshotId.length]);
+  }, []);
 
   const fetchDiff = useCallback(async (id: string, fromSnapshotId: string, toSnapshotId: string) => {
     if (fromSnapshotId.length === 0 || toSnapshotId.length === 0 || fromSnapshotId === toSnapshotId) {
