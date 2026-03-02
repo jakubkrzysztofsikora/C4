@@ -15,7 +15,7 @@ public sealed class GetGraphSnapshotsHandler(
         var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
         if (!authCheck.IsSuccess) return Result<GetGraphSnapshotsResponse>.Failure(authCheck.Error);
 
-        var graph = await repository.GetByProjectIdAsync(request.ProjectId, cancellationToken);
+        var graph = await repository.GetByProjectIdReadOnlyAsync(request.ProjectId, cancellationToken);
         if (graph is null) return Result<GetGraphSnapshotsResponse>.Failure(GraphErrors.GraphNotFound(request.ProjectId));
 
         var snapshots = graph.Snapshots
