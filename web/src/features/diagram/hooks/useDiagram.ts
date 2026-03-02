@@ -414,11 +414,12 @@ export function useDiagram(projectId?: string) {
   const captureSnapshot = useCallback(async (source = 'manual'): Promise<void> => {
     if (projectId === undefined) return;
 
-    await postJson<{ source: string }, CreateGraphSnapshotResponse>(
+    const created = await postJson<{ source: string }, CreateGraphSnapshotResponse>(
       `/api/projects/${projectId}/graph/snapshots`,
       { source },
     );
     await fetchSnapshots(projectId);
+    setSelectedSnapshotId(created.snapshotId);
   }, [projectId, fetchSnapshots]);
 
   useEffect(() => {
