@@ -1,6 +1,7 @@
 using C4.Modules.Discovery.Application.ConnectAzureSubscription;
 using C4.Modules.Discovery.Application.Ports;
 using C4.Modules.Discovery.Domain.Subscriptions;
+using C4.Shared.Infrastructure.Security;
 using C4.Shared.Kernel;
 
 namespace C4.Modules.Discovery.Tests;
@@ -11,7 +12,7 @@ public sealed class ConnectAzureSubscriptionHandlerTests
     public async Task Handle_ValidCommand_ConnectsSubscription()
     {
         var repository = new FakeAzureSubscriptionRepository();
-        var handler = new ConnectAzureSubscriptionHandler(repository, new FakeUnitOfWork());
+        var handler = new ConnectAzureSubscriptionHandler(repository, new FakeUnitOfWork(), new FakeDataProtectionService());
 
         var result = await handler.Handle(new ConnectAzureSubscriptionCommand("sub-001", "Production", null, null), CancellationToken.None);
 
@@ -24,7 +25,7 @@ public sealed class ConnectAzureSubscriptionHandlerTests
     {
         var repository = new FakeAzureSubscriptionRepository();
         await repository.AddAsync(AzureSubscription.Connect("sub-001", "Production").Value, CancellationToken.None);
-        var handler = new ConnectAzureSubscriptionHandler(repository, new FakeUnitOfWork());
+        var handler = new ConnectAzureSubscriptionHandler(repository, new FakeUnitOfWork(), new FakeDataProtectionService());
 
         var result = await handler.Handle(new ConnectAzureSubscriptionCommand("sub-001", "Prod", null, null), CancellationToken.None);
 
@@ -48,6 +49,9 @@ public sealed class ConnectAzureSubscriptionHandlerTests
         public Task<AzureSubscription?> GetFirstAsync(CancellationToken cancellationToken)
             => Task.FromResult(_subscriptions.FirstOrDefault());
 
+        public Task<AzureSubscription?> GetByIdAsync(Guid subscriptionId, CancellationToken cancellationToken)
+            => Task.FromResult(_subscriptions.FirstOrDefault(s => s.Id == new AzureSubscriptionId(subscriptionId)));
+
         public Task DeleteAsync(AzureSubscription subscription, CancellationToken cancellationToken)
         {
             _subscriptions.Remove(subscription);
@@ -58,5 +62,11 @@ public sealed class ConnectAzureSubscriptionHandlerTests
     private sealed class FakeUnitOfWork : IUnitOfWork
     {
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+    }
+
+    private sealed class FakeDataProtectionService : IDataProtectionService
+    {
+        public string Protect(string plainText) => plainText;
+        public string Unprotect(string protectedText) => protectedText;
     }
 }

@@ -3,15 +3,50 @@ using C4.Shared.Kernel.Contracts;
 
 namespace C4.Modules.Telemetry.Infrastructure.Services;
 
-public sealed class TelemetryQueryService(ITelemetryRepository repository) : ITelemetryQueryService
+public sealed class TelemetryQueryService(
+    ITelemetryRepository repository,
+    IApplicationInsightsClient applicationInsightsClient) : ITelemetryQueryService
 {
     public async Task<IReadOnlyCollection<ServiceHealthSummary>> GetServiceHealthSummariesAsync(
         Guid projectId,
         CancellationToken cancellationToken)
     {
+        var merged = new Dictionary<string, ServiceHealthSummary>(StringComparer.OrdinalIgnoreCase);
+
         var healthRecords = await repository.GetAllServiceHealthAsync(projectId, cancellationToken);
-        return healthRecords
-            .Select(h => new ServiceHealthSummary(h.Service, h.Score, h.Status.ToString()))
-            .ToArray();
+        foreach (var h in healthRecords)
+        {
+            merged[h.Service] = new ServiceHealthSummary(
+                h.Service,
+                h.Score,
+                h.Status.ToString(),
+                RequestRate: null,
+                ErrorRate: null,
+                P95LatencyMs: null,
+                TelemetryStatus: "known");
+        }
+
+        var appInsightsRecords = await applicationInsightsClient.QueryServiceHealthAsync(projectId, TimeSpan.FromMinutes(30), cancellationToken);
+        foreach (var record in appInsightsRecords)
+        {
+            merged[record.Service] = new ServiceHealthSummary(
+                record.Service,
+                Math.Clamp(record.Score, 0, 1),
+                ResolveStatus(record.Score),
+                RequestRate: record.RequestRate,
+                ErrorRate: record.ErrorRate,
+                P95LatencyMs: record.P95LatencyMs,
+                TelemetryStatus: "known");
+        }
+
+        return merged.Values.ToArray();
+    }
+
+    private static string ResolveStatus(double score)
+    {
+        var normalized = Math.Clamp(score, 0, 1);
+        if (normalized >= 0.8) return "green";
+        if (normalized >= 0.5) return "yellow";
+        return "red";
     }
 }

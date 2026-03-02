@@ -17,11 +17,12 @@ public sealed class GetGraphEndpoint : IEndpoint
                 string? groupBy,
                 string? includeInfrastructure,
                 string? environment,
+                Guid? snapshotId,
                 ISender sender,
                 CancellationToken ct) =>
         {
             var result = await sender.Send(
-                new GetGraphQuery(projectId, level, scope, groupBy, includeInfrastructure, environment),
+                new GetGraphQuery(projectId, level, scope, groupBy, includeInfrastructure, environment, snapshotId),
                 ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
         })

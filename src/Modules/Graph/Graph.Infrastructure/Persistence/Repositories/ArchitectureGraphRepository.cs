@@ -18,6 +18,7 @@ public sealed class ArchitectureGraphRepository(GraphDbContext dbContext) : IArc
             .AsNoTracking()
             .Include(g => g.Nodes)
             .Include(g => g.Edges)
+            .Include(g => g.Snapshots)
             .AsSplitQuery()
             .FirstOrDefaultAsync(g => g.ProjectId == projectId, cancellationToken);
 

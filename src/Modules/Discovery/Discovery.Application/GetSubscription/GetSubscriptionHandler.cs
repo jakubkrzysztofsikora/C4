@@ -17,6 +17,13 @@ public sealed class GetSubscriptionHandler(IAzureSubscriptionRepository reposito
         }
 
         return Result<GetSubscriptionResponse>.Success(
-            new GetSubscriptionResponse(subscription.Id.Value, subscription.ExternalSubscriptionId, subscription.DisplayName));
+            new GetSubscriptionResponse(
+                subscription.Id.Value,
+                subscription.ExternalSubscriptionId,
+                subscription.DisplayName,
+                subscription.GitRepoUrl,
+                subscription.GitBranch,
+                subscription.GitRootPath,
+                !string.IsNullOrWhiteSpace(subscription.GitPatToken)));
     }
 }

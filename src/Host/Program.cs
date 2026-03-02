@@ -30,7 +30,9 @@ builder.Services.AddProblemDetails();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddDataProtection();
 builder.Services.AddScoped<ICurrentUserService, HttpContextCurrentUserService>();
-builder.Services.AddSingleton<IDataProtectionService, AspNetCoreDataProtectionService>();
+builder.Services.AddSingleton<AspNetCoreDataProtectionService>();
+builder.Services.AddSingleton<C4.Shared.Infrastructure.Security.IDataProtectionService>(sp => sp.GetRequiredService<AspNetCoreDataProtectionService>());
+builder.Services.AddSingleton<C4.Shared.Kernel.Security.IDataProtectionService>(sp => sp.GetRequiredService<AspNetCoreDataProtectionService>());
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {

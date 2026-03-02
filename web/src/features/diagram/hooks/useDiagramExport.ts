@@ -39,7 +39,7 @@ function buildSvg(data: DiagramData): string {
       const y1 = src.y + NODE_HEIGHT;
       const x2 = dst.x + NODE_WIDTH / 2;
       const y2 = dst.y;
-      const color = trafficColor(edge.traffic);
+      const color = trafficColor(edge.traffic, edge.trafficState);
       const mx = (x1 + x2) / 2;
       const my = (y1 + y2) / 2;
       return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2" marker-end="url(#arrow-${color.slice(1)})"/>
@@ -49,18 +49,18 @@ function buildSvg(data: DiagramData): string {
 
   const nodesSvg = positioned
     .map((node) => {
-      const color = healthColor(node.health);
+      const nodeColor = node.telemetryStatus === 'known' ? healthColor(node.health) : '#64748b';
       return `<g transform="translate(${node.x},${node.y})">
-  <rect width="${NODE_WIDTH}" height="${NODE_HEIGHT}" rx="8" ry="8" fill="#1a2744" stroke="${color}" stroke-width="2"/>
+  <rect width="${NODE_WIDTH}" height="${NODE_HEIGHT}" rx="8" ry="8" fill="#1a2744" stroke="${nodeColor}" stroke-width="2"/>
   <text x="12" y="26" font-family="Inter,sans-serif" font-size="13" font-weight="600" fill="#e0e6f0">${escapeXml(node.label)}</text>
   <text x="12" y="44" font-family="Inter,sans-serif" font-size="11" fill="#8896b3">${escapeXml(node.level)} · ${escapeXml(node.serviceType)}</text>
-  <text x="${NODE_WIDTH - 12}" y="26" font-family="Inter,sans-serif" font-size="10" fill="${color}" text-anchor="end">${node.health.toUpperCase()}</text>
+  <text x="${NODE_WIDTH - 12}" y="26" font-family="Inter,sans-serif" font-size="10" fill="${nodeColor}" text-anchor="end">${node.telemetryStatus === 'known' ? node.health.toUpperCase() : 'UNKNOWN'}</text>
   ${node.drift ? `<text x="12" y="66" font-family="Inter,sans-serif" font-size="10" fill="#f4a261">DRIFT</text>` : ''}
 </g>`;
     })
     .join('\n');
 
-  const arrowColors = ['2e8f5e', '9d7c35', '9e3a3a'];
+  const arrowColors = ['2e8f5e', '9d7c35', '9e3a3a', '64748b'];
   const defs = arrowColors
     .map(
       (c) =>
@@ -79,6 +79,59 @@ ${nodesSvg}
 </svg>`;
 }
 
+function buildGraphMl(data: DiagramData): string {
+  const nodes = data.nodes
+    .map((node) => `<node id="${escapeXml(node.id)}"><data key="label">${escapeXml(node.label)}</data><data key="level">${escapeXml(node.level)}</data></node>`)
+    .join('\n');
+  const edges = data.edges
+    .map((edge) => `<edge id="${escapeXml(edge.id)}" source="${escapeXml(edge.from)}" target="${escapeXml(edge.to)}" />`)
+    .join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <key id="label" for="node" attr.name="label" attr.type="string" />
+  <key id="level" for="node" attr.name="level" attr.type="string" />
+  <graph id="G" edgedefault="directed">
+    ${nodes}
+    ${edges}
+  </graph>
+</graphml>`;
+}
+
+function buildSimplePdfText(title: string, lines: string[]): Blob {
+  const safeLines = [title, ...lines].slice(0, 40).map((line) => line.replace(/[()\\]/g, '\\$&'));
+  const content = `BT\n/F1 11 Tf\n50 780 Td\n${safeLines.map((line, idx) => `${idx > 0 ? 'T*\n' : ''}(${line}) Tj`).join('\n')}\nET\n`;
+  const bytes = new TextEncoder().encode(content);
+
+  const objects = [
+    '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n',
+    '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n',
+    '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n',
+    '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n',
+    `5 0 obj << /Length ${bytes.length} >> stream\n${content}endstream\nendobj\n`,
+  ];
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  for (const obj of objects) {
+    offsets.push(pdf.length);
+    pdf += obj;
+  }
+
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  for (let i = 1; i <= objects.length; i++) {
+    pdf += `${offsets[i]!.toString().padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += 'trailer << /Size 6 /Root 1 0 R >>\n';
+  pdf += 'startxref\n';
+  pdf += `${xrefOffset}\n`;
+  pdf += '%%EOF';
+
+  return new Blob([pdf], { type: 'application/pdf' });
+}
+
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -92,9 +145,43 @@ function isApiError(value: unknown): value is ApiError {
   return value instanceof ApiError;
 }
 
+function downloadLocalSvg(svg: string) {
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  downloadBlob(blob, 'architecture-diagram.svg');
+}
+
+function downloadLocalPng(svg: string) {
+  const svgBlob = new Blob([svg], { type: 'image/svg+xml' });
+  const svgUrl = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth * 2;
+    canvas.height = img.naturalHeight * 2;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      URL.revokeObjectURL(svgUrl);
+      return;
+    }
+    ctx.scale(2, 2);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(svgUrl);
+    canvas.toBlob((pngBlob) => {
+      if (pngBlob) {
+        downloadBlob(pngBlob, 'architecture-diagram.png');
+      }
+    }, 'image/png');
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(svgUrl);
+    downloadLocalSvg(svg);
+  };
+  img.src = svgUrl;
+}
+
 export function useDiagramExport(data: DiagramData, projectId?: string) {
   const exportAs = useCallback(
-    async (format: 'svg' | 'pdf') => {
+    async (format: 'svg' | 'png' | 'pdf' | 'graphml') => {
       if (projectId !== undefined) {
         try {
           const blob = await fetchBlob(
@@ -111,37 +198,26 @@ export function useDiagramExport(data: DiagramData, projectId?: string) {
 
       const svg = buildSvg(data);
       if (format === 'svg') {
-        const blob = new Blob([svg], { type: 'image/svg+xml' });
-        downloadBlob(blob, 'architecture-diagram.svg');
-      } else {
-        const svgBlob = new Blob([svg], { type: 'image/svg+xml' });
-        const svgUrl = URL.createObjectURL(svgBlob);
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth * 2;
-          canvas.height = img.naturalHeight * 2;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            URL.revokeObjectURL(svgUrl);
-            return;
-          }
-          ctx.scale(2, 2);
-          ctx.drawImage(img, 0, 0);
-          URL.revokeObjectURL(svgUrl);
-          canvas.toBlob((pngBlob) => {
-            if (pngBlob) {
-              downloadBlob(pngBlob, 'architecture-diagram.png');
-            }
-          }, 'image/png');
-        };
-        img.onerror = () => {
-          URL.revokeObjectURL(svgUrl);
-          const blob = new Blob([svg], { type: 'image/svg+xml' });
-          downloadBlob(blob, 'architecture-diagram.svg');
-        };
-        img.src = svgUrl;
+        downloadLocalSvg(svg);
+        return;
       }
+
+      if (format === 'png') {
+        downloadLocalPng(svg);
+        return;
+      }
+
+      if (format === 'graphml') {
+        downloadBlob(new Blob([buildGraphMl(data)], { type: 'application/graphml+xml' }), 'architecture-diagram.graphml');
+        return;
+      }
+
+      const lines = [
+        `Nodes: ${data.nodes.length}`,
+        `Edges: ${data.edges.length}`,
+        ...data.nodes.slice(0, 20).map((node) => `- ${node.label} [${node.level}]`),
+      ];
+      downloadBlob(buildSimplePdfText('C4 Diagram Export', lines), 'architecture-diagram.pdf');
     },
     [data, projectId],
   );

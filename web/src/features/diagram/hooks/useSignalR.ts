@@ -7,12 +7,19 @@ type SignalRCallbacks = {
   onDiagramUpdated?: (projectId: string, diagramJson: string) => void;
 };
 
-type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type SignalRConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
-export function useSignalR(projectId: string | undefined, callbacks: SignalRCallbacks) {
+export type SignalRState = {
+  status: SignalRConnectionStatus;
+  lastConnectedAt?: number;
+  lastMessageAt?: number;
+  lastError: string | undefined;
+};
+
+export function useSignalR(projectId: string | undefined, callbacks: SignalRCallbacks): SignalRState {
   const connectionRef = useRef<HubConnection | null>(null);
   const callbacksRef = useRef<SignalRCallbacks>(callbacks);
-  const [status, setStatus] = useState<ConnectionStatus>('disconnected');
+  const [state, setState] = useState<SignalRState>({ status: 'disconnected', lastError: undefined });
 
   callbacksRef.current = callbacks;
 
@@ -23,35 +30,53 @@ export function useSignalR(projectId: string | undefined, callbacks: SignalRCall
     connectionRef.current = connection;
 
     connection.on('HealthOverlayChanged', (receivedProjectId: string, healthJson: string) => {
+      setState((prev) => ({ ...prev, lastMessageAt: Date.now() }));
       callbacksRef.current.onHealthOverlayChanged?.(receivedProjectId, healthJson);
     });
 
     connection.on('DiagramUpdated', (receivedProjectId: string, diagramJson: string) => {
+      setState((prev) => ({ ...prev, lastMessageAt: Date.now() }));
       callbacksRef.current.onDiagramUpdated?.(receivedProjectId, diagramJson);
     });
 
-    connection.onclose(() => {
-      setStatus('disconnected');
+    connection.onclose((error) => {
+      setState((prev) => ({
+        ...prev,
+        status: 'disconnected',
+        lastError: error?.message,
+      }));
     });
 
-    connection.onreconnecting(() => {
-      setStatus('connecting');
+    connection.onreconnecting((error) => {
+      setState((prev) => ({
+        ...prev,
+        status: 'connecting',
+        lastError: error?.message,
+      }));
     });
 
     connection.onreconnected(() => {
-      setStatus('connected');
+      setState((prev) => ({
+        ...prev,
+        status: 'connected',
+        lastConnectedAt: Date.now(),
+      }));
       joinProject(connection, projectId).catch(() => {});
     });
 
     const startAndJoin = async () => {
-      setStatus('connecting');
+      setState((prev) => ({ ...prev, status: 'connecting' }));
       try {
         await connection.start();
         await joinProject(connection, projectId);
-        setStatus('connected');
+        setState((prev) => ({
+          ...prev,
+          status: 'connected',
+          lastConnectedAt: Date.now(),
+        }));
       } catch (err) {
-        console.warn('[SignalR] Connection failed:', err);
-        setStatus('error');
+        const message = err instanceof Error ? err.message : 'SignalR connection failed';
+        setState((prev) => ({ ...prev, status: 'error', lastError: message }));
       }
     };
 
@@ -65,7 +90,7 @@ export function useSignalR(projectId: string | undefined, callbacks: SignalRCall
             await connection.stop();
           }
         } catch {
-          // Cleanup errors are non-critical
+          // Cleanup errors are non-critical.
         }
       };
       void cleanup();
@@ -73,5 +98,5 @@ export function useSignalR(projectId: string | undefined, callbacks: SignalRCall
     };
   }, [projectId]);
 
-  return status;
+  return state;
 }

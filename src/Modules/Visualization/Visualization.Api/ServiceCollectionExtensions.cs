@@ -47,7 +47,9 @@ public static class ServiceCollectionExtensions
         }
         services.AddScoped<IViewPresetRepository, ViewPresetRepository>();
         services.AddSingleton<IDiagramExporter, SvgDiagramExporter>();
+        services.AddSingleton<IDiagramExporter, PngDiagramExporter>();
         services.AddSingleton<IDiagramExporter, PdfDiagramExporter>();
+        services.AddSingleton<IDiagramExporter, GraphMlDiagramExporter>();
         services.AddKeyedScoped<IUnitOfWork>("Visualization", (sp, _) => sp.GetRequiredService<VisualizationDbContext>());
         services.AddScoped<IDiagramNotifier, SignalRDiagramNotifier>();
         services.AddEndpoints(AssemblyReference.Assembly);

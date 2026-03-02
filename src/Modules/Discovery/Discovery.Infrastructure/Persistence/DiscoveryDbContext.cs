@@ -84,6 +84,8 @@ file sealed class AzureSubscriptionConfiguration : IEntityTypeConfiguration<Azur
         builder.Property(s => s.ConnectedAtUtc).IsRequired();
         builder.Property(s => s.GitRepoUrl).HasMaxLength(500);
         builder.Property(s => s.GitPatToken).HasMaxLength(500);
+        builder.Property(s => s.GitBranch).HasMaxLength(200);
+        builder.Property(s => s.GitRootPath).HasMaxLength(500);
         builder.HasIndex(s => s.ExternalSubscriptionId).IsUnique();
         builder.Ignore(s => s.DomainEvents);
     }

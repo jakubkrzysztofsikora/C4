@@ -1,13 +1,15 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using C4.Modules.Discovery.Application.Ports;
+using C4.Shared.Infrastructure.Security;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Discovery.Api.Adapters;
 
 public sealed partial class RepositoryIacDiscoverySourceAdapter(
     IServiceScopeFactory scopeFactory,
-    IIacStateParser iacStateParser) : IDiscoverySourceAdapter
+    IIacStateParser iacStateParser,
+    IDataProtectionService dataProtectionService) : IDiscoverySourceAdapter
 {
     public DiscoverySourceKind Source => DiscoverySourceKind.RepositoryIac;
 
@@ -17,6 +19,8 @@ public sealed partial class RepositoryIacDiscoverySourceAdapter(
     {
         string? gitRepoUrl;
         string? gitPatToken;
+        string? gitBranch;
+        string? gitRootPath;
 
         using (IServiceScope scope = scopeFactory.CreateScope())
         {
@@ -29,7 +33,11 @@ public sealed partial class RepositoryIacDiscoverySourceAdapter(
             }
 
             gitRepoUrl = subscription.GitRepoUrl;
-            gitPatToken = subscription.GitPatToken;
+            gitPatToken = string.IsNullOrWhiteSpace(subscription.GitPatToken)
+                ? null
+                : dataProtectionService.Unprotect(subscription.GitPatToken);
+            gitBranch = subscription.GitBranch;
+            gitRootPath = subscription.GitRootPath;
         }
 
         ValidateGitUrl(gitRepoUrl);
@@ -38,9 +46,11 @@ public sealed partial class RepositoryIacDiscoverySourceAdapter(
         try
         {
             string cloneUrl = BuildAuthenticatedCloneUrl(gitRepoUrl, gitPatToken);
-            await CloneRepositoryAsync(cloneUrl, tempDirectory, cancellationToken);
+            await CloneRepositoryAsync(cloneUrl, tempDirectory, gitBranch, cancellationToken);
 
-            IEnumerable<string> iacFiles = EnumerateIacFiles(tempDirectory);
+            string searchRoot = ResolveSearchRoot(tempDirectory, gitRootPath);
+
+            IEnumerable<string> iacFiles = EnumerateIacFiles(searchRoot);
             List<DiscoveryResourceDescriptor> descriptors = [];
 
             foreach (string filePath in iacFiles)
@@ -97,7 +107,7 @@ public sealed partial class RepositoryIacDiscoverySourceAdapter(
         return $"{uri.Scheme}://pat:{patToken}@{uri.Host}{uri.PathAndQuery}";
     }
 
-    private static async Task CloneRepositoryAsync(string cloneUrl, string targetDirectory, CancellationToken cancellationToken)
+    private static async Task CloneRepositoryAsync(string cloneUrl, string targetDirectory, string? branch, CancellationToken cancellationToken)
     {
         ProcessStartInfo startInfo = new()
         {
@@ -110,6 +120,11 @@ public sealed partial class RepositoryIacDiscoverySourceAdapter(
         startInfo.ArgumentList.Add("clone");
         startInfo.ArgumentList.Add("--depth");
         startInfo.ArgumentList.Add("1");
+        if (!string.IsNullOrWhiteSpace(branch))
+        {
+            startInfo.ArgumentList.Add("--branch");
+            startInfo.ArgumentList.Add(branch.Trim());
+        }
         startInfo.ArgumentList.Add(cloneUrl);
         startInfo.ArgumentList.Add(targetDirectory);
 
@@ -127,6 +142,23 @@ public sealed partial class RepositoryIacDiscoverySourceAdapter(
     private static IEnumerable<string> EnumerateIacFiles(string directory) =>
         Directory.EnumerateFiles(directory, "*.bicep", SearchOption.AllDirectories)
             .Concat(Directory.EnumerateFiles(directory, "*.tf", SearchOption.AllDirectories));
+
+    private static string ResolveSearchRoot(string repositoryDirectory, string? configuredRoot)
+    {
+        if (string.IsNullOrWhiteSpace(configuredRoot))
+            return repositoryDirectory;
+
+        string normalized = configuredRoot.Trim().Trim('/').Trim('\\');
+        if (normalized.Length == 0)
+            return repositoryDirectory;
+
+        string fullPath = Path.GetFullPath(Path.Combine(repositoryDirectory, normalized));
+        string repoRoot = Path.GetFullPath(repositoryDirectory);
+        if (!fullPath.StartsWith(repoRoot, StringComparison.OrdinalIgnoreCase) || !Directory.Exists(fullPath))
+            return repositoryDirectory;
+
+        return fullPath;
+    }
 
     private static string ResolveFormat(string filePath) =>
         Path.GetExtension(filePath).TrimStart('.').ToLowerInvariant() switch

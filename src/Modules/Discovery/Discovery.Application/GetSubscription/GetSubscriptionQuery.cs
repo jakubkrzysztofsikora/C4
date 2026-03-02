@@ -5,4 +5,11 @@ namespace C4.Modules.Discovery.Application.GetSubscription;
 
 public sealed record GetSubscriptionQuery : IRequest<Result<GetSubscriptionResponse>>;
 
-public sealed record GetSubscriptionResponse(Guid SubscriptionId, string ExternalSubscriptionId, string DisplayName);
+public sealed record GetSubscriptionResponse(
+    Guid SubscriptionId,
+    string ExternalSubscriptionId,
+    string DisplayName,
+    string? GitRepoUrl,
+    string? GitBranch,
+    string? GitRootPath,
+    bool HasGitPatToken);

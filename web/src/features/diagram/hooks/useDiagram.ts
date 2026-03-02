@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getJson, ApiError } from '../../../shared/api/client';
-import { DiagramData, DiagramNode, DiagramEdge, ServiceType } from '../types';
+import { DiagramData, DiagramNode, DiagramEdge, ServiceType, RiskLevel } from '../types';
 import { useSignalR } from './useSignalR';
 
 type GraphNodeDto = {
@@ -10,6 +10,12 @@ type GraphNodeDto = {
   level: string;
   health?: string;
   healthScore?: number;
+  telemetryStatus?: string;
+  requestRate?: number;
+  errorRate?: number;
+  p95LatencyMs?: number;
+  riskLevel?: string;
+  hourlyCostUsd?: number;
   parentNodeId?: string;
   drift?: boolean;
   environment?: string;
@@ -27,6 +33,11 @@ type GraphEdgeDto = {
   sourceNodeId: string;
   targetNodeId: string;
   traffic?: number;
+  trafficState?: string;
+  requestRate?: number;
+  errorRate?: number;
+  p95LatencyMs?: number;
+  protocol?: string;
 };
 
 type GraphDto = {
@@ -35,10 +46,44 @@ type GraphDto = {
   edges: ReadonlyArray<GraphEdgeDto>;
 };
 
+type GraphSnapshotsResponse = {
+  projectId: string;
+  snapshots: ReadonlyArray<{ snapshotId: string; createdAtUtc: string; source: string }>;
+};
+
+type GraphDiffResponse = {
+  addedNodes: ReadonlyArray<string>;
+  removedNodes: ReadonlyArray<string>;
+  addedEdges: ReadonlyArray<string>;
+  removedEdges: ReadonlyArray<string>;
+};
+
 type NodeHealthEntry = {
   nodeId: string;
   health: DiagramNode['health'];
 };
+
+type OverlayMode = 'none' | 'threat' | 'cost' | 'security';
+
+type OverlaySummary = {
+  title: string;
+  lines: string[];
+};
+
+function getInitialParam(name: string, fallback: string): string {
+  try {
+    const url = new URL(window.location.href);
+    const value = url.searchParams.get(name);
+    return value ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function getInitialBoolParam(name: string, fallback: boolean): boolean {
+  const value = getInitialParam(name, fallback ? 'true' : 'false').toLowerCase();
+  return value === 'true' || value === '1' || value === 'yes';
+}
 
 function mapLevel(level: string): DiagramNode['level'] {
   const normalized = level.toLowerCase();
@@ -58,22 +103,34 @@ function inferServiceType(name: string): DiagramNode['serviceType'] {
 }
 
 const VALID_SERVICE_TYPES: ReadonlySet<string> = new Set<ServiceType>(['app', 'api', 'database', 'queue', 'cache', 'storage', 'monitoring', 'external', 'boundary']);
+const VALID_RISK_LEVELS: ReadonlySet<string> = new Set<RiskLevel>(['low', 'medium', 'high', 'critical']);
 
 function isValidServiceType(value: unknown): value is ServiceType {
   return typeof value === 'string' && VALID_SERVICE_TYPES.has(value);
 }
 
+function isValidRiskLevel(value: unknown): value is RiskLevel {
+  return typeof value === 'string' && VALID_RISK_LEVELS.has(value);
+}
+
 function resolveHealth(value: string | undefined): DiagramNode['health'] {
-  if (isValidHealth(value)) return value;
-  return 'green';
+  if (value === 'green' || value === 'yellow' || value === 'red' || value === 'unknown') return value;
+  return 'unknown';
 }
 
 function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
   const nodes: DiagramNode[] = (dto.nodes ?? []).map((node) => ({
     id: node.id,
     label: node.name,
+    externalResourceId: node.externalResourceId,
     level: mapLevel(node.level),
     health: resolveHealth(node.health),
+    telemetryStatus: node.telemetryStatus === 'known' ? 'known' : 'unknown',
+    ...(typeof node.requestRate === 'number' ? { requestRate: node.requestRate } : {}),
+    ...(typeof node.errorRate === 'number' ? { errorRate: node.errorRate } : {}),
+    ...(typeof node.p95LatencyMs === 'number' ? { p95LatencyMs: node.p95LatencyMs } : {}),
+    ...(isValidRiskLevel(node.riskLevel) ? { riskLevel: node.riskLevel } : {}),
+    ...(typeof node.hourlyCostUsd === 'number' ? { hourlyCostUsd: node.hourlyCostUsd } : {}),
     serviceType: isValidServiceType(node.serviceType) ? node.serviceType : inferServiceType(node.name),
     environment: node.environment ?? 'unknown',
     ...(node.resourceGroup ? { resourceGroup: node.resourceGroup } : {}),
@@ -90,48 +147,27 @@ function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
     id: edge.id,
     from: edge.sourceNodeId,
     to: edge.targetNodeId,
-    traffic: edge.traffic ?? 1,
+    traffic: edge.traffic ?? 0,
+    ...(edge.trafficState === 'green' || edge.trafficState === 'yellow' || edge.trafficState === 'red' || edge.trafficState === 'unknown'
+      ? { trafficState: edge.trafficState }
+      : {}),
+    ...(typeof edge.requestRate === 'number' ? { requestRate: edge.requestRate } : {}),
+    ...(typeof edge.errorRate === 'number' ? { errorRate: edge.errorRate } : {}),
+    ...(typeof edge.p95LatencyMs === 'number' ? { p95LatencyMs: edge.p95LatencyMs } : {}),
+    ...(edge.protocol ? { protocol: edge.protocol } : {}),
   }));
 
   return { nodes, edges };
 }
-
-const seed: DiagramData = {
-  nodes: [
-    { id: 'n1', label: 'Frontend SPA', level: 'Container', health: 'green', serviceType: 'app', environment: 'production' },
-    { id: 'n2', label: 'Identity API', level: 'Container', health: 'green', serviceType: 'api', environment: 'production' },
-    { id: 'n3', label: 'Discovery Worker', level: 'Component', health: 'yellow', serviceType: 'queue', parentId: 'n4', environment: 'production' },
-    { id: 'n4', label: 'Graph Service', level: 'Container', health: 'green', serviceType: 'api', environment: 'production' },
-    { id: 'n5', label: 'PostgreSQL', level: 'Container', health: 'green', serviceType: 'database', environment: 'production' },
-    { id: 'n6', label: 'Redis Cache', level: 'Container', health: 'yellow', drift: true, serviceType: 'cache', environment: 'production' },
-    { id: 'n7', label: 'Azure Resource Graph', level: 'Context', health: 'green', serviceType: 'external', environment: 'production' },
-  ],
-  edges: [
-    { id: 'e1', from: 'n1', to: 'n2', traffic: 0.9 },
-    { id: 'e2', from: 'n2', to: 'n4', traffic: 0.76 },
-    { id: 'e3', from: 'n4', to: 'n5', traffic: 0.63 },
-    { id: 'e4', from: 'n3', to: 'n7', traffic: 0.52 },
-    { id: 'e5', from: 'n4', to: 'n6', traffic: 0.45 },
-    { id: 'e6', from: 'n4', to: 'n3', traffic: 0.7 },
-  ],
-};
 
 function isApiError(value: unknown): value is ApiError {
   return value instanceof ApiError;
 }
 
 function extractErrorMessage(err: unknown): string {
-  if (isApiError(err)) {
-    return err.message;
-  }
-  if (err instanceof Error) {
-    return err.message;
-  }
+  if (isApiError(err)) return err.message;
+  if (err instanceof Error) return err.message;
   return 'An unexpected error occurred';
-}
-
-function isValidHealth(value: unknown): value is DiagramNode['health'] {
-  return value === 'green' || value === 'yellow' || value === 'red';
 }
 
 function parseHealthOverlay(healthJson: string): NodeHealthEntry[] {
@@ -143,7 +179,9 @@ function parseHealthOverlay(healthJson: string): NodeHealthEntry[] {
         typeof item === 'object' &&
         item !== null &&
         typeof (item as Record<string, unknown>)['nodeId'] === 'string' &&
-        isValidHealth((item as Record<string, unknown>)['health']),
+        ((item as Record<string, unknown>)['health'] === 'green'
+          || (item as Record<string, unknown>)['health'] === 'yellow'
+          || (item as Record<string, unknown>)['health'] === 'red'),
     );
   } catch {
     return [];
@@ -155,7 +193,9 @@ function applyHealthOverlay(nodes: DiagramNode[], overlay: NodeHealthEntry[]): D
   const healthMap = new Map(overlay.map((e) => [e.nodeId, e.health]));
   return nodes.map((node) => {
     const updatedHealth = healthMap.get(node.id);
-    return updatedHealth !== undefined ? { ...node, health: updatedHealth } : node;
+    return updatedHealth !== undefined
+      ? { ...node, health: updatedHealth, telemetryStatus: 'known' }
+      : node;
   });
 }
 
@@ -166,19 +206,50 @@ function isVisibleAtLevel(node: DiagramNode, level: 'Context' | 'Container' | 'C
 }
 
 export function useDiagram(projectId?: string) {
-  const [level, setLevel] = useState<'Context' | 'Container' | 'Component'>('Container');
-  const [search, setSearch] = useState('');
-  const [timeline, setTimeline] = useState(100);
-  const [environment, setEnvironment] = useState('production');
-  const [scope, setScope] = useState<'all' | 'coreHub'>('coreHub');
-  const [groupBy, setGroupBy] = useState<'domain' | 'resourceGroup' | 'none'>('domain');
-  const [includeInfrastructure, setIncludeInfrastructure] = useState<'auto' | 'true' | 'false'>('auto');
-  const [hideOrphans, setHideOrphans] = useState(true);
+  const [level, setLevel] = useState<'Context' | 'Container' | 'Component'>(() => {
+    const initial = getInitialParam('level', 'Container');
+    return initial === 'Context' || initial === 'Component' ? initial : 'Container';
+  });
+  const [search, setSearch] = useState(() => getInitialParam('search', ''));
+  const [environment, setEnvironment] = useState(() => getInitialParam('environment', 'all'));
+  const [scope, setScope] = useState<'all' | 'coreHub'>(() => (getInitialParam('scope', 'all') === 'coreHub' ? 'coreHub' : 'all'));
+  const [groupBy, setGroupBy] = useState<'domain' | 'resourceGroup' | 'none'>(() => {
+    const initial = getInitialParam('groupBy', 'domain');
+    return initial === 'resourceGroup' || initial === 'none' ? initial : 'domain';
+  });
+  const [includeInfrastructure, setIncludeInfrastructure] = useState<'auto' | 'true' | 'false'>(() => {
+    const initial = getInitialParam('includeInfrastructure', 'false');
+    return initial === 'true' || initial === 'auto' ? initial : 'false';
+  });
+  const [hideOrphans, setHideOrphans] = useState(() => getInitialBoolParam('hideOrphans', false));
+  const [serviceTypeFilter, setServiceTypeFilter] = useState(() => getInitialParam('serviceType', 'all'));
+  const [domainFilter, setDomainFilter] = useState(() => getInitialParam('domain', 'all'));
+  const [riskFilter, setRiskFilter] = useState(() => getInitialParam('risk', 'all'));
+  const [tagFilter, setTagFilter] = useState(() => getInitialParam('tag', ''));
+  const [driftOnly, setDriftOnly] = useState(() => getInitialBoolParam('driftOnly', false));
+
+  const [snapshots, setSnapshots] = useState<ReadonlyArray<{ snapshotId: string; createdAtUtc: string; source: string }>>([]);
+  const [timelineIndex, setTimelineIndex] = useState(0);
+  const [diffEnabled, setDiffEnabled] = useState(false);
+  const [diffFromSnapshotId, setDiffFromSnapshotId] = useState<string>('');
+  const [diffToSnapshotId, setDiffToSnapshotId] = useState<string>('');
+  const [diffResult, setDiffResult] = useState<GraphDiffResponse | undefined>(undefined);
+
+  const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
+  const [overlaySummary, setOverlaySummary] = useState<OverlaySummary | undefined>(undefined);
+
   const [apiData, setApiData] = useState<DiagramData | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [lastRefreshAt, setLastRefreshAt] = useState<number | undefined>(undefined);
 
-  const fetchGraph = useCallback(async (id: string) => {
+  const selectedSnapshotId = useMemo(() => {
+    if (snapshots.length === 0) return undefined;
+    const index = Math.min(Math.max(timelineIndex, 0), snapshots.length - 1);
+    return snapshots[index]?.snapshotId;
+  }, [snapshots, timelineIndex]);
+
+  const fetchGraph = useCallback(async (id: string, snapshotId?: string) => {
     setLoading(true);
     setError(undefined);
     try {
@@ -189,88 +260,334 @@ export function useDiagram(projectId?: string) {
         includeInfrastructure,
         environment,
       });
+      if (snapshotId !== undefined && snapshotId.length > 0) {
+        params.set('snapshotId', snapshotId);
+      }
+
       const dto = await getJson<GraphDto>(`/api/projects/${id}/graph?${params.toString()}`);
       const mapped = mapGraphDtoToDiagramData(dto);
       setApiData(mapped);
+      setLastRefreshAt(Date.now());
     } catch (err: unknown) {
-      const message = extractErrorMessage(err);
-      setError(message);
+      setError(extractErrorMessage(err));
       setApiData(undefined);
     } finally {
       setLoading(false);
     }
   }, [level, scope, groupBy, includeInfrastructure, environment]);
 
-  useEffect(() => {
-    if (projectId !== undefined) {
-      void fetchGraph(projectId);
+  const fetchSnapshots = useCallback(async (id: string) => {
+    try {
+      const response = await getJson<GraphSnapshotsResponse>(`/api/projects/${id}/graph/snapshots`);
+      const ordered = [...(response.snapshots ?? [])].sort((a, b) =>
+        new Date(a.createdAtUtc).getTime() - new Date(b.createdAtUtc).getTime(),
+      );
+      setSnapshots(ordered);
+      if (ordered.length > 0) {
+        setTimelineIndex(ordered.length - 1);
+        if (diffFromSnapshotId.length === 0) {
+          setDiffFromSnapshotId(ordered[Math.max(0, ordered.length - 2)]?.snapshotId ?? ordered[0]!.snapshotId);
+        }
+        if (diffToSnapshotId.length === 0) {
+          setDiffToSnapshotId(ordered[ordered.length - 1]!.snapshotId);
+        }
+      }
+    } catch {
+      setSnapshots([]);
     }
-  }, [projectId, fetchGraph]);
+  }, [diffFromSnapshotId.length, diffToSnapshotId.length]);
+
+  const fetchDiff = useCallback(async (id: string, fromSnapshotId: string, toSnapshotId: string) => {
+    if (fromSnapshotId.length === 0 || toSnapshotId.length === 0 || fromSnapshotId === toSnapshotId) {
+      setDiffResult(undefined);
+      return;
+    }
+
+    try {
+      const diff = await getJson<GraphDiffResponse>(
+        `/api/projects/${id}/graph/diff?fromSnapshotId=${encodeURIComponent(fromSnapshotId)}&toSnapshotId=${encodeURIComponent(toSnapshotId)}`,
+      );
+      setDiffResult(diff);
+    } catch {
+      setDiffResult(undefined);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (projectId === undefined) return;
+    void fetchSnapshots(projectId);
+  }, [projectId, fetchSnapshots]);
+
+  useEffect(() => {
+    if (projectId === undefined) return;
+    void fetchGraph(projectId, selectedSnapshotId);
+  }, [projectId, selectedSnapshotId, fetchGraph]);
+
+  useEffect(() => {
+    if (projectId === undefined || !diffEnabled) {
+      setDiffResult(undefined);
+      return;
+    }
+
+    void fetchDiff(projectId, diffFromSnapshotId, diffToSnapshotId);
+  }, [projectId, diffEnabled, diffFromSnapshotId, diffToSnapshotId, fetchDiff]);
 
   const handleHealthOverlayChanged = useCallback((_receivedProjectId: string, healthJson: string) => {
     setApiData((current) => {
       if (current === undefined) return current;
       const overlay = parseHealthOverlay(healthJson);
-      const updatedNodes = applyHealthOverlay(current.nodes, overlay);
-      return { ...current, nodes: updatedNodes };
+      return { ...current, nodes: applyHealthOverlay(current.nodes, overlay) };
     });
   }, []);
 
   const handleDiagramUpdated = useCallback(() => {
     if (projectId !== undefined) {
-      void fetchGraph(projectId);
+      void fetchGraph(projectId, selectedSnapshotId);
     }
-  }, [projectId, fetchGraph]);
+  }, [projectId, selectedSnapshotId, fetchGraph]);
 
-  useSignalR(projectId, {
+  const signalR = useSignalR(projectId, {
     onHealthOverlayChanged: handleHealthOverlayChanged,
     onDiagramUpdated: handleDiagramUpdated,
   });
 
-  const sourceData = apiData ?? (error !== undefined ? { nodes: [], edges: [] } : seed);
+  useEffect(() => {
+    if (projectId === undefined) return;
+    if (signalR.status !== 'connected') return;
+    void fetchGraph(projectId, selectedSnapshotId);
+  }, [projectId, signalR.status, signalR.lastConnectedAt, selectedSnapshotId, fetchGraph]);
+
+  useEffect(() => {
+    if (projectId === undefined) return;
+    if (signalR.status === 'connected') return;
+
+    const id = window.setInterval(() => {
+      void fetchGraph(projectId, selectedSnapshotId);
+    }, 60_000);
+
+    return () => {
+      window.clearInterval(id);
+    };
+  }, [projectId, signalR.status, selectedSnapshotId, fetchGraph]);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.set('level', level);
+      params.set('environment', environment);
+      params.set('scope', scope);
+      params.set('groupBy', groupBy);
+      params.set('includeInfrastructure', includeInfrastructure);
+      params.set('hideOrphans', hideOrphans ? 'true' : 'false');
+      params.set('serviceType', serviceTypeFilter);
+      params.set('domain', domainFilter);
+      params.set('risk', riskFilter);
+      params.set('driftOnly', driftOnly ? 'true' : 'false');
+      if (search.length > 0) params.set('search', search); else params.delete('search');
+      if (tagFilter.length > 0) params.set('tag', tagFilter); else params.delete('tag');
+      if (selectedSnapshotId !== undefined) params.set('snapshotId', selectedSnapshotId); else params.delete('snapshotId');
+      const next = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState(null, '', next);
+    } catch {
+      // no-op
+    }
+  }, [
+    level,
+    environment,
+    scope,
+    groupBy,
+    includeInfrastructure,
+    hideOrphans,
+    serviceTypeFilter,
+    domainFilter,
+    riskFilter,
+    driftOnly,
+    search,
+    tagFilter,
+    selectedSnapshotId,
+  ]);
+
+  const sourceData = apiData ?? { nodes: [], edges: [] };
 
   const environments = useMemo(() => {
     const envSet = new Set(sourceData.nodes.map((n) => n.environment ?? 'unknown'));
     return Array.from(envSet).sort();
   }, [sourceData]);
 
+  const serviceTypes = useMemo(() => {
+    const set = new Set(sourceData.nodes.map((n) => n.serviceType));
+    return Array.from(set).sort();
+  }, [sourceData]);
+
+  const domains = useMemo(() => {
+    const set = new Set(sourceData.nodes.map((n) => n.domain ?? 'General'));
+    return Array.from(set).sort();
+  }, [sourceData]);
+
+  const riskLevels = useMemo(() => {
+    const set = new Set(sourceData.nodes.map((n) => n.riskLevel).filter((v): v is RiskLevel => v !== undefined));
+    return Array.from(set).sort();
+  }, [sourceData]);
+
   const data = useMemo(() => {
+    const lowerSearch = search.toLowerCase();
+    const lowerTag = tagFilter.toLowerCase();
+
     const levelFiltered = sourceData.nodes.filter((n) => isVisibleAtLevel(n, level));
-    const searchFiltered = levelFiltered.filter((n) =>
-      n.label.toLowerCase().includes(search.toLowerCase()),
-    );
-    const visibleNodeIds = new Set(searchFiltered.map((n) => n.id));
-    const edges = sourceData.edges.filter(
-      (e) => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to) && e.traffic <= timeline / 100,
+
+    const filtered = levelFiltered.filter((n) => {
+      if (serviceTypeFilter !== 'all' && n.serviceType !== serviceTypeFilter) return false;
+      if (domainFilter !== 'all' && (n.domain ?? 'General') !== domainFilter) return false;
+      if (riskFilter !== 'all' && n.riskLevel !== riskFilter) return false;
+      if (driftOnly && n.drift !== true) return false;
+
+      if (lowerSearch.length > 0) {
+        const matchesSearch =
+          n.label.toLowerCase().includes(lowerSearch)
+          || (n.externalResourceId ?? '').toLowerCase().includes(lowerSearch)
+          || (n.domain ?? '').toLowerCase().includes(lowerSearch);
+        if (!matchesSearch) return false;
+      }
+
+      if (lowerTag.length > 0) {
+        const matchesTag =
+          n.label.toLowerCase().includes(lowerTag)
+          || (n.externalResourceId ?? '').toLowerCase().includes(lowerTag)
+          || (n.resourceGroup ?? '').toLowerCase().includes(lowerTag)
+          || (n.classificationSource ?? '').toLowerCase().includes(lowerTag)
+          || (n.groupKey ?? '').toLowerCase().includes(lowerTag);
+        if (!matchesTag) return false;
+      }
+
+      return true;
+    });
+
+    const visibleNodeIds = new Set(filtered.map((n) => n.id));
+    const connectedEdges = sourceData.edges.filter(
+      (e) => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to),
     );
 
-    const autoDisableHideOrphans = level !== 'Container' || searchFiltered.length <= 30;
-    const effectiveHideOrphans = hideOrphans && !autoDisableHideOrphans;
+    let nodes = filtered;
+    let edges = connectedEdges;
 
-    if (!effectiveHideOrphans) {
-      return { nodes: searchFiltered, edges };
+    if (hideOrphans) {
+      const connectedNodeIds = new Set<string>();
+      for (const edge of connectedEdges) {
+        connectedNodeIds.add(edge.from);
+        connectedNodeIds.add(edge.to);
+      }
+      nodes = filtered.filter((n) => connectedNodeIds.has(n.id));
+      const nodeIds = new Set(nodes.map((n) => n.id));
+      edges = connectedEdges.filter((e) => nodeIds.has(e.from) && nodeIds.has(e.to));
     }
 
-    const connectedNodeIds = new Set<string>();
-    for (const e of edges) {
-      connectedNodeIds.add(e.from);
-      connectedNodeIds.add(e.to);
+    if (diffEnabled && diffResult !== undefined) {
+      const addedNodes = new Set(diffResult.addedNodes ?? []);
+      const removedNodes = new Set(diffResult.removedNodes ?? []);
+      const addedEdges = new Set(diffResult.addedEdges ?? []);
+      const removedEdges = new Set(diffResult.removedEdges ?? []);
+
+      nodes = nodes.map((node) => {
+        const key = node.externalResourceId ?? node.id;
+        if (addedNodes.has(key)) return { ...node, diffStatus: 'added' };
+        if (removedNodes.has(key)) return { ...node, diffStatus: 'removed' };
+        return { ...node, diffStatus: 'unchanged' };
+      });
+
+      edges = edges.map((edge) => {
+        const key = `${edge.from}->${edge.to}`;
+        if (addedEdges.has(key)) return { ...edge, diffStatus: 'added' };
+        if (removedEdges.has(key)) return { ...edge, diffStatus: 'removed' };
+        return { ...edge, diffStatus: 'unchanged' };
+      });
     }
+
+    return { nodes, edges, preOrphanCount: filtered.length };
+  }, [
+    sourceData,
+    level,
+    search,
+    serviceTypeFilter,
+    domainFilter,
+    riskFilter,
+    tagFilter,
+    driftOnly,
+    hideOrphans,
+    diffEnabled,
+    diffResult,
+  ]);
+
+  const metrics = useMemo(() => {
+    const totalNodes = sourceData.nodes.length;
+    const totalEdges = sourceData.edges.length;
+    const renderedNodes = data.nodes.length;
+    const renderedEdges = data.edges.length;
+    const hiddenByFilters = Math.max(0, totalNodes - data.preOrphanCount);
+    const hiddenAsOrphans = Math.max(0, data.preOrphanCount - renderedNodes);
 
     return {
-      nodes: searchFiltered.filter((n) => connectedNodeIds.has(n.id)),
-      edges,
+      totalNodes,
+      totalEdges,
+      renderedNodes,
+      renderedEdges,
+      hiddenByFilters,
+      hiddenAsOrphans,
     };
-  }, [sourceData, level, search, timeline, hideOrphans]);
+  }, [sourceData, data]);
+
+  useEffect(() => {
+    if (projectId === undefined || overlayMode === 'none') {
+      setOverlaySummary(undefined);
+      return;
+    }
+
+    const load = async () => {
+      try {
+        if (overlayMode === 'threat') {
+          const threat = await getJson<{ riskLevel: string; threats: Array<{ component: string; threatType: string; severity: string; mitigation: string }> }>(`/api/projects/${projectId}/threats`);
+          setOverlaySummary({
+            title: `Threat Overlay (${threat.riskLevel})`,
+            lines: (threat.threats ?? []).slice(0, 20).map((t) => `${t.component}: ${t.threatType} [${t.severity}]`),
+          });
+          return;
+        }
+
+        if (overlayMode === 'cost') {
+          const cost = await getJson<{ totalHourlyCostUsd: number; topCostNodes: Array<{ name: string; hourlyCostUsd: number }> }>(`/api/projects/${projectId}/cost`);
+          setOverlaySummary({
+            title: `Cost Overlay ($${cost.totalHourlyCostUsd.toFixed(2)}/hr)`,
+            lines: (cost.topCostNodes ?? []).slice(0, 20).map((n) => `${n.name}: $${n.hourlyCostUsd.toFixed(2)}/hr`),
+          });
+          return;
+        }
+
+        const security = await getJson<{ totalFindings: number; findings: Array<{ severity: string; nodeName: string; message: string }> }>(`/api/projects/${projectId}/security-findings`);
+        setOverlaySummary({
+          title: `Security Overlay (${security.totalFindings} findings)`,
+          lines: (security.findings ?? []).slice(0, 20).map((f) => `[${f.severity}] ${f.nodeName}: ${f.message}`),
+        });
+      } catch {
+        setOverlaySummary({
+          title: 'Overlay unavailable',
+          lines: ['No data available for the selected overlay.'],
+        });
+      }
+    };
+
+    void load();
+  }, [projectId, overlayMode]);
+
+  const isStale = useMemo(() => {
+    if (signalR.status === 'connected') return false;
+    return lastRefreshAt !== undefined;
+  }, [signalR.status, lastRefreshAt]);
 
   return {
-    data,
+    data: { nodes: data.nodes, edges: data.edges },
     level,
     setLevel,
     search,
     setSearch,
-    timeline,
-    setTimeline,
     environment,
     setEnvironment,
     environments,
@@ -282,8 +599,37 @@ export function useDiagram(projectId?: string) {
     setIncludeInfrastructure,
     hideOrphans,
     setHideOrphans,
+    serviceTypeFilter,
+    setServiceTypeFilter,
+    serviceTypes,
+    domainFilter,
+    setDomainFilter,
+    domains,
+    riskFilter,
+    setRiskFilter,
+    riskLevels,
+    tagFilter,
+    setTagFilter,
+    driftOnly,
+    setDriftOnly,
+    snapshots,
+    timelineIndex,
+    setTimelineIndex,
+    diffEnabled,
+    setDiffEnabled,
+    diffFromSnapshotId,
+    setDiffFromSnapshotId,
+    diffToSnapshotId,
+    setDiffToSnapshotId,
+    metrics,
     loading,
     error,
+    signalR,
+    isStale,
+    lastRefreshAt,
+    overlayMode,
+    setOverlayMode,
+    overlaySummary,
     refetch: fetchGraph,
   };
 }

@@ -105,6 +105,9 @@ file sealed class GraphSnapshotConfiguration : IEntityTypeConfiguration<GraphSna
             .HasConversion(id => id.Value, value => new GraphSnapshotId(value))
             .ValueGeneratedNever();
         builder.Property(s => s.CreatedAtUtc).IsRequired();
+        builder.Property(s => s.Source).HasMaxLength(100).HasDefaultValue("discovery").IsRequired();
+        builder.Property(s => s.NodesJson).HasColumnType("text").IsRequired();
+        builder.Property(s => s.EdgesJson).HasColumnType("text").IsRequired();
         builder.Ignore(s => s.Nodes);
         builder.Ignore(s => s.Edges);
     }

@@ -25,7 +25,13 @@ public sealed class ExportDiagramHandler(
         if (exporter is null) return Result<ExportDiagramResponse>.Failure(VisualizationErrors.UnsupportedExportFormat(request.Format));
 
         byte[] bytes = await exporter.ExportAsync(diagram, cancellationToken);
-        string contentType = format == "svg" ? "image/svg+xml" : "application/pdf";
+        string contentType = format switch
+        {
+            "svg" => "image/svg+xml",
+            "png" => "image/png",
+            "graphml" => "application/graphml+xml",
+            _ => "application/pdf"
+        };
         return Result<ExportDiagramResponse>.Success(new ExportDiagramResponse(contentType, bytes));
     }
 }

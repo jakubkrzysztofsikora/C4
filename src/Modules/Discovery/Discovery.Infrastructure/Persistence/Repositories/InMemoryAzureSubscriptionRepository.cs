@@ -19,6 +19,9 @@ public sealed class InMemoryAzureSubscriptionRepository : IAzureSubscriptionRepo
     public Task<AzureSubscription?> GetFirstAsync(CancellationToken cancellationToken) =>
         Task.FromResult(_subscriptions.FirstOrDefault());
 
+    public Task<AzureSubscription?> GetByIdAsync(Guid subscriptionId, CancellationToken cancellationToken)
+        => Task.FromResult(_subscriptions.FirstOrDefault(s => s.Id == new AzureSubscriptionId(subscriptionId)));
+
     public Task DeleteAsync(AzureSubscription subscription, CancellationToken cancellationToken)
     {
         _subscriptions.Remove(subscription);

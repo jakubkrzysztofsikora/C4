@@ -104,6 +104,21 @@ namespace Graph.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("EdgesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("NodesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("discovery");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ArchitectureGraphId");

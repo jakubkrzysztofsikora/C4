@@ -8,6 +8,12 @@ public sealed record GraphNodeDto(
     string Level,
     string Health,
     double HealthScore,
+    string TelemetryStatus,
+    double? RequestRate,
+    double? ErrorRate,
+    double? P95LatencyMs,
+    string? RiskLevel,
+    double? HourlyCostUsd,
     Guid? ParentNodeId,
     bool Drift = false,
     string Environment = "unknown",
@@ -18,4 +24,13 @@ public sealed record GraphNodeDto(
     string ClassificationSource = "fallback",
     double ClassificationConfidence = 0.6,
     string GroupKey = "");
-public sealed record GraphEdgeDto(Guid Id, Guid SourceNodeId, Guid TargetNodeId, double Traffic);
+public sealed record GraphEdgeDto(
+    Guid Id,
+    Guid SourceNodeId,
+    Guid TargetNodeId,
+    double Traffic,
+    string TrafficState = "unknown",
+    double? RequestRate = null,
+    double? ErrorRate = null,
+    double? P95LatencyMs = null,
+    string? Protocol = null);

@@ -10,5 +10,7 @@ public interface IAzureSubscriptionRepository
 
     Task<AzureSubscription?> GetFirstAsync(CancellationToken cancellationToken);
 
+    Task<AzureSubscription?> GetByIdAsync(Guid subscriptionId, CancellationToken cancellationToken);
+
     Task DeleteAsync(AzureSubscription subscription, CancellationToken cancellationToken);
 }

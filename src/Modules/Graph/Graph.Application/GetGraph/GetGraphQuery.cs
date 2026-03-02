@@ -9,4 +9,5 @@ public sealed record GetGraphQuery(
     string? Scope = null,
     string? GroupBy = null,
     string? IncludeInfrastructure = null,
-    string? Environment = null) : IRequest<Result<GraphDto>>;
+    string? Environment = null,
+    Guid? SnapshotId = null) : IRequest<Result<GraphDto>>;

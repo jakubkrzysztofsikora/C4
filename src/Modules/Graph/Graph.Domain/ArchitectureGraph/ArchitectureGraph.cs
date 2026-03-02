@@ -72,9 +72,9 @@ public sealed class ArchitectureGraph : AggregateRoot<ArchitectureGraphId>
         _edges.Add(C4.Modules.Graph.Domain.GraphEdge.GraphEdge.Create(source.Id, target.Id, new EdgeProperties("https", 443, "outbound")));
     }
 
-    public C4.Modules.Graph.Domain.GraphSnapshot.GraphSnapshot CreateSnapshot()
+    public C4.Modules.Graph.Domain.GraphSnapshot.GraphSnapshot CreateSnapshot(string source = "discovery")
     {
-        var snapshot = C4.Modules.Graph.Domain.GraphSnapshot.GraphSnapshot.From(_nodes, _edges);
+        var snapshot = C4.Modules.Graph.Domain.GraphSnapshot.GraphSnapshot.From(_nodes, _edges, source);
         _snapshots.Add(snapshot);
         Raise(new GraphUpdatedEvent(ProjectId, snapshot.Id));
         return snapshot;

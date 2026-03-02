@@ -53,9 +53,16 @@ public sealed class ApplicationInsightsClient(
         return $"""
             requests
             | where timestamp > ago({minutes}m)
-            | summarize totalRequests = count(), failedRequests = countif(success == false) by cloud_RoleName
-            | extend score = round(1.0 - (todouble(failedRequests) / todouble(totalRequests)), 2)
-            | project cloud_RoleName, score
+            | summarize
+                totalRequests = count(),
+                failedRequests = countif(success == false),
+                p95LatencyMs = percentile(duration / 1ms, 95)
+              by cloud_RoleName
+            | where totalRequests > 0
+            | extend requestRate = todouble(totalRequests) / todouble({minutes})
+            | extend errorRate = todouble(failedRequests) / todouble(totalRequests)
+            | extend score = round(1.0 - errorRate, 2)
+            | project cloud_RoleName, score, requestRate, errorRate, p95LatencyMs
             """;
     }
 
@@ -81,6 +88,9 @@ public sealed class ApplicationInsightsClient(
 
             var roleIndex = Array.IndexOf(columnNames, "cloud_RoleName");
             var scoreIndex = Array.IndexOf(columnNames, "score");
+            var requestRateIndex = Array.IndexOf(columnNames, "requestRate");
+            var errorRateIndex = Array.IndexOf(columnNames, "errorRate");
+            var p95LatencyIndex = Array.IndexOf(columnNames, "p95LatencyMs");
 
             if (roleIndex < 0 || scoreIndex < 0)
                 continue;
@@ -89,13 +99,30 @@ public sealed class ApplicationInsightsClient(
             {
                 var cells = row.EnumerateArray().ToArray();
                 var service = cells[roleIndex].GetString() ?? string.Empty;
-                var score = cells[scoreIndex].GetDouble();
+                var score = TryReadDouble(cells[scoreIndex]) ?? 0;
+                var requestRate = requestRateIndex >= 0 ? TryReadDouble(cells[requestRateIndex]) : null;
+                var errorRate = errorRateIndex >= 0 ? TryReadDouble(cells[errorRateIndex]) : null;
+                var p95Latency = p95LatencyIndex >= 0 ? TryReadDouble(cells[p95LatencyIndex]) : null;
 
                 if (!string.IsNullOrWhiteSpace(service))
-                    results.Add(new ApplicationInsightsHealthRecord(service, score, now));
+                    results.Add(new ApplicationInsightsHealthRecord(service, score, now, requestRate, errorRate, p95Latency));
             }
         }
 
         return results;
+    }
+
+    private static double? TryReadDouble(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Null || value.ValueKind == JsonValueKind.Undefined)
+            return null;
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number))
+            return number;
+
+        if (value.ValueKind == JsonValueKind.String && double.TryParse(value.GetString(), out var parsed))
+            return parsed;
+
+        return null;
     }
 }

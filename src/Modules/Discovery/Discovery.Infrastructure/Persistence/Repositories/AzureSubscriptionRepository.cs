@@ -15,6 +15,9 @@ public sealed class AzureSubscriptionRepository(DiscoveryDbContext dbContext) : 
     public Task<AzureSubscription?> GetFirstAsync(CancellationToken cancellationToken) =>
         dbContext.Subscriptions.FirstOrDefaultAsync(cancellationToken);
 
+    public Task<AzureSubscription?> GetByIdAsync(Guid subscriptionId, CancellationToken cancellationToken)
+        => dbContext.Subscriptions.FirstOrDefaultAsync(s => s.Id == new AzureSubscriptionId(subscriptionId), cancellationToken);
+
     public Task DeleteAsync(AzureSubscription subscription, CancellationToken cancellationToken)
     {
         dbContext.Subscriptions.Remove(subscription);

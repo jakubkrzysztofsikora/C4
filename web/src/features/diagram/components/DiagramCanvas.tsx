@@ -4,7 +4,7 @@ import { SiPostgresql, SiRedis } from 'react-icons/si';
 import { LuActivity, LuBoxes, LuCloud, LuGlobe, LuHardDrive, LuNetwork, LuSquare } from 'react-icons/lu';
 import { DiagramData, DiagramNode } from '../types';
 import { GroupNode } from './GroupNode';
-import { healthColor, trafficColor } from '../utils';
+import { healthColor, riskColor, trafficColor } from '../utils';
 import '../diagram.css';
 
 type GroupNodeData = { id: string; label: string; nodeCount: number; x: number; y: number; width: number; height: number };
@@ -24,18 +24,62 @@ function iconFor(type: DiagramNode['serviceType']) {
   }
 }
 
-function ServiceNode({ data }: { data: { node: DiagramNode } }) {
-  const { node } = data;
+type OverlayMode = 'none' | 'threat' | 'cost' | 'security';
+
+function costColor(cost: number | undefined): string {
+  if (cost === undefined) return '#64748b';
+  if (cost >= 1.0) return '#b91c1c';
+  if (cost >= 0.35) return '#b45309';
+  return '#2e8f5e';
+}
+
+function resolveBorderColor(node: DiagramNode, overlayMode: OverlayMode, telemetryKnown: boolean): string {
+  if (overlayMode === 'threat') return riskColor(node.riskLevel);
+  if (overlayMode === 'cost') return costColor(node.hourlyCostUsd);
+  if (overlayMode === 'security') return node.drift ? '#b91c1c' : '#2e8f5e';
+  return telemetryKnown ? healthColor(node.health) : '#64748b';
+}
+
+function ServiceNode({ data }: { data: { node: DiagramNode; overlayMode: OverlayMode } }) {
+  const { node, overlayMode } = data;
+  const telemetryKnown = node.telemetryStatus === 'known';
+  const borderColor = resolveBorderColor(node, overlayMode, telemetryKnown);
+
+  const title = [
+    `Name: ${node.label}`,
+    `C4 level: ${node.level}`,
+    `Service type: ${node.serviceType}`,
+    `Environment: ${node.environment ?? 'unknown'}`,
+    `Domain: ${node.domain ?? 'General'}`,
+    `Classification: ${node.classificationSource ?? 'n/a'} (${(node.classificationConfidence ?? 0).toFixed(2)})`,
+    `Telemetry: ${node.telemetryStatus ?? 'unknown'}`,
+    typeof node.requestRate === 'number' ? `Request rate: ${node.requestRate.toFixed(2)} rps` : undefined,
+    typeof node.errorRate === 'number' ? `Error rate: ${(node.errorRate * 100).toFixed(2)}%` : undefined,
+    typeof node.p95LatencyMs === 'number' ? `p95 latency: ${node.p95LatencyMs.toFixed(0)}ms` : undefined,
+    typeof node.hourlyCostUsd === 'number' ? `Estimated cost: $${node.hourlyCostUsd.toFixed(2)}/hr` : undefined,
+    node.riskLevel !== undefined ? `Risk: ${node.riskLevel}` : undefined,
+    node.externalResourceId !== undefined ? `Resource: ${node.externalResourceId}` : undefined,
+  ].filter(Boolean).join('\n');
+
   return (
-    <div className={`service-node c4-${node.level.toLowerCase()}`} style={{ borderColor: healthColor(node.health) }}>
+    <div
+      className={`service-node c4-${node.level.toLowerCase()}${node.diffStatus === 'added' ? ' diff-added' : ''}${node.diffStatus === 'removed' ? ' diff-removed' : ''}`}
+      style={{ borderColor }}
+      title={title}
+    >
       <Handle type="target" position={Position.Left} />
       <div className="header">
         <div className="title">{iconFor(node.serviceType)} <span>{node.label}</span></div>
-        <span className={`badge ${node.health}`}>{node.health.toUpperCase()}</span>
+        <span className={`badge ${telemetryKnown ? node.health : 'unknown'}`}>{telemetryKnown ? node.health.toUpperCase() : 'UNKNOWN'}</span>
       </div>
-      <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <span className="subtle" style={{ fontSize: 12 }}>{node.level}</span>
         {node.drift ? <span className="badge drift">DRIFT</span> : null}
+        {node.riskLevel !== undefined ? (
+          <span className="badge" style={{ borderColor: riskColor(node.riskLevel), color: riskColor(node.riskLevel) }}>
+            RISK {node.riskLevel.toUpperCase()}
+          </span>
+        ) : null}
       </div>
       <Handle type="source" position={Position.Right} />
     </div>
@@ -44,7 +88,15 @@ function ServiceNode({ data }: { data: { node: DiagramNode } }) {
 
 const nodeTypes = { service: ServiceNode, group: GroupNode };
 
-export function DiagramCanvas({ data, groupNodes = [] }: { data: DiagramData; groupNodes?: GroupNodeData[] }) {
+export function DiagramCanvas({
+  data,
+  groupNodes = [],
+  overlayMode = 'none',
+}: {
+  data: DiagramData;
+  groupNodes?: GroupNodeData[];
+  overlayMode?: OverlayMode;
+}) {
   const groups: Node[] = groupNodes.map((g) => ({
     id: g.id,
     type: 'group',
@@ -57,19 +109,37 @@ export function DiagramCanvas({ data, groupNodes = [] }: { data: DiagramData; gr
     id: node.id,
     type: 'service',
     position: node.position ?? { x: 0, y: 0 },
-    data: { node },
+    data: { node, overlayMode },
   }));
 
   const nodes = [...groups, ...serviceNodes];
 
-  const edges: Edge[] = data.edges.map((edge) => ({
-    id: edge.id,
-    source: edge.from,
-    target: edge.to,
-    markerEnd: { type: MarkerType.ArrowClosed, color: trafficColor(edge.traffic) },
-    style: { strokeWidth: 2, stroke: trafficColor(edge.traffic) },
-    label: `${Math.round(edge.traffic * 100)}%`,
-  }));
+  const edges: Edge[] = data.edges.map((edge) => {
+    const stroke = trafficColor(edge.traffic, edge.trafficState);
+    const title = [
+      `Traffic state: ${edge.trafficState ?? 'unknown'}`,
+      `Traffic score: ${Math.round(edge.traffic * 100)}%`,
+      typeof edge.requestRate === 'number' ? `Request rate: ${edge.requestRate.toFixed(2)} rps` : undefined,
+      typeof edge.errorRate === 'number' ? `Error rate: ${(edge.errorRate * 100).toFixed(2)}%` : undefined,
+      typeof edge.p95LatencyMs === 'number' ? `p95 latency: ${edge.p95LatencyMs.toFixed(0)}ms` : undefined,
+      edge.protocol ? `Protocol: ${edge.protocol}` : undefined,
+    ].filter(Boolean).join(' | ');
+
+    return {
+      id: edge.id,
+      source: edge.from,
+      target: edge.to,
+      markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
+      style: {
+        strokeWidth: edge.diffStatus === 'added' || edge.diffStatus === 'removed' ? 3 : 2,
+        stroke,
+        strokeDasharray: edge.diffStatus === 'removed' ? '6 4' : undefined,
+      },
+      label: `${Math.round(edge.traffic * 100)}%`,
+      data: { title },
+      ariaLabel: title,
+    };
+  });
 
   return (
     <div className="diagram-stage">
@@ -86,7 +156,10 @@ export function DiagramCanvas({ data, groupNodes = [] }: { data: DiagramData; gr
         <MiniMap
           nodeColor={(n) => {
             const nodeData = n.data as { node?: DiagramNode };
-            return nodeData.node ? healthColor(nodeData.node.health) : 'var(--border)';
+            if (!nodeData.node) return 'var(--border)';
+            return nodeData.node.telemetryStatus === 'known'
+              ? healthColor(nodeData.node.health)
+              : '#64748b';
           }}
           nodeStrokeWidth={0}
           pannable

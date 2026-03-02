@@ -18,6 +18,10 @@ type GetSubscriptionResponse = {
   subscriptionId: string;
   externalSubscriptionId: string;
   displayName: string;
+  gitRepoUrl?: string;
+  gitBranch?: string;
+  gitRootPath?: string;
+  hasGitPatToken?: boolean;
 };
 
 type AzureAuthResponse = {
@@ -35,9 +39,32 @@ type ExchangeCodeResponse = {
   subscriptions: ReadonlyArray<AzureSubscriptionDto>;
 };
 
+type IacConfig = {
+  gitRepoUrl: string | undefined;
+  gitBranch: string | undefined;
+  gitRootPath: string | undefined;
+  hasGitPatToken: boolean;
+};
+
+type ConfigureIacRequest = {
+  gitRepoUrl?: string | undefined;
+  gitPatToken?: string | undefined;
+  gitBranch?: string | undefined;
+  gitRootPath?: string | undefined;
+};
+
+type ConfigureIacResponse = {
+  subscriptionId: string;
+  gitRepoUrl?: string;
+  gitBranch?: string;
+  gitRootPath?: string;
+  hasGitPatToken: boolean;
+};
+
 type SubscriptionState = {
   connectedSubscription: ConnectSubscriptionResponse | undefined;
   azureSubscriptions: ReadonlyArray<AzureSubscriptionDto>;
+  iacConfig: IacConfig | undefined;
   loading: boolean;
   error: string | undefined;
 };
@@ -60,6 +87,7 @@ export function useSubscriptions() {
   const [state, setState] = useState<SubscriptionState>({
     connectedSubscription: undefined,
     azureSubscriptions: [],
+    iacConfig: undefined,
     loading: true,
     error: undefined,
   });
@@ -76,6 +104,12 @@ export function useSubscriptions() {
       setState(prev => ({
         ...prev,
         connectedSubscription: data,
+        iacConfig: {
+          gitRepoUrl: data.gitRepoUrl,
+          gitBranch: data.gitBranch,
+          gitRootPath: data.gitRootPath,
+          hasGitPatToken: data.hasGitPatToken ?? false,
+        },
         loading: false,
       }));
     }
@@ -126,6 +160,12 @@ export function useSubscriptions() {
       setState(prev => ({
         ...prev,
         connectedSubscription: response,
+        iacConfig: {
+          gitRepoUrl,
+          gitBranch: undefined,
+          gitRootPath: undefined,
+          hasGitPatToken: (gitPatToken ?? '').trim().length > 0,
+        },
         loading: false,
         error: undefined,
       }));
@@ -137,11 +177,48 @@ export function useSubscriptions() {
     }
   }, []);
 
+  const configureIacRepository = useCallback(async (
+    subscriptionId: string,
+    gitRepoUrl?: string,
+    gitPatToken?: string,
+    gitBranch?: string,
+    gitRootPath?: string,
+  ) => {
+    setState(prev => ({ ...prev, loading: true, error: undefined }));
+    try {
+      const response = await postJson<ConfigureIacRequest, ConfigureIacResponse>(
+        `/api/discovery/subscriptions/${subscriptionId}/iac-config`,
+        {
+          gitRepoUrl,
+          gitPatToken,
+          gitBranch,
+          gitRootPath,
+        },
+      );
+
+      setState(prev => ({
+        ...prev,
+        iacConfig: {
+          gitRepoUrl: response.gitRepoUrl,
+          gitBranch: response.gitBranch,
+          gitRootPath: response.gitRootPath,
+          hasGitPatToken: response.hasGitPatToken,
+        },
+        loading: false,
+      }));
+      return response;
+    } catch (err: unknown) {
+      const message = extractErrorMessage(err);
+      setState(prev => ({ ...prev, loading: false, error: message }));
+      return undefined;
+    }
+  }, []);
+
   const disconnectSubscription = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: undefined }));
     try {
       await deleteJson('/api/discovery/subscriptions/current');
-      setState(prev => ({ ...prev, connectedSubscription: undefined, loading: false }));
+      setState(prev => ({ ...prev, connectedSubscription: undefined, iacConfig: undefined, loading: false }));
     } catch (err: unknown) {
       const message = extractErrorMessage(err);
       setState(prev => ({ ...prev, loading: false, error: message }));
@@ -151,11 +228,13 @@ export function useSubscriptions() {
   return {
     connectedSubscription: state.connectedSubscription,
     azureSubscriptions: state.azureSubscriptions,
+    iacConfig: state.iacConfig,
     loading: state.loading,
     error: state.error,
     startAzureAuth,
     exchangeAzureCode,
     connectSubscription,
+    configureIacRepository,
     disconnectSubscription,
   } as const;
 }

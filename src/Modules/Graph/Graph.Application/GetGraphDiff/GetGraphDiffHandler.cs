@@ -20,13 +20,18 @@ public sealed class GetGraphDiffHandler(
 
         var from = graph.Snapshots.FirstOrDefault(s => s.Id.Value == request.FromSnapshotId);
         var to = graph.Snapshots.FirstOrDefault(s => s.Id.Value == request.ToSnapshotId);
-        if (from is null || to is null) return Result<GetGraphDiffResponse>.Success(new([], []));
+        if (from is null || to is null) return Result<GetGraphDiffResponse>.Success(new([], [], [], []));
 
-        var fromSet = from.Nodes.Select(n => n.ExternalResourceId).ToHashSet();
-        var toSet = to.Nodes.Select(n => n.ExternalResourceId).ToHashSet();
+        var fromSet = from.Nodes.Select(n => n.ExternalResourceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var toSet = to.Nodes.Select(n => n.ExternalResourceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var added = toSet.Except(fromSet).ToArray();
         var removed = fromSet.Except(toSet).ToArray();
 
-        return Result<GetGraphDiffResponse>.Success(new GetGraphDiffResponse(added, removed));
+        var fromEdges = from.Edges.Select(e => $"{e.SourceNodeId}->{e.TargetNodeId}").ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var toEdges = to.Edges.Select(e => $"{e.SourceNodeId}->{e.TargetNodeId}").ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var addedEdges = toEdges.Except(fromEdges).ToArray();
+        var removedEdges = fromEdges.Except(toEdges).ToArray();
+
+        return Result<GetGraphDiffResponse>.Success(new GetGraphDiffResponse(added, removed, addedEdges, removedEdges));
     }
 }
