@@ -168,8 +168,6 @@ import { useSignalR } from './useSignalR';
 
 const DISCONNECTED_SIGNALR_STATE = {
   status: 'disconnected' as const,
-  lastConnectedAt: undefined,
-  lastMessageAt: undefined,
   lastError: undefined,
 };
 
