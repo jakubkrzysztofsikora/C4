@@ -43,8 +43,8 @@ public sealed class GetGraphHandlerEnrichmentTests
 
         result.IsSuccess.Should().BeTrue();
         var node = result.Value.Nodes.Single();
-        node.Health.Should().Be("green");
-        node.HealthScore.Should().Be(1.0);
+        node.Health.Should().Be("unknown");
+        node.HealthScore.Should().Be(0);
     }
 
     [Fact]
@@ -68,8 +68,8 @@ public sealed class GetGraphHandlerEnrichmentTests
         var defaultNode = result.Value.Nodes.Single(n => n.Name == "OrderDb");
         enrichedNode.Health.Should().Be("red");
         enrichedNode.HealthScore.Should().Be(0.4);
-        defaultNode.Health.Should().Be("green");
-        defaultNode.HealthScore.Should().Be(1.0);
+        defaultNode.Health.Should().Be("unknown");
+        defaultNode.HealthScore.Should().Be(0);
     }
 
     [Fact]
