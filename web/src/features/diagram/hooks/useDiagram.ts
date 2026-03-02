@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { getJson, ApiError } from '../../../shared/api/client';
+import { getJson, postJson, ApiError } from '../../../shared/api/client';
 import { DiagramData, DiagramNode, DiagramEdge, ServiceType, RiskLevel } from '../types';
 import { useSignalR } from './useSignalR';
 
@@ -57,6 +57,12 @@ type GraphDiffResponse = {
   removedNodes: ReadonlyArray<string>;
   addedEdges: ReadonlyArray<string>;
   removedEdges: ReadonlyArray<string>;
+};
+
+type CreateGraphSnapshotResponse = {
+  snapshotId: string;
+  createdAtUtc: string;
+  source: string;
 };
 
 type NodeHealthEntry = {
@@ -405,6 +411,16 @@ export function useDiagram(projectId?: string) {
     };
   }, [projectId, signalR.status, selectedSnapshotId, fetchGraph]);
 
+  const captureSnapshot = useCallback(async (source = 'manual'): Promise<void> => {
+    if (projectId === undefined) return;
+
+    await postJson<{ source: string }, CreateGraphSnapshotResponse>(
+      `/api/projects/${projectId}/graph/snapshots`,
+      { source },
+    );
+    await fetchSnapshots(projectId);
+  }, [projectId, fetchSnapshots]);
+
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -688,6 +704,7 @@ export function useDiagram(projectId?: string) {
     threatView,
     setThreatView,
     overlaySummary,
+    captureSnapshot,
     refetch: fetchGraph,
   };
 }

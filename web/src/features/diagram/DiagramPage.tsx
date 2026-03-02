@@ -80,6 +80,7 @@ export function DiagramPage() {
     threatView,
     setThreatView,
     overlaySummary,
+    captureSnapshot,
   } = useDiagram(projectId);
   const { layoutedData, groupNodes, isLayouting } = useElkLayout(data);
   const { zoom, setZoom } = usePanZoom();
@@ -159,6 +160,15 @@ export function DiagramPage() {
       addToast(`Exported ${format.toUpperCase()} diagram`, 'success');
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Export failed', 'error');
+    }
+  }
+
+  async function handleCaptureSnapshot() {
+    try {
+      await captureSnapshot('manual');
+      addToast('Snapshot captured', 'success');
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Snapshot capture failed', 'error');
     }
   }
 
@@ -339,6 +349,11 @@ export function DiagramPage() {
                   : 'Live data (current graph)'}
             </small>
           </label>
+          <div>
+            <button className="btn btn-sm" type="button" onClick={() => void handleCaptureSnapshot()}>
+              Capture Snapshot
+            </button>
+          </div>
 
           <label className="checkbox-label">
             <input type="checkbox" checked={diffEnabled} onChange={(e) => setDiffEnabled(e.target.checked)} />
