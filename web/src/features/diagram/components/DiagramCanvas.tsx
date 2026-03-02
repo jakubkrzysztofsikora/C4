@@ -49,6 +49,7 @@ function ServiceNode({ data }: { data: { node: DiagramNode; overlayMode: Overlay
     `Name: ${node.label}`,
     `C4 level: ${node.level}`,
     `Service type: ${node.serviceType}`,
+    `Technology: ${node.technology ?? 'unknown'}`,
     `Environment: ${node.environment ?? 'unknown'}`,
     `Domain: ${node.domain ?? 'General'}`,
     `Classification: ${node.classificationSource ?? 'n/a'} (${(node.classificationConfidence ?? 0).toFixed(2)})`,

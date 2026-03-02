@@ -15,7 +15,10 @@ public sealed class GetGraphDiffHandler(
         var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
         if (!authCheck.IsSuccess) return Result<GetGraphDiffResponse>.Failure(authCheck.Error);
 
-        var graph = await repository.GetByProjectIdAsync(request.ProjectId, cancellationToken);
+        if (request.FromSnapshotId == request.ToSnapshotId)
+            return Result<GetGraphDiffResponse>.Success(new([], [], [], []));
+
+        var graph = await repository.GetByProjectIdReadOnlyAsync(request.ProjectId, cancellationToken);
         if (graph is null) return Result<GetGraphDiffResponse>.Failure(GraphErrors.GraphNotFound(request.ProjectId));
 
         var from = graph.Snapshots.FirstOrDefault(s => s.Id.Value == request.FromSnapshotId);

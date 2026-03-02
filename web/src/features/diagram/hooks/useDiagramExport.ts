@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { fetchBlob, ApiError } from '../../../shared/api/client';
+import { postBlob, ApiError } from '../../../shared/api/client';
 import { DiagramData } from '../types';
 import { healthColor, trafficColor } from '../utils';
 
@@ -145,6 +145,23 @@ function isApiError(value: unknown): value is ApiError {
   return value instanceof ApiError;
 }
 
+function serializeDiagramForBackendExport(data: DiagramData): string {
+  return JSON.stringify({
+    nodes: data.nodes.map((node) => ({
+      id: node.id,
+      label: node.label,
+      level: node.level,
+      x: node.position?.x ?? 0,
+      y: node.position?.y ?? 0,
+    })),
+    edges: data.edges.map((edge) => ({
+      id: edge.id,
+      from: edge.from,
+      to: edge.to,
+    })),
+  });
+}
+
 function downloadLocalSvg(svg: string) {
   const blob = new Blob([svg], { type: 'image/svg+xml' });
   downloadBlob(blob, 'architecture-diagram.svg');
@@ -184,8 +201,9 @@ export function useDiagramExport(data: DiagramData, projectId?: string) {
     async (format: 'svg' | 'png' | 'pdf' | 'graphml') => {
       if (projectId !== undefined) {
         try {
-          const blob = await fetchBlob(
+          const blob = await postBlob<{ diagramJson: string }>(
             `/api/projects/${projectId}/diagram/export?format=${format}`,
+            { diagramJson: serializeDiagramForBackendExport(data) },
           );
           downloadBlob(blob, `architecture-diagram.${format}`);
           return;

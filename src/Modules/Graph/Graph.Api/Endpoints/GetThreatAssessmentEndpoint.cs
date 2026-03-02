@@ -8,9 +8,9 @@ public sealed class GetThreatAssessmentEndpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/projects/{projectId:guid}/threats", async (Guid projectId, ISender sender, CancellationToken ct) =>
+        app.MapGet("/api/projects/{projectId:guid}/threats", async (Guid projectId, string? view, ISender sender, CancellationToken ct) =>
         {
-            var result = await sender.Send(new GetThreatAssessmentQuery(projectId), ct);
+            var result = await sender.Send(new GetThreatAssessmentQuery(projectId, view), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
         })
         .RequireAuthorization();

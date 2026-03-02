@@ -42,6 +42,30 @@ public sealed class TelemetryQueryService(
         return merged.Values.ToArray();
     }
 
+    public async Task<IReadOnlyCollection<ServiceDependencySummary>> GetDependencySummariesAsync(
+        Guid projectId,
+        CancellationToken cancellationToken)
+    {
+        var appInsightsRecords = await applicationInsightsClient.QueryDependencyHealthAsync(
+            projectId,
+            TimeSpan.FromMinutes(30),
+            cancellationToken);
+
+        return appInsightsRecords
+            .Where(record =>
+                !string.IsNullOrWhiteSpace(record.SourceService)
+                && !string.IsNullOrWhiteSpace(record.TargetService))
+            .Select(record => new ServiceDependencySummary(
+                record.SourceService,
+                record.TargetService,
+                record.RequestRate,
+                record.ErrorRate,
+                record.P95LatencyMs,
+                record.Protocol,
+                TelemetryStatus: "known"))
+            .ToArray();
+    }
+
     private static string ResolveStatus(double score)
     {
         var normalized = Math.Clamp(score, 0, 1);

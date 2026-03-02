@@ -17,6 +17,7 @@ const DEFAULTS = {
   includeInfrastructure: 'false',
   hideOrphans: false,
   serviceType: 'all',
+  technology: 'all',
   domain: 'all',
   risk: 'all',
   tag: '',
@@ -46,6 +47,9 @@ export function DiagramPage() {
     serviceTypeFilter,
     setServiceTypeFilter,
     serviceTypes,
+    technologyFilter,
+    setTechnologyFilter,
+    technologies,
     domainFilter,
     setDomainFilter,
     domains,
@@ -73,6 +77,8 @@ export function DiagramPage() {
     lastRefreshAt,
     overlayMode,
     setOverlayMode,
+    threatView,
+    setThreatView,
     overlaySummary,
   } = useDiagram(projectId);
   const { layoutedData, groupNodes, isLayouting } = useElkLayout(data);
@@ -89,6 +95,7 @@ export function DiagramPage() {
     if (includeInfrastructure !== DEFAULTS.includeInfrastructure) chips.push(`Infra: ${includeInfrastructure}`);
     if (hideOrphans !== DEFAULTS.hideOrphans) chips.push('Hide unconnected');
     if (serviceTypeFilter !== DEFAULTS.serviceType) chips.push(`Type: ${serviceTypeFilter}`);
+    if (technologyFilter !== DEFAULTS.technology) chips.push(`Tech: ${technologyFilter}`);
     if (domainFilter !== DEFAULTS.domain) chips.push(`Team: ${domainFilter}`);
     if (riskFilter !== DEFAULTS.risk) chips.push(`Risk: ${riskFilter}`);
     if (tagFilter !== DEFAULTS.tag) chips.push(`Tag: ${tagFilter}`);
@@ -103,6 +110,7 @@ export function DiagramPage() {
     includeInfrastructure,
     hideOrphans,
     serviceTypeFilter,
+    technologyFilter,
     domainFilter,
     riskFilter,
     tagFilter,
@@ -134,6 +142,7 @@ export function DiagramPage() {
     setIncludeInfrastructure('false');
     setHideOrphans(false);
     setServiceTypeFilter('all');
+    setTechnologyFilter('all');
     setDomainFilter('all');
     setRiskFilter('all');
     setTagFilter('');
@@ -141,6 +150,7 @@ export function DiagramPage() {
     setDriftOnly(false);
     setTimelineIndex(-1);
     setDiffEnabled(false);
+    setThreatView('general');
   }
 
   async function handleExport(format: 'svg' | 'png' | 'pdf' | 'graphml') {
@@ -268,6 +278,15 @@ export function DiagramPage() {
             </select>
           </label>
           <label>
+            Technology
+            <select value={technologyFilter} onChange={(e) => setTechnologyFilter(e.target.value)}>
+              <option value="all">All technologies</option>
+              {technologies.map((technology) => (
+                <option key={technology} value={technology}>{technology}</option>
+              ))}
+            </select>
+          </label>
+          <label>
             Team / Domain
             <select value={domainFilter} onChange={(e) => setDomainFilter(e.target.value)}>
               <option value="all">All domains</option>
@@ -359,6 +378,21 @@ export function DiagramPage() {
               <option value="cost">Cost</option>
             </select>
           </label>
+          {overlayMode === 'threat' && (
+            <label>
+              Threat View
+              <select
+                value={threatView}
+                onChange={(e) => setThreatView(e.target.value as 'general' | 'api-attack-surface' | 'exit-points' | 'data-exposure' | 'blast-radius')}
+              >
+                <option value="general">General</option>
+                <option value="api-attack-surface">API attack surface</option>
+                <option value="exit-points">Exit points</option>
+                <option value="data-exposure">Data exposure</option>
+                <option value="blast-radius">Blast radius</option>
+              </select>
+            </label>
+          )}
 
           <label>
             Zoom

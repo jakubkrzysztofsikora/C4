@@ -50,6 +50,9 @@ public sealed class SyncApplicationInsightsTelemetryHandlerTests
                 new ApplicationInsightsHealthRecord("api", 0.84, DateTime.UtcNow),
                 new ApplicationInsightsHealthRecord("worker", 0.41, DateTime.UtcNow)
             ]);
+
+        public Task<IReadOnlyCollection<ApplicationInsightsDependencyRecord>> QueryDependencyHealthAsync(Guid projectId, TimeSpan lookbackWindow, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<ApplicationInsightsDependencyRecord>>([]);
     }
 
     private sealed class FakeTelemetryRepository : ITelemetryRepository

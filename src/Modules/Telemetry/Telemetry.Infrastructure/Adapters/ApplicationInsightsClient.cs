@@ -18,33 +18,21 @@ public sealed class ApplicationInsightsClient(
         TimeSpan lookbackWindow,
         CancellationToken cancellationToken)
     {
-        var config = await configStore.GetAsync(projectId, cancellationToken);
-        var appId = config?.AppId ?? configuration["ApplicationInsights:AppId"] ?? string.Empty;
-        var apiKey = GlobalApiKey;
+        var responseJson = await ExecuteKqlQueryAsync(projectId, BuildHealthQuery(lookbackWindow), cancellationToken);
+        if (responseJson is null) return [];
 
-        if (string.IsNullOrWhiteSpace(appId) || string.IsNullOrWhiteSpace(apiKey))
-        {
-            logger.LogWarning("Application Insights not configured for project {ProjectId} (missing AppId or ApiKey); returning empty results", projectId);
-            return [];
-        }
+        return ParseHealthQueryResponse(responseJson);
+    }
 
-        var kql = BuildHealthQuery(lookbackWindow);
-        var encodedQuery = Uri.EscapeDataString(kql);
-        var url = $"https://api.applicationinsights.io/v1/apps/{appId}/query?query={encodedQuery}";
+    public async Task<IReadOnlyCollection<ApplicationInsightsDependencyRecord>> QueryDependencyHealthAsync(
+        Guid projectId,
+        TimeSpan lookbackWindow,
+        CancellationToken cancellationToken)
+    {
+        var responseJson = await ExecuteKqlQueryAsync(projectId, BuildDependencyQuery(lookbackWindow), cancellationToken);
+        if (responseJson is null) return [];
 
-        using var client = httpClientFactory.CreateClient();
-        client.DefaultRequestHeaders.Add("x-api-key", apiKey);
-
-        var response = await client.GetAsync(url, cancellationToken);
-        var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            logger.LogError("Application Insights query failed ({StatusCode}): {Response}", response.StatusCode, responseJson);
-            return [];
-        }
-
-        return ParseQueryResponse(responseJson);
+        return ParseDependencyQueryResponse(responseJson);
     }
 
     private static string BuildHealthQuery(TimeSpan lookbackWindow)
@@ -66,7 +54,60 @@ public sealed class ApplicationInsightsClient(
             """;
     }
 
-    private static IReadOnlyCollection<ApplicationInsightsHealthRecord> ParseQueryResponse(string responseJson)
+    private static string BuildDependencyQuery(TimeSpan lookbackWindow)
+    {
+        var minutes = (int)lookbackWindow.TotalMinutes;
+        return $"""
+            dependencies
+            | where timestamp > ago({minutes}m)
+            | summarize
+                totalCalls = count(),
+                failedCalls = countif(success == false),
+                p95LatencyMs = percentile(duration / 1ms, 95)
+              by cloud_RoleName, target, type
+            | where totalCalls > 0
+            | extend requestRate = todouble(totalCalls) / todouble({minutes})
+            | extend errorRate = todouble(failedCalls) / todouble(totalCalls)
+            | project cloud_RoleName, target, type, requestRate, errorRate, p95LatencyMs
+            """;
+    }
+
+    private async Task<string?> ExecuteKqlQueryAsync(
+        Guid projectId,
+        string kql,
+        CancellationToken cancellationToken)
+    {
+        var config = await configStore.GetAsync(projectId, cancellationToken);
+        var appId = config?.AppId ?? configuration["ApplicationInsights:AppId"] ?? string.Empty;
+        var apiKey = GlobalApiKey;
+
+        if (string.IsNullOrWhiteSpace(appId) || string.IsNullOrWhiteSpace(apiKey))
+        {
+            logger.LogWarning(
+                "Application Insights not configured for project {ProjectId} (missing AppId or ApiKey); returning empty results",
+                projectId);
+            return null;
+        }
+
+        var encodedQuery = Uri.EscapeDataString(kql);
+        var url = $"https://api.applicationinsights.io/v1/apps/{appId}/query?query={encodedQuery}";
+
+        using var client = httpClientFactory.CreateClient();
+        client.DefaultRequestHeaders.Add("x-api-key", apiKey);
+
+        var response = await client.GetAsync(url, cancellationToken);
+        var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError("Application Insights query failed ({StatusCode}): {Response}", response.StatusCode, responseJson);
+            return null;
+        }
+
+        return responseJson;
+    }
+
+    private static IReadOnlyCollection<ApplicationInsightsHealthRecord> ParseHealthQueryResponse(string responseJson)
     {
         using var document = JsonDocument.Parse(responseJson);
         var root = document.RootElement;
@@ -86,11 +127,11 @@ public sealed class ApplicationInsightsClient(
                 .Select(c => c.GetProperty("name").GetString() ?? string.Empty)
                 .ToArray();
 
-            var roleIndex = Array.IndexOf(columnNames, "cloud_RoleName");
-            var scoreIndex = Array.IndexOf(columnNames, "score");
-            var requestRateIndex = Array.IndexOf(columnNames, "requestRate");
-            var errorRateIndex = Array.IndexOf(columnNames, "errorRate");
-            var p95LatencyIndex = Array.IndexOf(columnNames, "p95LatencyMs");
+            var roleIndex = FindColumnIndex(columnNames, "cloud_RoleName");
+            var scoreIndex = FindColumnIndex(columnNames, "score");
+            var requestRateIndex = FindColumnIndex(columnNames, "requestRate");
+            var errorRateIndex = FindColumnIndex(columnNames, "errorRate");
+            var p95LatencyIndex = FindColumnIndex(columnNames, "p95LatencyMs");
 
             if (roleIndex < 0 || scoreIndex < 0)
                 continue;
@@ -98,11 +139,11 @@ public sealed class ApplicationInsightsClient(
             foreach (var row in rows.EnumerateArray())
             {
                 var cells = row.EnumerateArray().ToArray();
-                var service = cells[roleIndex].GetString() ?? string.Empty;
-                var score = TryReadDouble(cells[scoreIndex]) ?? 0;
-                var requestRate = requestRateIndex >= 0 ? TryReadDouble(cells[requestRateIndex]) : null;
-                var errorRate = errorRateIndex >= 0 ? TryReadDouble(cells[errorRateIndex]) : null;
-                var p95Latency = p95LatencyIndex >= 0 ? TryReadDouble(cells[p95LatencyIndex]) : null;
+                var service = TryReadString(cells, roleIndex) ?? string.Empty;
+                var score = TryReadDouble(cells, scoreIndex) ?? 0;
+                var requestRate = TryReadDouble(cells, requestRateIndex);
+                var errorRate = TryReadDouble(cells, errorRateIndex);
+                var p95Latency = TryReadDouble(cells, p95LatencyIndex);
 
                 if (!string.IsNullOrWhiteSpace(service))
                     results.Add(new ApplicationInsightsHealthRecord(service, score, now, requestRate, errorRate, p95Latency));
@@ -110,6 +151,82 @@ public sealed class ApplicationInsightsClient(
         }
 
         return results;
+    }
+
+    private static IReadOnlyCollection<ApplicationInsightsDependencyRecord> ParseDependencyQueryResponse(string responseJson)
+    {
+        using var document = JsonDocument.Parse(responseJson);
+        var root = document.RootElement;
+
+        if (!root.TryGetProperty("tables", out var tables))
+            return [];
+
+        var results = new List<ApplicationInsightsDependencyRecord>();
+        var now = DateTime.UtcNow;
+
+        foreach (var table in tables.EnumerateArray())
+        {
+            if (!table.TryGetProperty("columns", out var columns) || !table.TryGetProperty("rows", out var rows))
+                continue;
+
+            var columnNames = columns.EnumerateArray()
+                .Select(c => c.GetProperty("name").GetString() ?? string.Empty)
+                .ToArray();
+
+            var roleIndex = FindColumnIndex(columnNames, "cloud_RoleName");
+            var targetIndex = FindColumnIndex(columnNames, "target");
+            var typeIndex = FindColumnIndex(columnNames, "type");
+            var requestRateIndex = FindColumnIndex(columnNames, "requestRate");
+            var errorRateIndex = FindColumnIndex(columnNames, "errorRate");
+            var p95LatencyIndex = FindColumnIndex(columnNames, "p95LatencyMs");
+
+            if (roleIndex < 0 || targetIndex < 0 || requestRateIndex < 0 || errorRateIndex < 0 || p95LatencyIndex < 0)
+                continue;
+
+            foreach (var row in rows.EnumerateArray())
+            {
+                var cells = row.EnumerateArray().ToArray();
+                var sourceService = TryReadString(cells, roleIndex) ?? string.Empty;
+                var targetService = TryReadString(cells, targetIndex) ?? string.Empty;
+                var protocol = TryReadString(cells, typeIndex);
+
+                var requestRate = TryReadDouble(cells, requestRateIndex) ?? 0;
+                var errorRate = TryReadDouble(cells, errorRateIndex) ?? 0;
+                var p95LatencyMs = TryReadDouble(cells, p95LatencyIndex) ?? 0;
+
+                if (string.IsNullOrWhiteSpace(sourceService) || string.IsNullOrWhiteSpace(targetService))
+                    continue;
+
+                results.Add(new ApplicationInsightsDependencyRecord(
+                    sourceService,
+                    targetService,
+                    requestRate,
+                    errorRate,
+                    p95LatencyMs,
+                    now,
+                    protocol));
+            }
+        }
+
+        return results;
+    }
+
+    private static int FindColumnIndex(string[] columnNames, string expectedName)
+        => Array.FindIndex(columnNames, name => name.Equals(expectedName, StringComparison.OrdinalIgnoreCase));
+
+    private static string? TryReadString(JsonElement[] cells, int index)
+    {
+        if (index < 0 || index >= cells.Length) return null;
+        var value = cells[index];
+        if (value.ValueKind == JsonValueKind.Null || value.ValueKind == JsonValueKind.Undefined) return null;
+        if (value.ValueKind == JsonValueKind.String) return value.GetString();
+        return value.ToString();
+    }
+
+    private static double? TryReadDouble(JsonElement[] cells, int index)
+    {
+        if (index < 0 || index >= cells.Length) return null;
+        return TryReadDouble(cells[index]);
     }
 
     private static double? TryReadDouble(JsonElement value)

@@ -16,4 +16,20 @@ public sealed class FakeApplicationInsightsClient : IApplicationInsightsClient
 
         return Task.FromResult<IReadOnlyCollection<ApplicationInsightsHealthRecord>>(records);
     }
+
+    public Task<IReadOnlyCollection<ApplicationInsightsDependencyRecord>> QueryDependencyHealthAsync(
+        Guid projectId,
+        TimeSpan lookbackWindow,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        ApplicationInsightsDependencyRecord[] records =
+        [
+            new("frontend", "api", 110, 0.01, 230, now.AddMinutes(-5), "HTTP"),
+            new("api", "worker", 42, 0.04, 880, now.AddMinutes(-4), "HTTP"),
+            new("api", "database", 55, 0.02, 640, now.AddMinutes(-3), "SQL")
+        ];
+
+        return Task.FromResult<IReadOnlyCollection<ApplicationInsightsDependencyRecord>>(records);
+    }
 }

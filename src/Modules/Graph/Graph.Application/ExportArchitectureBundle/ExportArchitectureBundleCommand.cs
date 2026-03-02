@@ -39,6 +39,7 @@ public sealed class ExportArchitectureBundleHandler(
             request.ProjectId,
             string.Join(", ", graph.Nodes.Select(n => $"{n.Name} ({n.Level})")),
             string.Join(", ", graph.Edges.Select(e => $"{e.SourceNodeId} -> {e.TargetNodeId}")),
+            view: null,
             cancellationToken);
 
         string architectureMarkdown = BuildArchitectureMarkdown(request.ProjectId, analysis);

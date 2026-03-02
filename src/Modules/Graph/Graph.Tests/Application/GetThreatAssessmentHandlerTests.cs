@@ -50,7 +50,7 @@ public sealed class GetThreatAssessmentHandlerTests
 
         await handler.Handle(new GetThreatAssessmentQuery(graph.ProjectId), CancellationToken.None);
 
-        capturingDetector.CapturedNodesDescription.Should().Contain("Gateway (Container)");
+        capturingDetector.CapturedNodesDescription.Should().Contain("Gateway (Container");
         capturingDetector.CapturedEdgesDescription.Should().Contain("->");
     }
 
@@ -113,7 +113,7 @@ public sealed class GetThreatAssessmentHandlerTests
 
     private sealed class FakeThreatDetector(ThreatDetectionResult result) : IThreatDetector
     {
-        public Task<ThreatDetectionResult> DetectThreatsAsync(Guid projectId, string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
+        public Task<ThreatDetectionResult> DetectThreatsAsync(Guid projectId, string nodesDescription, string edgesDescription, string? view, CancellationToken cancellationToken)
             => Task.FromResult(result);
     }
 
@@ -122,7 +122,7 @@ public sealed class GetThreatAssessmentHandlerTests
         public string CapturedNodesDescription { get; private set; } = string.Empty;
         public string CapturedEdgesDescription { get; private set; } = string.Empty;
 
-        public Task<ThreatDetectionResult> DetectThreatsAsync(Guid projectId, string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
+        public Task<ThreatDetectionResult> DetectThreatsAsync(Guid projectId, string nodesDescription, string edgesDescription, string? view, CancellationToken cancellationToken)
         {
             CapturedNodesDescription = nodesDescription;
             CapturedEdgesDescription = edgesDescription;

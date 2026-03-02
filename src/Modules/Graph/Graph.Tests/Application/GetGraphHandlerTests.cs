@@ -117,6 +117,9 @@ public sealed class GetGraphHandlerTests
     {
         public Task<IReadOnlyCollection<ServiceHealthSummary>> GetServiceHealthSummariesAsync(Guid projectId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyCollection<ServiceHealthSummary>>([]);
+
+        public Task<IReadOnlyCollection<ServiceDependencySummary>> GetDependencySummariesAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<ServiceDependencySummary>>([]);
     }
 
     private sealed class EmptyDriftQueryService : IDriftQueryService

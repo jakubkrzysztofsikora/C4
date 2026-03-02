@@ -19,8 +19,16 @@ public sealed class DetectDriftHandler(
         var actual = await discoveredResourceRepository.GetBySubscriptionAsync(request.SubscriptionId, cancellationToken);
 
         var desiredSet = desired.Select(d => d.ResourceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> desiredNameHints = desired
+            .Select(d => ExtractTerminalResourceName(d.ResourceId))
+            .Where(name => name is not null)
+            .Select(name => name!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var driftItems = actual
-            .Select(resource => new DriftItem(resource.ResourceId, desiredSet.Contains(resource.ResourceId) ? "InSync" : "Drifted"))
+            .Select(resource => new DriftItem(
+                resource.ResourceId,
+                IsInSync(resource.ResourceId, desiredSet, desiredNameHints) ? "InSync" : "Drifted"))
             .ToArray();
 
         await driftResultRepository.SaveAsync(request.SubscriptionId, driftItems, cancellationToken);
@@ -34,5 +42,29 @@ public sealed class DetectDriftHandler(
 
         var drifted = driftItems.Count(item => item.Status == "Drifted");
         return Result<DetectDriftResponse>.Success(new DetectDriftResponse(request.SubscriptionId, drifted, driftItems.Length - drifted));
+    }
+
+    private static bool IsInSync(
+        string actualResourceId,
+        IReadOnlySet<string> desiredSet,
+        IReadOnlySet<string> desiredNameHints)
+    {
+        if (desiredSet.Contains(actualResourceId))
+            return true;
+
+        var actualName = ExtractTerminalResourceName(actualResourceId);
+        if (actualName is null)
+            return false;
+
+        return desiredNameHints.Contains(actualName);
+    }
+
+    private static string? ExtractTerminalResourceName(string resourceId)
+    {
+        if (string.IsNullOrWhiteSpace(resourceId)) return null;
+        var segments = resourceId
+            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Length == 0) return null;
+        return segments[^1];
     }
 }

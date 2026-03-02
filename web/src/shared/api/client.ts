@@ -102,3 +102,19 @@ export async function fetchBlob(path: string): Promise<Blob> {
   }
   return response.blob();
 }
+
+export async function postBlob<TRequest>(path: string, body: TRequest): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    handleUnauthorized(response.status);
+    const bodyText = await response.text().catch(() => 'Unknown error');
+    throw new ApiError(response.status, `Request failed with status ${response.status}: ${bodyText}`);
+  }
+
+  return response.blob();
+}

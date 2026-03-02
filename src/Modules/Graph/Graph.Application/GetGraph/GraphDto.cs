@@ -18,6 +18,7 @@ public sealed record GraphNodeDto(
     bool Drift = false,
     string Environment = "unknown",
     string ServiceType = "external",
+    string Technology = "unknown",
     string ResourceGroup = "",
     string Domain = "General",
     bool IsInfrastructure = false,

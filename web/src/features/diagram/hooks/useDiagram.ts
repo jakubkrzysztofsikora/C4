@@ -20,6 +20,7 @@ type GraphNodeDto = {
   drift?: boolean;
   environment?: string;
   serviceType?: string;
+  technology?: string;
   resourceGroup?: string;
   domain?: string;
   isInfrastructure?: boolean;
@@ -64,6 +65,7 @@ type NodeHealthEntry = {
 };
 
 type OverlayMode = 'none' | 'threat' | 'cost' | 'security';
+type ThreatView = 'general' | 'api-attack-surface' | 'exit-points' | 'data-exposure' | 'blast-radius';
 
 type OverlaySummary = {
   title: string;
@@ -132,6 +134,7 @@ function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
     ...(isValidRiskLevel(node.riskLevel) ? { riskLevel: node.riskLevel } : {}),
     ...(typeof node.hourlyCostUsd === 'number' ? { hourlyCostUsd: node.hourlyCostUsd } : {}),
     serviceType: isValidServiceType(node.serviceType) ? node.serviceType : inferServiceType(node.name),
+    ...(node.technology ? { technology: node.technology } : {}),
     environment: node.environment ?? 'unknown',
     ...(node.resourceGroup ? { resourceGroup: node.resourceGroup } : {}),
     ...(node.domain ? { domain: node.domain } : {}),
@@ -225,6 +228,7 @@ export function useDiagram(projectId?: string) {
   });
   const [hideOrphans, setHideOrphans] = useState(() => getInitialBoolParam('hideOrphans', false));
   const [serviceTypeFilter, setServiceTypeFilter] = useState(() => getInitialParam('serviceType', 'all'));
+  const [technologyFilter, setTechnologyFilter] = useState(() => getInitialParam('technology', 'all'));
   const [domainFilter, setDomainFilter] = useState(() => getInitialParam('domain', 'all'));
   const [riskFilter, setRiskFilter] = useState(() => getInitialParam('risk', 'all'));
   const [tagFilter, setTagFilter] = useState(() => getInitialParam('tag', ''));
@@ -241,6 +245,13 @@ export function useDiagram(projectId?: string) {
   const [diffResult, setDiffResult] = useState<GraphDiffResponse | undefined>(undefined);
 
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
+  const [threatView, setThreatView] = useState<ThreatView>(() => {
+    const initial = getInitialParam('threatView', 'general');
+    if (initial === 'api-attack-surface' || initial === 'exit-points' || initial === 'data-exposure' || initial === 'blast-radius') {
+      return initial;
+    }
+    return 'general';
+  });
   const [overlaySummary, setOverlaySummary] = useState<OverlaySummary | undefined>(undefined);
 
   const [apiData, setApiData] = useState<DiagramData | undefined>(undefined);
@@ -404,12 +415,14 @@ export function useDiagram(projectId?: string) {
       params.set('includeInfrastructure', includeInfrastructure);
       params.set('hideOrphans', hideOrphans ? 'true' : 'false');
       params.set('serviceType', serviceTypeFilter);
+      params.set('technology', technologyFilter);
       params.set('domain', domainFilter);
       params.set('risk', riskFilter);
       params.set('driftOnly', driftOnly ? 'true' : 'false');
       if (search.length > 0) params.set('search', search); else params.delete('search');
       if (tagFilter.length > 0) params.set('tag', tagFilter); else params.delete('tag');
       if (selectedSnapshotId !== undefined) params.set('snapshotId', selectedSnapshotId); else params.delete('snapshotId');
+      params.set('threatView', threatView);
       const next = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState(null, '', next);
     } catch {
@@ -423,12 +436,14 @@ export function useDiagram(projectId?: string) {
     includeInfrastructure,
     hideOrphans,
     serviceTypeFilter,
+    technologyFilter,
     domainFilter,
     riskFilter,
     driftOnly,
     search,
     tagFilter,
     selectedSnapshotId,
+    threatView,
   ]);
 
   const sourceData = apiData ?? EMPTY_DIAGRAM_DATA;
@@ -448,6 +463,11 @@ export function useDiagram(projectId?: string) {
     return Array.from(set).sort();
   }, [sourceData]);
 
+  const technologies = useMemo(() => {
+    const set = new Set(sourceData.nodes.map((n) => n.technology).filter((value): value is string => value !== undefined && value.length > 0));
+    return Array.from(set).sort();
+  }, [sourceData]);
+
   const riskLevels = useMemo(() => {
     const set = new Set(sourceData.nodes.map((n) => n.riskLevel).filter((v): v is RiskLevel => v !== undefined));
     return Array.from(set).sort();
@@ -461,6 +481,7 @@ export function useDiagram(projectId?: string) {
 
     const filtered = levelFiltered.filter((n) => {
       if (serviceTypeFilter !== 'all' && n.serviceType !== serviceTypeFilter) return false;
+      if (technologyFilter !== 'all' && (n.technology ?? 'unknown') !== technologyFilter) return false;
       if (domainFilter !== 'all' && (n.domain ?? 'General') !== domainFilter) return false;
       if (riskFilter !== 'all' && n.riskLevel !== riskFilter) return false;
       if (driftOnly && n.drift !== true) return false;
@@ -532,6 +553,7 @@ export function useDiagram(projectId?: string) {
     level,
     search,
     serviceTypeFilter,
+    technologyFilter,
     domainFilter,
     riskFilter,
     tagFilter,
@@ -573,7 +595,9 @@ export function useDiagram(projectId?: string) {
     const load = async () => {
       try {
         if (overlayMode === 'threat') {
-          const threat = await getJson<{ riskLevel: string; threats: Array<{ component: string; threatType: string; severity: string; mitigation: string }> }>(`/api/projects/${projectId}/threats`);
+          const threat = await getJson<{ riskLevel: string; threats: Array<{ component: string; threatType: string; severity: string; mitigation: string }> }>(
+            `/api/projects/${projectId}/threats?view=${encodeURIComponent(threatView)}`,
+          );
           setOverlaySummary({
             title: `Threat Overlay (${threat.riskLevel})`,
             lines: (threat.threats ?? []).slice(0, 20).map((t) => `${t.component}: ${t.threatType} [${t.severity}]`),
@@ -604,7 +628,7 @@ export function useDiagram(projectId?: string) {
     };
 
     void load();
-  }, [projectId, overlayMode]);
+  }, [projectId, overlayMode, threatView]);
 
   const isStale = useMemo(() => {
     if (signalR.status === 'connected') return false;
@@ -631,6 +655,9 @@ export function useDiagram(projectId?: string) {
     serviceTypeFilter,
     setServiceTypeFilter,
     serviceTypes,
+    technologyFilter,
+    setTechnologyFilter,
+    technologies,
     domainFilter,
     setDomainFilter,
     domains,
@@ -658,6 +685,8 @@ export function useDiagram(projectId?: string) {
     lastRefreshAt,
     overlayMode,
     setOverlayMode,
+    threatView,
+    setThreatView,
     overlaySummary,
     refetch: fetchGraph,
   };

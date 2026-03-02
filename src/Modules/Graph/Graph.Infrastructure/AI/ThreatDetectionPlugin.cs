@@ -13,10 +13,11 @@ public sealed class ThreatDetectionPlugin(
     IProjectArchitectureContextProvider? architectureContextProvider = null,
     ILogger<ThreatDetectionPlugin>? logger = null) : IThreatDetector
 {
-    public async Task<ThreatDetectionResult> DetectThreatsAsync(Guid projectId, string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
+    public async Task<ThreatDetectionResult> DetectThreatsAsync(Guid projectId, string nodesDescription, string edgesDescription, string? view, CancellationToken cancellationToken)
     {
         var contextSection = await BuildArchitectureContextSectionAsync(projectId, cancellationToken);
         var learningsSection = await BuildLearningsSectionAsync(projectId, cancellationToken);
+        var normalizedView = string.IsNullOrWhiteSpace(view) ? "general" : view.Trim();
 
         var prompt = $$"""
             Analyze the following architecture for security threats using STRIDE methodology.
@@ -25,6 +26,7 @@ public sealed class ThreatDetectionPlugin(
             Edges: {{edgesDescription}}
             {{contextSection}}
             {{learningsSection}}
+            Focus view: {{normalizedView}} (options include: general, api-attack-surface, exit-points, data-exposure, blast-radius).
             For each threat found, provide:
             - Component affected
             - Threat type (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege)

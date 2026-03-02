@@ -16,7 +16,10 @@ public sealed class ExportDiagramHandler(
         var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
         if (!authCheck.IsSuccess) return Result<ExportDiagramResponse>.Failure(authCheck.Error);
 
-        string? diagram = await readModel.GetDiagramJsonAsync(request.ProjectId, cancellationToken);
+        string? diagram = request.DiagramJson;
+        if (string.IsNullOrWhiteSpace(diagram))
+            diagram = await readModel.GetDiagramJsonAsync(request.ProjectId, cancellationToken);
+
         if (diagram is null) return Result<ExportDiagramResponse>.Failure(VisualizationErrors.DiagramNotFound(request.ProjectId));
 
         string format = request.Format.ToLowerInvariant();

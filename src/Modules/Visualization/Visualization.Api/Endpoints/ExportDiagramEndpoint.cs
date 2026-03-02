@@ -14,5 +14,19 @@ public sealed class ExportDiagramEndpoint : IEndpoint
             return result.IsSuccess ? Results.File(result.Value.Content, result.Value.ContentType) : Results.BadRequest(result.Error);
         })
         .RequireAuthorization();
+
+        app.MapPost("/api/projects/{projectId:guid}/diagram/export", async (
+            Guid projectId,
+            string format,
+            ExportDiagramRequest request,
+            ISender sender,
+            CancellationToken ct) =>
+        {
+            var result = await sender.Send(new ExportDiagramCommand(projectId, format, request.DiagramJson), ct);
+            return result.IsSuccess ? Results.File(result.Value.Content, result.Value.ContentType) : Results.BadRequest(result.Error);
+        })
+        .RequireAuthorization();
     }
+
+    public sealed record ExportDiagramRequest(string? DiagramJson);
 }

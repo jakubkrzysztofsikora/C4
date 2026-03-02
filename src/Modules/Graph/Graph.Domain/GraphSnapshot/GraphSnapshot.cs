@@ -9,11 +9,16 @@ public sealed record GraphSnapshot(
     string NodesJson,
     string EdgesJson)
 {
+    private static readonly JsonSerializerOptions SnapshotJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     public IReadOnlyCollection<GraphSnapshotNode> Nodes
-        => JsonSerializer.Deserialize<GraphSnapshotNode[]>(NodesJson) ?? [];
+        => JsonSerializer.Deserialize<GraphSnapshotNode[]>(NodesJson, SnapshotJsonOptions) ?? [];
 
     public IReadOnlyCollection<GraphSnapshotEdge> Edges
-        => JsonSerializer.Deserialize<GraphSnapshotEdge[]>(EdgesJson) ?? [];
+        => JsonSerializer.Deserialize<GraphSnapshotEdge[]>(EdgesJson, SnapshotJsonOptions) ?? [];
 
     public static GraphSnapshot From(
         IReadOnlyCollection<C4.Modules.Graph.Domain.GraphNode.GraphNode> nodes,

@@ -18,6 +18,7 @@ export type DiagramNode = {
   hourlyCostUsd?: number;
   drift?: boolean;
   serviceType: ServiceType;
+  technology?: string;
   position?: { x: number; y: number };
   parentId?: string;
   environment?: string;

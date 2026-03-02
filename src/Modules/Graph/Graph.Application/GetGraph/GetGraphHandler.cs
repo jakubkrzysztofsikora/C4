@@ -1,4 +1,5 @@
 using C4.Modules.Graph.Application.Ports;
+using C4.Modules.Discovery.Domain.Resources;
 using C4.Modules.Graph.Domain;
 using C4.Modules.Graph.Domain.Errors;
 using C4.Shared.Kernel;
@@ -25,6 +26,8 @@ public sealed class GetGraphHandler(
         var snapshot = request.SnapshotId.HasValue
             ? graph.Snapshots.FirstOrDefault(s => s.Id.Value == request.SnapshotId.Value)
             : null;
+        if (snapshot is not null && IsEmptySnapshot(snapshot))
+            snapshot = null;
 
         var sourceNodes = BuildWorkingNodes(graph, snapshot);
         var sourceEdges = BuildWorkingEdges(graph, snapshot);
@@ -70,10 +73,17 @@ public sealed class GetGraphHandler(
         var resourceIds = filteredList.Select(n => n.Node.ExternalResourceId).ToArray();
 
         var healthTask = telemetryQueryService.GetServiceHealthSummariesAsync(request.ProjectId, cancellationToken);
+        var dependencyTask = telemetryQueryService.GetDependencySummariesAsync(request.ProjectId, cancellationToken);
         var driftTask = driftQueryService.GetDriftedResourceIdsAsync(resourceIds, cancellationToken);
-        await Task.WhenAll(healthTask, driftTask);
+        await Task.WhenAll(healthTask, driftTask, dependencyTask);
 
         var healthByService = healthTask.Result.ToDictionary(s => s.Service, s => s, StringComparer.OrdinalIgnoreCase);
+        var healthByNormalized = healthTask.Result
+            .GroupBy(s => NormalizeTelemetryIdentifier(s.Service))
+            .Where(g => g.Key.Length > 0)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.RequestRate ?? 0).First(), StringComparer.Ordinal);
+        var dependencyHealthByNormalized = BuildDerivedHealthFromDependencies(dependencyTask.Result);
+        var edgeTelemetry = BuildEdgeTelemetryIndex(dependencyTask.Result);
         var driftedSet = new HashSet<string>(driftTask.Result, StringComparer.OrdinalIgnoreCase);
 
         var nodeDtos = filteredList.Select(entry =>
@@ -89,7 +99,13 @@ public sealed class GetGraphHandler(
                 _ => entry.Domain
             };
 
-            if (healthByService.TryGetValue(node.Name, out var summary))
+            if (TryResolveNodeHealth(
+                    node.Name,
+                    node.ExternalResourceId,
+                    healthByService,
+                    healthByNormalized,
+                    dependencyHealthByNormalized,
+                    out var summary))
             {
                 return new GraphNodeDto(
                     node.Id,
@@ -108,6 +124,7 @@ public sealed class GetGraphHandler(
                     isDrifted,
                     entry.Environment,
                     node.ServiceType,
+                    node.Technology,
                     entry.ResourceGroup,
                     entry.Domain,
                     node.IsInfrastructure,
@@ -133,6 +150,7 @@ public sealed class GetGraphHandler(
                 isDrifted,
                 entry.Environment,
                 node.ServiceType,
+                node.Technology,
                 entry.ResourceGroup,
                 entry.Domain,
                 node.IsInfrastructure,
@@ -148,11 +166,13 @@ public sealed class GetGraphHandler(
             var sourceNode = nodeById.GetValueOrDefault(e.SourceNodeId);
             var targetNode = nodeById.GetValueOrDefault(e.TargetNodeId);
 
-            var requestRate = AverageNullable(sourceNode?.RequestRate, targetNode?.RequestRate);
-            var errorRate = AverageNullable(sourceNode?.ErrorRate, targetNode?.ErrorRate);
-            var p95LatencyMs = AverageNullable(sourceNode?.P95LatencyMs, targetNode?.P95LatencyMs);
+            var dependencySummary = TryResolveEdgeTelemetry(sourceNode, targetNode, edgeTelemetry);
+            var requestRate = dependencySummary?.RequestRate ?? AverageNullable(sourceNode?.RequestRate, targetNode?.RequestRate);
+            var errorRate = dependencySummary?.ErrorRate ?? AverageNullable(sourceNode?.ErrorRate, targetNode?.ErrorRate);
+            var p95LatencyMs = dependencySummary?.P95LatencyMs ?? AverageNullable(sourceNode?.P95LatencyMs, targetNode?.P95LatencyMs);
             var traffic = ResolveTrafficScore(requestRate, errorRate, p95LatencyMs);
             var trafficState = ResolveTrafficState(requestRate, errorRate, p95LatencyMs);
+            var protocol = dependencySummary?.Protocol ?? e.Protocol;
 
             return new GraphEdgeDto(
                 e.Id,
@@ -163,7 +183,7 @@ public sealed class GetGraphHandler(
                 requestRate,
                 errorRate,
                 p95LatencyMs,
-                e.Protocol);
+                protocol);
         }).ToArray();
 
         return Result<GraphDto>.Success(new GraphDto(request.ProjectId, nodeDtos, edgeDtos));
@@ -274,6 +294,9 @@ public sealed class GetGraphHandler(
         return includeInfrastructure.Equals("true", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsEmptySnapshot(Domain.GraphSnapshot.GraphSnapshot snapshot)
+        => snapshot.Nodes.Count == 0 && snapshot.Edges.Count == 0;
+
     private static WorkingNode[] BuildWorkingNodes(
         Domain.ArchitectureGraph.ArchitectureGraph graph,
         Domain.GraphSnapshot.GraphSnapshot? snapshot)
@@ -287,7 +310,8 @@ public sealed class GetGraphHandler(
                     node.Name,
                     ParseResolvedLevel(node.Level),
                     node.ParentId,
-                    string.IsNullOrWhiteSpace(node.ServiceType) ? "external" : node.ServiceType,
+                    ResolveSnapshotServiceType(node.ServiceType, node.ExternalResourceId),
+                    ResolveTechnologyHint(node.ExternalResourceId, node.ServiceType),
                     string.IsNullOrWhiteSpace(node.Domain) ? "General" : node.Domain,
                     node.IsInfrastructure,
                     string.IsNullOrWhiteSpace(node.ClassificationSource) ? "snapshot" : node.ClassificationSource,
@@ -310,6 +334,7 @@ public sealed class GetGraphHandler(
                     effectiveLevel,
                     node.ParentId?.Value,
                     resolved.ServiceType,
+                    ResolveTechnologyHint(node.ExternalResourceId, node.Properties.Technology),
                     domain,
                     resolved.IsInfrastructure,
                     resolved.ClassificationSource,
@@ -388,6 +413,217 @@ public sealed class GetGraphHandler(
         return lower[start..end];
     }
 
+    private static string ResolveSnapshotServiceType(string? snapshotServiceType, string externalResourceId)
+    {
+        if (!string.IsNullOrWhiteSpace(snapshotServiceType)
+            && !snapshotServiceType.Equals("n/a", StringComparison.OrdinalIgnoreCase)
+            && !snapshotServiceType.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return snapshotServiceType;
+        }
+
+        var armType = GraphClassificationResolver.ExtractArmType(externalResourceId);
+        var classification = AzureResourceTypeCatalog.Classify(armType);
+        return classification.ServiceType;
+    }
+
+    private static string ResolveTechnologyHint(string externalResourceId, string? explicitTechnology)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitTechnology) && !explicitTechnology.Equals("n/a", StringComparison.OrdinalIgnoreCase))
+            return explicitTechnology;
+
+        var lower = externalResourceId.ToLowerInvariant();
+        if (lower.Contains("/providers/microsoft.web/sites/", StringComparison.Ordinal)) return "Azure App Service";
+        if (lower.Contains("/providers/microsoft.sql/", StringComparison.Ordinal)) return "Azure SQL";
+        if (lower.Contains("/providers/microsoft.storage/", StringComparison.Ordinal)) return "Azure Storage";
+        if (lower.Contains("/providers/microsoft.cache/redis/", StringComparison.Ordinal)) return "Azure Cache for Redis";
+        if (lower.Contains("/providers/microsoft.insights/components/", StringComparison.Ordinal)) return "Application Insights";
+        if (lower.Contains("/providers/microsoft.servicebus/", StringComparison.Ordinal)) return "Azure Service Bus";
+        if (lower.Contains("/providers/microsoft.network/", StringComparison.Ordinal)) return "Azure Networking";
+
+        var providerIndex = lower.IndexOf("/providers/", StringComparison.Ordinal);
+        if (providerIndex >= 0)
+        {
+            var start = providerIndex + "/providers/".Length;
+            var end = lower.IndexOf('/', start);
+            if (end > start)
+            {
+                var provider = lower[start..end];
+                return provider.Replace(".", " ", StringComparison.Ordinal).ToUpperInvariant();
+            }
+        }
+
+        return "unknown";
+    }
+
+    private static EdgeTelemetryIndex BuildEdgeTelemetryIndex(IReadOnlyCollection<ServiceDependencySummary> dependencies)
+    {
+        Dictionary<string, ServiceDependencySummary> exact = new(StringComparer.Ordinal);
+        Dictionary<string, List<ServiceDependencySummary>> bySource = new(StringComparer.Ordinal);
+
+        foreach (var item in dependencies.Where(d => d.TelemetryStatus.Equals("known", StringComparison.OrdinalIgnoreCase)))
+        {
+            var source = NormalizeTelemetryIdentifier(item.SourceService);
+            var target = NormalizeTelemetryIdentifier(item.TargetService);
+            if (source.Length == 0 || target.Length == 0) continue;
+
+            var key = $"{source}->{target}";
+            if (!exact.TryGetValue(key, out var existing))
+            {
+                exact[key] = item;
+            }
+            else
+            {
+                exact[key] = new ServiceDependencySummary(
+                    item.SourceService,
+                    item.TargetService,
+                    (existing.RequestRate + item.RequestRate) / 2.0,
+                    (existing.ErrorRate + item.ErrorRate) / 2.0,
+                    (existing.P95LatencyMs + item.P95LatencyMs) / 2.0,
+                    item.Protocol ?? existing.Protocol,
+                    item.TelemetryStatus);
+            }
+
+            if (!bySource.TryGetValue(source, out var list))
+            {
+                list = [];
+                bySource[source] = list;
+            }
+            list.Add(item);
+        }
+
+        return new EdgeTelemetryIndex(exact, bySource);
+    }
+
+    private static bool TryResolveNodeHealth(
+        string nodeName,
+        string externalResourceId,
+        IReadOnlyDictionary<string, ServiceHealthSummary> byName,
+        IReadOnlyDictionary<string, ServiceHealthSummary> byNormalized,
+        IReadOnlyDictionary<string, ServiceHealthSummary> dependencyDerivedByNormalized,
+        out ServiceHealthSummary summary)
+    {
+        if (byName.TryGetValue(nodeName, out summary!))
+            return true;
+
+        foreach (var candidate in BuildTelemetryCandidates(nodeName, externalResourceId))
+        {
+            if (byNormalized.TryGetValue(candidate, out summary!))
+                return true;
+            if (dependencyDerivedByNormalized.TryGetValue(candidate, out summary!))
+                return true;
+        }
+
+        summary = default!;
+        return false;
+    }
+
+    private static IReadOnlyDictionary<string, ServiceHealthSummary> BuildDerivedHealthFromDependencies(
+        IReadOnlyCollection<ServiceDependencySummary> dependencies)
+    {
+        return dependencies
+            .Where(d => d.TelemetryStatus.Equals("known", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(d => new[]
+            {
+                new { Key = NormalizeTelemetryIdentifier(d.SourceService), d.RequestRate, d.ErrorRate, d.P95LatencyMs },
+                new { Key = NormalizeTelemetryIdentifier(d.TargetService), d.RequestRate, d.ErrorRate, d.P95LatencyMs }
+            })
+            .Where(x => x.Key.Length > 0)
+            .GroupBy(x => x.Key)
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var requestRate = g.Average(x => x.RequestRate);
+                    var errorRate = g.Average(x => x.ErrorRate);
+                    var p95LatencyMs = g.Average(x => x.P95LatencyMs);
+                    var score = Math.Clamp(1.0 - errorRate, 0, 1);
+
+                    return new ServiceHealthSummary(
+                        g.Key,
+                        score,
+                        ResolveTrafficState(requestRate, errorRate, p95LatencyMs),
+                        RequestRate: requestRate,
+                        ErrorRate: errorRate,
+                        P95LatencyMs: p95LatencyMs,
+                        TelemetryStatus: "known");
+                },
+                StringComparer.Ordinal);
+    }
+
+    private static ServiceDependencySummary? TryResolveEdgeTelemetry(
+        GraphNodeDto? sourceNode,
+        GraphNodeDto? targetNode,
+        EdgeTelemetryIndex index)
+    {
+        if (sourceNode is null || targetNode is null)
+            return null;
+
+        var sourceCandidates = BuildTelemetryCandidates(sourceNode.Name, sourceNode.ExternalResourceId);
+        var targetCandidates = BuildTelemetryCandidates(targetNode.Name, targetNode.ExternalResourceId);
+
+        foreach (var source in sourceCandidates)
+        {
+            foreach (var target in targetCandidates)
+            {
+                var key = $"{source}->{target}";
+                if (index.Exact.TryGetValue(key, out var match))
+                    return match;
+            }
+        }
+
+        foreach (var source in sourceCandidates)
+        {
+            if (!index.BySource.TryGetValue(source, out var list))
+                continue;
+
+            foreach (var candidate in list)
+            {
+                var normalizedTarget = NormalizeTelemetryIdentifier(candidate.TargetService);
+                if (targetCandidates.Any(t =>
+                        normalizedTarget.Contains(t, StringComparison.Ordinal)
+                        || t.Contains(normalizedTarget, StringComparison.Ordinal)))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static IReadOnlyCollection<string> BuildTelemetryCandidates(string name, string externalResourceId)
+    {
+        HashSet<string> values = [NormalizeTelemetryIdentifier(name)];
+
+        var slashParts = externalResourceId
+            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var part in slashParts.TakeLast(4))
+        {
+            var normalized = NormalizeTelemetryIdentifier(part);
+            if (normalized.Length > 0)
+                values.Add(normalized);
+        }
+
+        return values.Where(v => v.Length > 0).ToArray();
+    }
+
+    private static string NormalizeTelemetryIdentifier(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+
+        var lower = value.Trim().ToLowerInvariant();
+        Span<char> buffer = stackalloc char[lower.Length];
+        var index = 0;
+        foreach (var ch in lower)
+        {
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9'))
+                buffer[index++] = ch;
+        }
+
+        return new string(buffer[..index]);
+    }
+
     private sealed record WorkingNode(
         Guid Id,
         string ExternalResourceId,
@@ -395,6 +631,7 @@ public sealed class GetGraphHandler(
         C4Level Level,
         Guid? ParentId,
         string ServiceType,
+        string Technology,
         string Domain,
         bool IsInfrastructure,
         string ClassificationSource,
@@ -408,4 +645,8 @@ public sealed class GetGraphHandler(
         C4Level EffectiveLevel,
         string Environment,
         string Domain);
+
+    private sealed record EdgeTelemetryIndex(
+        IReadOnlyDictionary<string, ServiceDependencySummary> Exact,
+        IReadOnlyDictionary<string, List<ServiceDependencySummary>> BySource);
 }
