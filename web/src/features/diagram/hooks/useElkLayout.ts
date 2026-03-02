@@ -142,7 +142,12 @@ export function useElkLayout(data: DiagramData): LayoutResult {
 
   useEffect(() => {
     if (data.nodes.length === 0) {
-      setResult({ layoutedData: data, groupNodes: [], isLayouting: false });
+      setResult((prev) => {
+        if (!prev.isLayouting && prev.groupNodes.length === 0 && prev.layoutedData.nodes.length === 0 && prev.layoutedData.edges.length === 0) {
+          return prev;
+        }
+        return { layoutedData: data, groupNodes: [], isLayouting: false };
+      });
       return;
     }
 

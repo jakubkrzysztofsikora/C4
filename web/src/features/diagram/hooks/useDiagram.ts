@@ -205,6 +205,8 @@ function isVisibleAtLevel(node: DiagramNode, level: 'Context' | 'Container' | 'C
   return node.level === 'Component';
 }
 
+const EMPTY_DIAGRAM_DATA: DiagramData = { nodes: [], edges: [] };
+
 export function useDiagram(projectId?: string) {
   const [level, setLevel] = useState<'Context' | 'Container' | 'Component'>(() => {
     const initial = getInitialParam('level', 'Container');
@@ -407,7 +409,7 @@ export function useDiagram(projectId?: string) {
     selectedSnapshotId,
   ]);
 
-  const sourceData = apiData ?? { nodes: [], edges: [] };
+  const sourceData = apiData ?? EMPTY_DIAGRAM_DATA;
 
   const environments = useMemo(() => {
     const envSet = new Set(sourceData.nodes.map((n) => n.environment ?? 'unknown'));
