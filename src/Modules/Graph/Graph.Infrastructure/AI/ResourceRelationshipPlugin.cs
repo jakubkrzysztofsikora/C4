@@ -6,7 +6,11 @@ using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Graph.Infrastructure.AI;
 
-public sealed class ResourceRelationshipPlugin(Kernel kernel, ILearningProvider? learningProvider = null, ILogger<ResourceRelationshipPlugin>? logger = null) : IResourceRelationshipInferrer
+public sealed class ResourceRelationshipPlugin(
+    Kernel kernel,
+    ILearningProvider? learningProvider = null,
+    IProjectArchitectureContextProvider? architectureContextProvider = null,
+    ILogger<ResourceRelationshipPlugin>? logger = null) : IResourceRelationshipInferrer
 {
     private const double MinimumConfidenceThreshold = 0.6;
     private volatile bool _aiAvailable = true;
@@ -20,6 +24,7 @@ public sealed class ResourceRelationshipPlugin(Kernel kernel, ILearningProvider?
         if (!_aiAvailable)
             return [];
 
+        var contextSection = await BuildArchitectureContextSectionAsync(projectId, cancellationToken);
         var learningsSection = await BuildLearningsSectionAsync(projectId, cancellationToken);
         var allRelationships = new List<InferredRelationship>();
 
@@ -31,7 +36,7 @@ public sealed class ResourceRelationshipPlugin(Kernel kernel, ILearningProvider?
         {
             try
             {
-                var prompt = BuildPrompt(group.Key, group.ToArray(), existingEdgeDescriptions, learningsSection);
+                var prompt = BuildPrompt(group.Key, group.ToArray(), existingEdgeDescriptions, contextSection, learningsSection);
                 var result = await kernel.InvokePromptAsync(prompt, cancellationToken: cancellationToken);
                 var text = result.GetValue<string>() ?? string.Empty;
                 allRelationships.AddRange(ParseRelationships(text));
@@ -53,6 +58,7 @@ public sealed class ResourceRelationshipPlugin(Kernel kernel, ILearningProvider?
         string rgName,
         ResourceForInference[] groupResources,
         IReadOnlyCollection<string> existingEdgeDescriptions,
+        string contextSection,
         string learningsSection)
     {
         var resourceLines = new StringBuilder();
@@ -70,6 +76,7 @@ public sealed class ResourceRelationshipPlugin(Kernel kernel, ILearningProvider?
             {resourceLines}
             Already known connections:
             {edgeLines}
+            {contextSection}
             {learningsSection}
             For each additional relationship you identify, respond with one line per relationship in this exact format:
             SOURCE_ID: <resource id>
@@ -82,6 +89,44 @@ public sealed class ResourceRelationshipPlugin(Kernel kernel, ILearningProvider?
             - App Insights monitors app services
             - Functions connect to queues and storage
             """;
+    }
+
+    private async Task<string> BuildArchitectureContextSectionAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        if (architectureContextProvider is null)
+            return string.Empty;
+
+        try
+        {
+            var context = await architectureContextProvider.GetActiveContextAsync(projectId, cancellationToken);
+            if (context is null)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.AppendLine();
+            sb.AppendLine("Approved project architecture context:");
+            sb.AppendLine($"- Description: {context.ProjectDescription}");
+            sb.AppendLine($"- Boundaries: {context.SystemBoundaries}");
+            sb.AppendLine($"- Core domains: {context.CoreDomains}");
+            sb.AppendLine($"- External dependencies: {context.ExternalDependencies}");
+            sb.AppendLine($"- Data sensitivity: {context.DataSensitivity}");
+            if (context.ApprovedQuestions.Count > 0)
+            {
+                sb.AppendLine("Approved clarifying Q&A:");
+                foreach (var qa in context.ApprovedQuestions.Take(10))
+                {
+                    sb.AppendLine($"- Q: {qa.Question}");
+                    sb.AppendLine($"  A: {qa.Answer}");
+                }
+            }
+
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to fetch project architecture context");
+            return string.Empty;
+        }
     }
 
     private async Task<string> BuildLearningsSectionAsync(Guid projectId, CancellationToken cancellationToken)

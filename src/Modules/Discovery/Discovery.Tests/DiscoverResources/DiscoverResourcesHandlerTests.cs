@@ -58,7 +58,7 @@ public sealed class DiscoverResourcesHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ResourcesWithIncludeInDiagramFalse_ExcludedFromIntegrationEvent()
+    public async Task Handle_ResourcesWithIncludeInDiagramFalse_PreservedInIntegrationEvent()
     {
         var repo = new FakeDiscoveredResourceRepository();
         var classifier = new FakeResourceClassifier();
@@ -70,7 +70,9 @@ public sealed class DiscoverResourcesHandlerTests
         await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
 
         mediator.PublishedEvent.Should().NotBeNull();
-        mediator.PublishedEvent!.Resources.Should().OnlyContain(r => r.IncludeInDiagram);
+        mediator.PublishedEvent!.Resources.Should().HaveCount(2);
+        mediator.PublishedEvent.Resources.Should().ContainSingle(r => r.IncludeInDiagram == false);
+        mediator.PublishedEvent.Resources.Single(r => !r.IncludeInDiagram).IsInfrastructure.Should().BeTrue();
     }
 
     [Fact]

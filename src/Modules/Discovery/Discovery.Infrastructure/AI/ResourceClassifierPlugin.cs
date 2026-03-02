@@ -7,7 +7,11 @@ using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Discovery.Infrastructure.AI;
 
-public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? learningProvider = null, ILogger<ResourceClassifierPlugin>? logger = null) : IResourceClassifier
+public sealed class ResourceClassifierPlugin(
+    Kernel kernel,
+    ILearningProvider? learningProvider = null,
+    IProjectArchitectureContextProvider? architectureContextProvider = null,
+    ILogger<ResourceClassifierPlugin>? logger = null) : IResourceClassifier
 {
     private volatile bool _aiAvailable = true;
 
@@ -20,12 +24,14 @@ public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? l
         if (!_aiAvailable)
             return catalogResult;
 
+        var contextSection = await BuildArchitectureContextSectionAsync(projectId, cancellationToken);
         var learningsSection = await BuildLearningsSectionAsync(projectId, cancellationToken);
 
         var prompt = $"""
             Classify the following Azure resource for an architecture diagram.
             Resource Type: {armResourceType}
             Resource Name: {resourceName}
+            {contextSection}
             {learningsSection}
             Respond in this exact format:
             FRIENDLY_NAME: <short friendly name>
@@ -49,6 +55,44 @@ public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? l
         catch
         {
             return catalogResult;
+        }
+    }
+
+    private async Task<string> BuildArchitectureContextSectionAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        if (architectureContextProvider is null)
+            return string.Empty;
+
+        try
+        {
+            var context = await architectureContextProvider.GetActiveContextAsync(projectId, cancellationToken);
+            if (context is null)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.AppendLine();
+            sb.AppendLine("Approved project architecture context:");
+            sb.AppendLine($"- Description: {context.ProjectDescription}");
+            sb.AppendLine($"- Boundaries: {context.SystemBoundaries}");
+            sb.AppendLine($"- Core domains: {context.CoreDomains}");
+            sb.AppendLine($"- External dependencies: {context.ExternalDependencies}");
+            sb.AppendLine($"- Data sensitivity: {context.DataSensitivity}");
+            if (context.ApprovedQuestions.Count > 0)
+            {
+                sb.AppendLine("Approved clarifying Q&A:");
+                foreach (var qa in context.ApprovedQuestions.Take(10))
+                {
+                    sb.AppendLine($"- Q: {qa.Question}");
+                    sb.AppendLine($"  A: {qa.Answer}");
+                }
+            }
+
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to fetch project architecture context");
+            return string.Empty;
         }
     }
 
@@ -112,6 +156,30 @@ public sealed class ResourceClassifierPlugin(Kernel kernel, ILearningProvider? l
         if (!validServiceTypes.Contains(serviceType) || !validC4Levels.Contains(c4Level))
             return null;
 
-        return new AzureResourceClassification(friendlyName, serviceType, c4Level, include);
+        bool isInfrastructure = InferInfrastructure(armResourceType, serviceType, c4Level, include);
+        return new AzureResourceClassification(
+            friendlyName,
+            serviceType,
+            c4Level,
+            include,
+            ClassificationSource: "ai",
+            Confidence: 0.82,
+            IsInfrastructure: isInfrastructure);
+    }
+
+    private static bool InferInfrastructure(string armResourceType, string serviceType, string c4Level, bool include)
+    {
+        if (!include)
+            return true;
+
+        if (serviceType.Equals("boundary", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (serviceType.Equals("external", StringComparison.OrdinalIgnoreCase)
+            && c4Level.Equals("Component", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return armResourceType.Contains("/network", StringComparison.OrdinalIgnoreCase)
+            && c4Level.Equals("Component", StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -17,7 +17,9 @@ public sealed class DiscoverResourcesHandler(
     IMediator mediator,
     [FromKeyedServices("Discovery")] IUnitOfWork unitOfWork,
     ILogger<DiscoverResourcesHandler> logger,
-    IProjectAuthorizationService authorizationService) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
+    IProjectAuthorizationService authorizationService,
+    IArchitectureContextRepository? architectureContextRepository = null,
+    IArchitectureQuestionGenerator? architectureQuestionGenerator = null) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
     private const string DefaultUserIntent = "Discover Azure resources for connected subscription";
 
@@ -59,7 +61,9 @@ public sealed class DiscoverResourcesHandler(
 
         var rawRecords = descriptors.Select(d => new RawDiscoveryRecord(
             d.ResourceId, d.ResourceType, d.Name, MapSourceProvenance(d.Source), d.ParentResourceId,
-            RawPropertyReferences: d.PropertyReferences)).ToArray();
+            RawPropertyReferences: d.PropertyReferences,
+            ResourceGroup: d.ResourceGroup,
+            Tags: d.Tags)).ToArray();
         var preparedRecords = discoveryDataPreparer.Prepare(rawRecords);
 
         int dataQualityFailures = 0;
@@ -87,31 +91,41 @@ public sealed class DiscoverResourcesHandler(
         await discoveredResourceRepository.UpsertRangeAsync(request.SubscriptionId, resources, cancellationToken);
 
         var diagramItems = classifiedPairs
-            .Where(p => p.Resource.Classification?.IncludeInDiagram ?? true)
             .Select(p =>
             {
                 IReadOnlyCollection<ResourceRelationship>? relationships = p.Record.Relationships.Count > 0
                     ? p.Record.Relationships.Select(r => new ResourceRelationship(r.RelationshipType, r.RelatedStableResourceId)).ToArray()
                     : null;
+                var classification = p.Resource.Classification;
                 return new DiscoveredResourceEventItem(
                     p.Resource.ResourceId,
                     p.Resource.ResourceType,
                     p.Resource.Name,
-                    p.Resource.Classification?.FriendlyName,
-                    p.Resource.Classification?.ServiceType,
-                    p.Resource.Classification?.C4Level,
-                    p.Resource.Classification?.IncludeInDiagram ?? true,
+                    classification?.FriendlyName,
+                    classification?.ServiceType,
+                    classification?.C4Level,
+                    classification?.IncludeInDiagram ?? true,
                     p.Record.RawParentResourceId,
                     p.Record.SourceProvenance,
                     p.Record.ConfidenceScore,
                     relationships,
-                    p.Record.StableResourceId);
+                    p.Record.StableResourceId,
+                    Domain: DeriveDomain(p.Record.Name, p.Record.ResourceGroup, p.Record.Tags),
+                    IsInfrastructure: classification?.IsInfrastructure ?? false,
+                    ClassificationSource: classification?.ClassificationSource ?? "fallback",
+                    ClassificationConfidence: classification?.Confidence ?? 0.6,
+                    ResourceGroup: p.Record.ResourceGroup,
+                    Tags: p.Record.Tags);
             })
             .ToArray();
 
         await mediator.Publish(new ResourcesDiscoveredIntegrationEvent(request.ProjectId, diagramItems), cancellationToken);
 
         await PublishAppInsightsEventIfDiscoveredAsync(request.ProjectId, descriptors, cancellationToken);
+        await EnsureArchitectureContextQuestionsAsync(
+            request.ProjectId,
+            resources.Count,
+            cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -154,4 +168,119 @@ public sealed class DiscoverResourcesHandler(
         DiscoverySourceKind.RemoteMcp => "mcp",
         _ => source.ToString().ToLowerInvariant()
     };
+
+    private async Task EnsureArchitectureContextQuestionsAsync(Guid projectId, int resourceCount, CancellationToken cancellationToken)
+    {
+        if (architectureContextRepository is null || architectureQuestionGenerator is null)
+            return;
+
+        var profile = await architectureContextRepository.GetProfileAsync(projectId, cancellationToken)
+            ?? new ProjectArchitectureProfileRecord(
+                projectId,
+                "",
+                "",
+                "",
+                "",
+                "",
+                IsApproved: false,
+                LastUpdatedAtUtc: DateTime.UtcNow,
+                LastQuestionGenerationAtUtc: null,
+                LastResourceCount: null);
+
+        var existingQuestions = await architectureContextRepository.GetQuestionsAsync(projectId, cancellationToken);
+        bool shouldRegenerate = existingQuestions.Count == 0 || profile.LastResourceCount is null;
+        if (!shouldRegenerate && profile.LastResourceCount is int previousCount && previousCount > 0)
+        {
+            var delta = Math.Abs(resourceCount - previousCount) / (double)previousCount;
+            shouldRegenerate = delta >= 0.15;
+        }
+
+        if (!shouldRegenerate)
+            return;
+
+        string summary = $"""
+            Project description: {profile.ProjectDescription}
+            System boundaries: {profile.SystemBoundaries}
+            Core domains: {profile.CoreDomains}
+            External dependencies: {profile.ExternalDependencies}
+            Data sensitivity: {profile.DataSensitivity}
+            Resource count: {resourceCount}
+            """;
+
+        var generated = await architectureQuestionGenerator.GenerateQuestionsAsync(projectId, summary, cancellationToken);
+        var questions = generated
+            .Where(q => !string.IsNullOrWhiteSpace(q))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .Select(q => new ProjectArchitectureQuestionRecord(
+                Guid.NewGuid(),
+                projectId,
+                q.Trim(),
+                Answer: null,
+                IsApproved: false,
+                CreatedAtUtc: DateTime.UtcNow,
+                AnsweredAtUtc: null))
+            .ToArray();
+
+        await architectureContextRepository.ReplaceQuestionsAsync(projectId, questions, cancellationToken);
+        await architectureContextRepository.UpsertProfileAsync(profile with
+        {
+            IsApproved = false,
+            LastUpdatedAtUtc = DateTime.UtcNow,
+            LastQuestionGenerationAtUtc = DateTime.UtcNow,
+            LastResourceCount = resourceCount
+        }, cancellationToken);
+    }
+
+    internal static string DeriveDomain(string name, string? resourceGroup, IReadOnlyDictionary<string, string>? tags)
+    {
+        if (tags is not null)
+        {
+            if (TryGetTag(tags, "Service", out var service) || TryGetTag(tags, "service", out service))
+                return NormalizeDomain(service);
+
+            if (TryGetTag(tags, "Application", out var application) || TryGetTag(tags, "application", out application))
+                return NormalizeDomain(application);
+
+            if (TryGetTag(tags, "ManagedBy", out var managedBy))
+                return NormalizeDomain(managedBy);
+        }
+
+        var combined = $"{resourceGroup} {name}".ToLowerInvariant();
+        if (combined.Contains("document-service") || combined.Contains("documents"))
+            return "DocumentService";
+        if (combined.Contains("-ob") || combined.Contains("openbank") || combined.Contains("banking"))
+            return "OpenBanking";
+        if (combined.Contains("circit-") || combined.Contains("coreapp") || combined.Contains("app-circit"))
+            return "CoreApp";
+        if (combined.Contains("grafana") || combined.Contains("monitoring") || combined.Contains("mcp"))
+            return "Platform";
+        return "General";
+    }
+
+    private static bool TryGetTag(IReadOnlyDictionary<string, string> tags, string key, out string value)
+    {
+        if (tags.TryGetValue(key, out var candidate) && !string.IsNullOrWhiteSpace(candidate))
+        {
+            value = candidate;
+            return true;
+        }
+
+        value = string.Empty;
+        return false;
+    }
+
+    private static string NormalizeDomain(string input)
+    {
+        var cleaned = input.Trim();
+        if (cleaned.Length == 0)
+            return "General";
+
+        if (cleaned.Equals("coreapp", StringComparison.OrdinalIgnoreCase))
+            return "CoreApp";
+        if (cleaned.Equals("documentservice", StringComparison.OrdinalIgnoreCase))
+            return "DocumentService";
+
+        return cleaned.Replace(" ", string.Empty, StringComparison.Ordinal);
+    }
 }

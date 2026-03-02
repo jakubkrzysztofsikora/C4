@@ -16,7 +16,7 @@ public sealed class AzureResourceGraphClient(
 {
     private const string ResourceGraphEndpoint = "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2024-04-01";
 
-    private const string ResourceQuery = "Resources | project id, type, name, properties | union (ResourceContainers | where type =~ 'microsoft.resources/subscriptions/resourcegroups' | project id, type, name, properties)";
+    private const string ResourceQuery = "Resources | project id, type, name, properties, resourceGroup, tags | union (ResourceContainers | where type =~ 'microsoft.resources/subscriptions/resourcegroups' | project id, type, name, properties, resourceGroup=name, tags)";
 
     public async Task<IReadOnlyCollection<AzureResourceRecord>> GetResourcesAsync(string externalSubscriptionId, CancellationToken cancellationToken)
     {
@@ -117,6 +117,10 @@ public sealed class AzureResourceGraphClient(
             string resourceId = element.TryGetProperty("id", out JsonElement idProp) ? idProp.GetString() ?? string.Empty : string.Empty;
             string resourceType = element.TryGetProperty("type", out JsonElement typeProp) ? typeProp.GetString() ?? string.Empty : string.Empty;
             string name = element.TryGetProperty("name", out JsonElement nameProp) ? nameProp.GetString() ?? string.Empty : string.Empty;
+            string? resourceGroup = element.TryGetProperty("resourceGroup", out JsonElement rgProp) ? rgProp.GetString() : null;
+            IReadOnlyDictionary<string, string>? tags = element.TryGetProperty("tags", out JsonElement tagsProp)
+                ? ParseTags(tagsProp)
+                : null;
 
             string? parentResourceId = null;
             string? appInsightsAppId = null;
@@ -134,7 +138,7 @@ public sealed class AzureResourceGraphClient(
             }
 
             if (!string.IsNullOrWhiteSpace(resourceId))
-                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId, appInsightsAppId, propertyRefs));
+                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId, appInsightsAppId, propertyRefs, resourceGroup, tags));
         }
 
         return results;
@@ -150,6 +154,8 @@ public sealed class AzureResourceGraphClient(
         int typeIndex = Array.IndexOf(columnNames, "type");
         int nameIndex = Array.IndexOf(columnNames, "name");
         int propsIndex = Array.IndexOf(columnNames, "properties");
+        int rgIndex = Array.IndexOf(columnNames, "resourceGroup");
+        int tagsIndex = Array.IndexOf(columnNames, "tags");
 
         if (idIndex < 0 || typeIndex < 0 || nameIndex < 0)
             return [];
@@ -161,6 +167,12 @@ public sealed class AzureResourceGraphClient(
             string resourceId = cells[idIndex].GetString() ?? string.Empty;
             string resourceType = cells[typeIndex].GetString() ?? string.Empty;
             string name = cells[nameIndex].GetString() ?? string.Empty;
+            string? resourceGroup = rgIndex >= 0 && cells[rgIndex].ValueKind == JsonValueKind.String
+                ? cells[rgIndex].GetString()
+                : null;
+            IReadOnlyDictionary<string, string>? tags = tagsIndex >= 0
+                ? ParseTags(cells[tagsIndex])
+                : null;
 
             string? parentResourceId = null;
             string? appInsightsAppId = null;
@@ -178,7 +190,7 @@ public sealed class AzureResourceGraphClient(
             }
 
             if (!string.IsNullOrWhiteSpace(resourceId))
-                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId, appInsightsAppId, propertyRefs));
+                results.Add(new AzureResourceRecord(resourceId, resourceType, name, parentResourceId, appInsightsAppId, propertyRefs, resourceGroup, tags));
         }
 
         return results;
@@ -242,6 +254,25 @@ public sealed class AzureResourceGraphClient(
         bool hasProviders = lower.Contains("/providers/", StringComparison.OrdinalIgnoreCase);
         bool hasResourceGroups = lower.Contains("/resourcegroups/", StringComparison.OrdinalIgnoreCase);
         return hasProviders || hasResourceGroups;
+    }
+
+    private static IReadOnlyDictionary<string, string>? ParseTags(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+            return null;
+
+        Dictionary<string, string> tags = new(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in element.EnumerateObject())
+        {
+            if (property.Value.ValueKind == JsonValueKind.String)
+            {
+                var value = property.Value.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                    tags[property.Name] = value;
+            }
+        }
+
+        return tags.Count == 0 ? null : tags;
     }
 
     private sealed record ResourceGraphRequest(

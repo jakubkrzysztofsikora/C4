@@ -18,4 +18,10 @@ public sealed record DiscoveredResourceEventItem(
     string SourceProvenance = "azure",
     double ConfidenceScore = 1.0,
     IReadOnlyCollection<ResourceRelationship>? Relationships = null,
-    string? StableResourceId = null);
+    string? StableResourceId = null,
+    string? Domain = null,
+    bool IsInfrastructure = false,
+    string ClassificationSource = "fallback",
+    double ClassificationConfidence = 0.6,
+    string? ResourceGroup = null,
+    IReadOnlyDictionary<string, string>? Tags = null);

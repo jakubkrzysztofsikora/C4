@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../Graph.Domain/Graph.Domain.csproj" />
+    <ProjectReference Include="../../Discovery/Discovery.Domain/Discovery.Domain.csproj" />
     <ProjectReference Include="../../../Shared/Kernel/Kernel.csproj" />
   </ItemGroup>
   <ItemGroup>

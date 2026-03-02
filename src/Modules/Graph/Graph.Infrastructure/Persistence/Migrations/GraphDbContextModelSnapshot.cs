@@ -163,9 +163,29 @@ namespace Graph.Infrastructure.Persistence.Migrations
                             b1.Property<Guid>("GraphNodeId")
                                 .HasColumnType("uuid");
 
+                            b1.Property<double>("ClassificationConfidence")
+                                .HasColumnType("double precision")
+                                .HasColumnName("classification_confidence");
+
+                            b1.Property<string>("ClassificationSource")
+                                .IsRequired()
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)")
+                                .HasColumnName("classification_source");
+
                             b1.Property<decimal>("Cost")
                                 .HasColumnType("numeric")
                                 .HasColumnName("cost");
+
+                            b1.Property<string>("Domain")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("domain");
+
+                            b1.Property<bool>("IsInfrastructure")
+                                .HasColumnType("boolean")
+                                .HasColumnName("is_infrastructure");
 
                             b1.Property<string>("Owner")
                                 .IsRequired()

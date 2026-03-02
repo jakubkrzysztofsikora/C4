@@ -50,7 +50,9 @@ public sealed class DiscoveryDataPreparer : IDiscoveryDataPreparer
                     raw.Name,
                     NormalizeSource(raw.SourceProvenance, raw.SourceServer),
                     NormalizeConfidence(raw.SourceProvenance, raw.ConfidenceScore),
-                    relationships);
+                    relationships,
+                    raw.ResourceGroup,
+                    raw.Tags);
             })
             .ToArray();
     }

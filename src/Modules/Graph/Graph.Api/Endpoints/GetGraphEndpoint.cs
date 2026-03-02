@@ -8,9 +8,21 @@ public sealed class GetGraphEndpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/projects/{projectId:guid}/graph", async (Guid projectId, string? level, ISender sender, CancellationToken ct) =>
+        app.MapGet(
+            "/api/projects/{projectId:guid}/graph",
+            async (
+                Guid projectId,
+                string? level,
+                string? scope,
+                string? groupBy,
+                string? includeInfrastructure,
+                string? environment,
+                ISender sender,
+                CancellationToken ct) =>
         {
-            var result = await sender.Send(new GetGraphQuery(projectId, level), ct);
+            var result = await sender.Send(
+                new GetGraphQuery(projectId, level, scope, groupBy, includeInfrastructure, environment),
+                ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
         })
         .RequireAuthorization();

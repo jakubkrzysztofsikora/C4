@@ -33,7 +33,7 @@ public sealed class ResourcesDiscoveredHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ResourcesWithIncludeInDiagramFalse_ExcludedFromGraph()
+    public async Task Handle_ResourcesWithIncludeInDiagramFalse_PreservedAndMarkedAsInfrastructure()
     {
         var projectId = Guid.NewGuid();
         var repository = new FakeRepository();
@@ -49,8 +49,11 @@ public sealed class ResourcesDiscoveredHandlerTests
                 ]),
             CancellationToken.None);
 
-        repository.Graph!.Nodes.Should().HaveCount(1);
-        repository.Graph.Nodes.Single().ExternalResourceId.Should().Be("/subscriptions/1/web");
+        repository.Graph!.Nodes.Should().HaveCount(2);
+        var nsgNode = repository.Graph.Nodes.Single(n => n.ExternalResourceId == "/subscriptions/1/nsg");
+        nsgNode.Level.Should().Be(C4.Modules.Graph.Domain.C4Level.Component);
+        nsgNode.Properties.IsInfrastructure.Should().BeTrue();
+        nsgNode.Properties.ClassificationSource.Should().Be("catalog");
     }
 
     [Fact]

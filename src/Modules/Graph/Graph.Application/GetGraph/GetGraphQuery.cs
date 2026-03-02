@@ -3,4 +3,10 @@ using MediatR;
 
 namespace C4.Modules.Graph.Application.GetGraph;
 
-public sealed record GetGraphQuery(Guid ProjectId, string? Level) : IRequest<Result<GraphDto>>;
+public sealed record GetGraphQuery(
+    Guid ProjectId,
+    string? Level = null,
+    string? Scope = null,
+    string? GroupBy = null,
+    string? IncludeInfrastructure = null,
+    string? Environment = null) : IRequest<Result<GraphDto>>;

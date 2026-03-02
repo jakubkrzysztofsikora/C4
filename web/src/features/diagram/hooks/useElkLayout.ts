@@ -35,10 +35,10 @@ type LayoutResult = {
 function groupByResourceGroup(nodes: DiagramNode[]): Map<string, DiagramNode[]> {
   const groups = new Map<string, DiagramNode[]>();
   for (const node of nodes) {
-    const rg = node.resourceGroup || '';
-    const list = groups.get(rg) ?? [];
+    const key = node.groupKey || node.resourceGroup || '';
+    const list = groups.get(key) ?? [];
     list.push(node);
-    groups.set(rg, list);
+    groups.set(key, list);
   }
   return groups;
 }

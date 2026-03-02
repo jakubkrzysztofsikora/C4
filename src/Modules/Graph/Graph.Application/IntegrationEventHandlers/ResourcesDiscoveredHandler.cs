@@ -1,5 +1,6 @@
 using C4.Shared.Kernel.IntegrationEvents;
 using C4.Modules.Graph.Application.Ports;
+using C4.Modules.Discovery.Domain.Resources;
 using C4.Modules.Graph.Domain;
 using C4.Shared.Kernel;
 using MediatR;
@@ -19,7 +20,6 @@ public sealed class ResourcesDiscoveredHandler(
             ?? Domain.ArchitectureGraph.ArchitectureGraph.Create(notification.ProjectId);
 
         var includedResources = notification.Resources
-            .Where(r => r.IncludeInDiagram)
             .GroupBy(r => r.StableResourceId ?? r.ResourceId)
             .Select(group => group
                 .OrderByDescending(r => r.ConfidenceScore)
@@ -29,11 +29,20 @@ public sealed class ResourcesDiscoveredHandler(
 
         foreach (var resource in includedResources)
         {
-            var level = ParseC4Level(resource.C4Level);
+            var effectiveClassification = ResolveClassification(resource);
+            var level = ParseC4Level(effectiveClassification.C4Level);
             var displayName = resource.FriendlyName is not null
                 ? $"{resource.Name} ({resource.FriendlyName})"
                 : resource.Name;
-            graph.AddOrUpdateNode(resource.StableResourceId ?? resource.ResourceId, displayName, level, resource.ServiceType ?? "external");
+            graph.AddOrUpdateNode(
+                resource.StableResourceId ?? resource.ResourceId,
+                displayName,
+                level,
+                effectiveClassification.ServiceType,
+                domain: resource.Domain ?? "General",
+                isInfrastructure: effectiveClassification.IsInfrastructure,
+                classificationSource: effectiveClassification.ClassificationSource,
+                classificationConfidence: effectiveClassification.ClassificationConfidence);
         }
 
         var parentMappings = includedResources
@@ -60,6 +69,35 @@ public sealed class ResourcesDiscoveredHandler(
         graph.CreateSnapshot();
         await repository.UpsertAsync(graph, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+    }
+
+    private static EffectiveClassification ResolveClassification(DiscoveredResourceEventItem resource)
+    {
+        var catalog = AzureResourceTypeCatalog.Classify(resource.ResourceType);
+        bool hasValidLevel = Enum.TryParse<C4Level>(resource.C4Level, ignoreCase: true, out _);
+        bool hasServiceType = !string.IsNullOrWhiteSpace(resource.ServiceType);
+        if (hasValidLevel && hasServiceType)
+        {
+            var isInfrastructure = resource.IsInfrastructure || catalog.IsInfrastructure;
+            var classificationSource = string.Equals(resource.ClassificationSource, "fallback", StringComparison.OrdinalIgnoreCase) &&
+                                       string.Equals(catalog.ClassificationSource, "catalog", StringComparison.OrdinalIgnoreCase)
+                ? "catalog"
+                : resource.ClassificationSource;
+            var classificationConfidence = Math.Max(resource.ClassificationConfidence, catalog.Confidence);
+            return new EffectiveClassification(
+                resource.ServiceType!,
+                resource.C4Level!,
+                isInfrastructure,
+                classificationSource,
+                classificationConfidence);
+        }
+
+        return new EffectiveClassification(
+            catalog.ServiceType,
+            catalog.C4Level,
+            catalog.IsInfrastructure,
+            catalog.ClassificationSource,
+            catalog.Confidence);
     }
 
     private static async Task InferRelationshipsWithAiAsync(
@@ -209,10 +247,14 @@ public sealed class ResourcesDiscoveredHandler(
 
         foreach (var group in byResourceGroup)
         {
-            var producers = group.Where(x => producerTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
-            var consumers = group.Where(x => consumerTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
-            var monitors = group.Where(x => monitoringTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
-            var apps = group.Where(x => appTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
+            var workloadResources = group.Where(x => !x.Resource.IsInfrastructure).ToArray();
+            if (workloadResources.Length == 0)
+                continue;
+
+            var producers = workloadResources.Where(x => producerTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
+            var consumers = workloadResources.Where(x => consumerTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
+            var monitors = workloadResources.Where(x => monitoringTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
+            var apps = workloadResources.Where(x => appTypes.Contains(x.Resource.ServiceType ?? "")).ToArray();
 
             foreach (var producer in producers)
             {
@@ -248,10 +290,10 @@ public sealed class ResourcesDiscoveredHandler(
         var backendTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "app", "api" };
 
         var networkingResources = includedResources
-            .Where(r => networkingTypes.Contains(r.ServiceType ?? ""))
+            .Where(r => networkingTypes.Contains(r.ServiceType ?? "") && !r.IsInfrastructure)
             .ToArray();
         var backendResources = includedResources
-            .Where(r => backendTypes.Contains(r.ServiceType ?? ""))
+            .Where(r => backendTypes.Contains(r.ServiceType ?? "") && !r.IsInfrastructure)
             .ToArray();
 
         if (networkingResources.Length == 0 || backendResources.Length == 0) return;
@@ -303,4 +345,11 @@ public sealed class ResourcesDiscoveredHandler(
 
         return lower[start..end];
     }
+
+    private sealed record EffectiveClassification(
+        string ServiceType,
+        string C4Level,
+        bool IsInfrastructure,
+        string ClassificationSource,
+        double ClassificationConfidence);
 }

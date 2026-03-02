@@ -63,6 +63,43 @@ public sealed class GetGraphHandlerTests
         result.Value.Nodes.Single().ResourceGroup.Should().Be("my-rg");
     }
 
+    [Fact]
+    public async Task Handle_LegacyContainerNode_IsReleveledToComponentFromArmType()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        graph.AddOrUpdateNode(
+            "/subscriptions/1/resourceGroups/rg-prod/providers/Microsoft.Network/networkInterfaces/nic-1",
+            "nic-1",
+            Domain.C4Level.Container,
+            "external");
+        var repo = new FakeRepository(graph);
+        var handler = new GetGraphHandler(repo, new EmptyTelemetryQueryService(), new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, "Component"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Nodes.Should().ContainSingle();
+        result.Value.Nodes.Single().Level.Should().Be("Component");
+    }
+
+    [Fact]
+    public async Task Handle_ContainerLevel_AutoInfraFilter_HidesInfrastructure()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        graph.AddOrUpdateNode(
+            "/subscriptions/1/resourceGroups/rg-prod/providers/Microsoft.Network/networkInterfaces/nic-1",
+            "nic-1",
+            Domain.C4Level.Container,
+            "external");
+        var repo = new FakeRepository(graph);
+        var handler = new GetGraphHandler(repo, new EmptyTelemetryQueryService(), new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, "Container"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Nodes.Should().BeEmpty();
+    }
+
     private sealed class FakeRepository(ArchitectureGraph graph) : IArchitectureGraphRepository
     {
         public Task<ArchitectureGraph?> GetByProjectIdAsync(Guid projectId, CancellationToken cancellationToken)

@@ -105,18 +105,69 @@ public static class AzureResourceTypeCatalog
             ["Microsoft.Insights/activityLogAlerts"] = new("Activity Log Alert", "monitoring", "Component", false),
         };
 
+    private static readonly HashSet<string> InfrastructureTypes =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Microsoft.Network/networkInterfaces",
+            "Microsoft.Network/privateEndpoints",
+            "Microsoft.Network/privateDnsZones",
+            "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+            "Microsoft.Network/networkSecurityGroups",
+            "Microsoft.Network/publicIPAddresses",
+            "Microsoft.Network/virtualNetworks/subnets",
+            "Microsoft.ManagedIdentity/userAssignedIdentities",
+            "Microsoft.Authorization/roleAssignments",
+            "Microsoft.Compute/disks",
+            "Microsoft.Insights/diagnosticSettings",
+            "Microsoft.Insights/actionGroups",
+            "Microsoft.Insights/metricAlerts",
+            "Microsoft.Insights/activityLogAlerts",
+            "Microsoft.AlertsManagement/smartDetectorAlertRules"
+        };
+
     public static bool IsKnown(string armResourceType) => KnownTypes.ContainsKey(armResourceType);
 
     public static AzureResourceClassification Classify(string armResourceType)
     {
         if (KnownTypes.TryGetValue(armResourceType, out var classification))
-            return classification;
+            return AttachMetadata(classification, armResourceType, "catalog", 1.0);
 
-        var segments = armResourceType.Split('/');
+        var segments = armResourceType.Split('/', StringSplitOptions.RemoveEmptyEntries);
         var isSubResource = segments.Length > 2;
-        var shortName = segments.Last();
+        var shortName = segments.Length == 0 ? "resource" : segments.Last();
         var level = isSubResource ? "Component" : "Container";
 
-        return new AzureResourceClassification(shortName, "external", level, !isSubResource);
+        var fallback = new AzureResourceClassification(shortName, "external", level, !isSubResource);
+        return AttachMetadata(fallback, armResourceType, "fallback", isSubResource ? 0.55 : 0.65);
+    }
+
+    private static AzureResourceClassification AttachMetadata(
+        AzureResourceClassification classification,
+        string armResourceType,
+        string source,
+        double confidence)
+    {
+        bool isInfrastructure = IsInfrastructure(armResourceType, classification);
+        return classification with
+        {
+            ClassificationSource = source,
+            Confidence = confidence,
+            IsInfrastructure = isInfrastructure
+        };
+    }
+
+    private static bool IsInfrastructure(string armResourceType, AzureResourceClassification classification)
+    {
+        if (InfrastructureTypes.Contains(armResourceType))
+            return true;
+
+        if (!classification.IncludeInDiagram)
+            return true;
+
+        if (classification.ServiceType.Equals("boundary", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return classification.ServiceType.Equals("external", StringComparison.OrdinalIgnoreCase)
+            && classification.C4Level.Equals("Component", StringComparison.OrdinalIgnoreCase);
     }
 }

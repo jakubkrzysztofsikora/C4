@@ -7,10 +7,15 @@ using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Graph.Infrastructure.AI;
 
-public sealed class ThreatDetectionPlugin(Kernel kernel, ILearningProvider? learningProvider = null, ILogger<ThreatDetectionPlugin>? logger = null) : IThreatDetector
+public sealed class ThreatDetectionPlugin(
+    Kernel kernel,
+    ILearningProvider? learningProvider = null,
+    IProjectArchitectureContextProvider? architectureContextProvider = null,
+    ILogger<ThreatDetectionPlugin>? logger = null) : IThreatDetector
 {
     public async Task<ThreatDetectionResult> DetectThreatsAsync(Guid projectId, string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
     {
+        var contextSection = await BuildArchitectureContextSectionAsync(projectId, cancellationToken);
         var learningsSection = await BuildLearningsSectionAsync(projectId, cancellationToken);
 
         var prompt = $$"""
@@ -18,6 +23,7 @@ public sealed class ThreatDetectionPlugin(Kernel kernel, ILearningProvider? lear
 
             Nodes: {{nodesDescription}}
             Edges: {{edgesDescription}}
+            {{contextSection}}
             {{learningsSection}}
             For each threat found, provide:
             - Component affected
@@ -35,6 +41,44 @@ public sealed class ThreatDetectionPlugin(Kernel kernel, ILearningProvider? lear
         var text = result.GetValue<string>() ?? string.Empty;
 
         return ParseThreatResult(text);
+    }
+
+    private async Task<string> BuildArchitectureContextSectionAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        if (architectureContextProvider is null)
+            return string.Empty;
+
+        try
+        {
+            var context = await architectureContextProvider.GetActiveContextAsync(projectId, cancellationToken);
+            if (context is null)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.AppendLine();
+            sb.AppendLine("Approved project architecture context:");
+            sb.AppendLine($"- Description: {context.ProjectDescription}");
+            sb.AppendLine($"- Boundaries: {context.SystemBoundaries}");
+            sb.AppendLine($"- Core domains: {context.CoreDomains}");
+            sb.AppendLine($"- External dependencies: {context.ExternalDependencies}");
+            sb.AppendLine($"- Data sensitivity: {context.DataSensitivity}");
+            if (context.ApprovedQuestions.Count > 0)
+            {
+                sb.AppendLine("Approved clarifying Q&A:");
+                foreach (var qa in context.ApprovedQuestions.Take(10))
+                {
+                    sb.AppendLine($"- Q: {qa.Question}");
+                    sb.AppendLine($"  A: {qa.Answer}");
+                }
+            }
+
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to fetch project architecture context");
+            return string.Empty;
+        }
     }
 
     private async Task<string> BuildLearningsSectionAsync(Guid projectId, CancellationToken cancellationToken)

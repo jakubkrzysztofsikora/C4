@@ -24,10 +24,26 @@ public sealed class ArchitectureGraph : AggregateRoot<ArchitectureGraphId>
 
     public static ArchitectureGraph Create(Guid projectId) => new(ArchitectureGraphId.New(), projectId);
 
-    public C4.Modules.Graph.Domain.GraphNode.GraphNode AddOrUpdateNode(string externalResourceId, string name, C4Level level, string serviceType = "external")
+    public C4.Modules.Graph.Domain.GraphNode.GraphNode AddOrUpdateNode(
+        string externalResourceId,
+        string name,
+        C4Level level,
+        string serviceType = "external",
+        string domain = "General",
+        bool isInfrastructure = false,
+        string classificationSource = "fallback",
+        double classificationConfidence = 0.6)
     {
         var existing = _nodes.FirstOrDefault(n => n.ExternalResourceId == externalResourceId);
-        var props = new NodeProperties(serviceType, "n/a", [], 0m);
+        var props = new NodeProperties(
+            serviceType,
+            "n/a",
+            [],
+            0m,
+            domain,
+            isInfrastructure,
+            classificationSource,
+            classificationConfidence);
         if (existing is not null)
         {
             existing.Update(name, level, props);

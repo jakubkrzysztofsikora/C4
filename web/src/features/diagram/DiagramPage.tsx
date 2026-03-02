@@ -9,7 +9,28 @@ import './diagram.css';
 export function DiagramPage() {
   const { activeProject, loading: projectLoading } = useProject();
   const projectId = activeProject?.id;
-  const { data, level, setLevel, search, setSearch, timeline, setTimeline, environment, setEnvironment, environments, hideOrphans, setHideOrphans, loading, error } = useDiagram(projectId);
+  const {
+    data,
+    level,
+    setLevel,
+    search,
+    setSearch,
+    timeline,
+    setTimeline,
+    environment,
+    setEnvironment,
+    environments,
+    scope,
+    setScope,
+    groupBy,
+    setGroupBy,
+    includeInfrastructure,
+    setIncludeInfrastructure,
+    hideOrphans,
+    setHideOrphans,
+    loading,
+    error,
+  } = useDiagram(projectId);
   const { layoutedData, groupNodes, isLayouting } = useElkLayout(data);
   const { zoom, setZoom } = usePanZoom();
   const { exportAs } = useDiagramExport(layoutedData, projectId);
@@ -68,6 +89,29 @@ export function DiagramPage() {
               {environments.map((env) => (
                 <option key={env} value={env}>{env}</option>
               ))}
+            </select>
+          </label>
+          <label>
+            Scope
+            <select value={scope} onChange={(e) => setScope(e.target.value as 'all' | 'coreHub')}>
+              <option value="coreHub">Core Hub</option>
+              <option value="all">All Nodes</option>
+            </select>
+          </label>
+          <label>
+            Group By
+            <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as 'domain' | 'resourceGroup' | 'none')}>
+              <option value="domain">Service Domain</option>
+              <option value="resourceGroup">Resource Group</option>
+              <option value="none">None</option>
+            </select>
+          </label>
+          <label>
+            Infrastructure
+            <select value={includeInfrastructure} onChange={(e) => setIncludeInfrastructure(e.target.value as 'auto' | 'true' | 'false')}>
+              <option value="auto">Auto (Component only)</option>
+              <option value="false">Hide</option>
+              <option value="true">Show</option>
             </select>
           </label>
           <label className="checkbox-label">

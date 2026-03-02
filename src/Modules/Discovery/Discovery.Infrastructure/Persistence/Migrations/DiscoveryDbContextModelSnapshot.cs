@@ -171,6 +171,81 @@ namespace Discovery.Infrastructure.Persistence.Migrations
                     b.ToTable("drift_items", (string)null);
                 });
 
+            modelBuilder.Entity("C4.Modules.Discovery.Infrastructure.Persistence.ProjectArchitectureProfileEntity", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CoreDomains")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("DataSensitivity")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ExternalDependencies")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastQuestionGenerationAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("LastResourceCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("LastUpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProjectDescription")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SystemBoundaries")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("ProjectId");
+
+                    b.ToTable("project_architecture_profiles", (string)null);
+                });
+
+            modelBuilder.Entity("C4.Modules.Discovery.Infrastructure.Persistence.ProjectArchitectureQuestionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Answer")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("AnsweredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("project_architecture_questions", (string)null);
+                });
+
             modelBuilder.Entity("C4.Modules.Discovery.Domain.Resources.DiscoveredResource", b =>
                 {
                     b.OwnsOne("C4.Modules.Discovery.Domain.Resources.AzureResourceClassification", "Classification", b1 =>
@@ -183,12 +258,23 @@ namespace Discovery.Infrastructure.Persistence.Migrations
                                 .HasMaxLength(50)
                                 .HasColumnType("character varying(50)");
 
+                            b1.Property<string>("ClassificationSource")
+                                .IsRequired()
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)");
+
+                            b1.Property<double>("Confidence")
+                                .HasColumnType("double precision");
+
                             b1.Property<string>("FriendlyName")
                                 .IsRequired()
                                 .HasMaxLength(250)
                                 .HasColumnType("character varying(250)");
 
                             b1.Property<bool>("IncludeInDiagram")
+                                .HasColumnType("boolean");
+
+                            b1.Property<bool>("IsInfrastructure")
                                 .HasColumnType("boolean");
 
                             b1.Property<string>("ServiceType")

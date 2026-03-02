@@ -2,6 +2,7 @@ using C4.Modules.Discovery.Api.Adapters;
 using C4.Modules.Discovery.Application.DiscoverResources;
 using C4.Modules.Discovery.Application.Adapters;
 using C4.Modules.Discovery.Application.Ports;
+using C4.Modules.Discovery.Infrastructure;
 using C4.Modules.Discovery.Infrastructure.AI;
 using C4.Modules.Discovery.Infrastructure.Persistence;
 using C4.Modules.Discovery.Infrastructure.Persistence.Repositories;
@@ -44,6 +45,7 @@ public static class ServiceCollectionExtensions
             services.AddSingleton<IDriftResultRepository, InMemoryDriftResultRepository>();
             services.AddSingleton<IDriftQueryService, InMemoryDriftQueryService>();
             services.AddSingleton<IMcpServerConfigRepository, InMemoryMcpServerConfigRepository>();
+            services.AddSingleton<IArchitectureContextRepository, InMemoryArchitectureContextRepository>();
             services.AddSingleton<NoOpDiscoveryUnitOfWork>();
             services.AddKeyedSingleton<IUnitOfWork>("Discovery", (sp, _) => sp.GetRequiredService<NoOpDiscoveryUnitOfWork>());
         }
@@ -55,6 +57,7 @@ public static class ServiceCollectionExtensions
             services.AddScoped<IDriftResultRepository, DriftResultRepository>();
             services.AddScoped<IDriftQueryService, DriftQueryService>();
             services.AddScoped<IMcpServerConfigRepository, McpServerConfigRepository>();
+            services.AddScoped<IArchitectureContextRepository, ArchitectureContextRepository>();
             services.AddKeyedScoped<IUnitOfWork>("Discovery", (sp, _) => sp.GetRequiredService<DiscoveryDbContext>());
         }
 
@@ -104,16 +107,22 @@ public static class ServiceCollectionExtensions
             result.Kernel.FunctionInvocationFilters.Add(sp.GetRequiredService<DiscoveryFunctionInvocationFilter>());
             return result.Kernel;
         });
-        services.AddSingleton<IResourceClassifier>(sp =>
+        services.AddScoped<IResourceClassifier>(sp =>
         {
             var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Discovery");
             return result.EnabledTools.Contains(nameof(ResourceClassifierPlugin))
-                ? new ResourceClassifierPlugin(result.Kernel, sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>(), sp.GetService<ILogger<ResourceClassifierPlugin>>())
+                ? new ResourceClassifierPlugin(
+                    result.Kernel,
+                    sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>(),
+                    sp.GetService<C4.Shared.Kernel.Contracts.IProjectArchitectureContextProvider>(),
+                    sp.GetService<ILogger<ResourceClassifierPlugin>>())
                 : throw new InvalidOperationException(
                     $"{nameof(ResourceClassifierPlugin)} is required but disabled by the tool filter. " +
                     $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");
         });
         services.AddSingleton<IDiscoveryInputPlanner, DiscoveryInputPlanner>();
+        services.AddSingleton<IArchitectureQuestionGenerator, LlmArchitectureQuestionGenerator>();
+        services.AddScoped<C4.Shared.Kernel.Contracts.IProjectArchitectureContextProvider, ProjectArchitectureContextProvider>();
 
         services.AddEndpoints(AssemblyReference.Assembly);
 

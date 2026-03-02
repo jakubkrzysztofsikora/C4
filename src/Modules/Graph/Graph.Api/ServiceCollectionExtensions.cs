@@ -43,29 +43,41 @@ public static class ServiceCollectionExtensions
                 [nameof(ArchitectureAnalysisPlugin), nameof(ThreatDetectionPlugin), nameof(ResourceRelationshipPlugin)]));
         services.AddSingleton(sp =>
             sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Graph").Kernel);
-        services.AddSingleton<IArchitectureAnalyzer>(sp =>
+        services.AddScoped<IArchitectureAnalyzer>(sp =>
         {
             var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Graph");
             return result.EnabledTools.Contains(nameof(ArchitectureAnalysisPlugin))
-                ? new ArchitectureAnalysisPlugin(result.Kernel, sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>(), sp.GetService<ILogger<ArchitectureAnalysisPlugin>>())
+                ? new ArchitectureAnalysisPlugin(
+                    result.Kernel,
+                    sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>(),
+                    sp.GetService<C4.Shared.Kernel.Contracts.IProjectArchitectureContextProvider>(),
+                    sp.GetService<ILogger<ArchitectureAnalysisPlugin>>())
                 : throw new InvalidOperationException(
                     $"{nameof(ArchitectureAnalysisPlugin)} is required but disabled by the tool filter. " +
                     $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");
         });
-        services.AddSingleton<IThreatDetector>(sp =>
+        services.AddScoped<IThreatDetector>(sp =>
         {
             var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Graph");
             return result.EnabledTools.Contains(nameof(ThreatDetectionPlugin))
-                ? new ThreatDetectionPlugin(result.Kernel, sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>(), sp.GetService<ILogger<ThreatDetectionPlugin>>())
+                ? new ThreatDetectionPlugin(
+                    result.Kernel,
+                    sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>(),
+                    sp.GetService<C4.Shared.Kernel.Contracts.IProjectArchitectureContextProvider>(),
+                    sp.GetService<ILogger<ThreatDetectionPlugin>>())
                 : throw new InvalidOperationException(
                     $"{nameof(ThreatDetectionPlugin)} is required but disabled by the tool filter. " +
                     $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");
         });
-        services.AddSingleton<IResourceRelationshipInferrer>(sp =>
+        services.AddScoped<IResourceRelationshipInferrer>(sp =>
         {
             var result = sp.GetRequiredKeyedService<SemanticKernelCreationResult>("Graph");
             return result.EnabledTools.Contains(nameof(ResourceRelationshipPlugin))
-                ? new ResourceRelationshipPlugin(result.Kernel, sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>(), sp.GetService<ILogger<ResourceRelationshipPlugin>>())
+                ? new ResourceRelationshipPlugin(
+                    result.Kernel,
+                    sp.GetService<C4.Shared.Kernel.Contracts.ILearningProvider>(),
+                    sp.GetService<C4.Shared.Kernel.Contracts.IProjectArchitectureContextProvider>(),
+                    sp.GetService<ILogger<ResourceRelationshipPlugin>>())
                 : throw new InvalidOperationException(
                     $"{nameof(ResourceRelationshipPlugin)} is required but disabled by the tool filter. " +
                     $"Update the SemanticKernel:ToolFiltersByEnvironment configuration to enable it.");

@@ -11,6 +11,11 @@ export type DiagramNode = {
   parentId?: string;
   environment?: string;
   resourceGroup?: string;
+  domain?: string;
+  isInfrastructure?: boolean;
+  classificationSource?: string;
+  classificationConfidence?: number;
+  groupKey?: string;
 };
 
 export type DiagramEdge = { id: string; from: string; to: string; traffic: number };

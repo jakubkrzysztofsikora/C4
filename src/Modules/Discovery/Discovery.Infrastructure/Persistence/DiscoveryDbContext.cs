@@ -14,6 +14,8 @@ public sealed class DiscoveryDbContext(DbContextOptions<DiscoveryDbContext> opti
     public DbSet<DriftItemEntity> DriftItems => Set<DriftItemEntity>();
     public DbSet<AzureTokenEntity> AzureTokens => Set<AzureTokenEntity>();
     public DbSet<McpServerConfig> McpServerConfigs => Set<McpServerConfig>();
+    public DbSet<ProjectArchitectureProfileEntity> ProjectArchitectureProfiles => Set<ProjectArchitectureProfileEntity>();
+    public DbSet<ProjectArchitectureQuestionEntity> ProjectArchitectureQuestions => Set<ProjectArchitectureQuestionEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -22,6 +24,8 @@ public sealed class DiscoveryDbContext(DbContextOptions<DiscoveryDbContext> opti
         modelBuilder.ApplyConfiguration(new DriftItemEntityConfiguration());
         modelBuilder.ApplyConfiguration(new AzureTokenEntityConfiguration());
         modelBuilder.ApplyConfiguration(new McpServerConfigConfiguration());
+        modelBuilder.ApplyConfiguration(new ProjectArchitectureProfileConfiguration());
+        modelBuilder.ApplyConfiguration(new ProjectArchitectureQuestionConfiguration());
     }
 }
 
@@ -39,6 +43,31 @@ public sealed class DriftItemEntity
     public Guid SubscriptionId { get; init; }
     public string ResourceId { get; init; } = string.Empty;
     public string Status { get; init; } = string.Empty;
+}
+
+public sealed class ProjectArchitectureProfileEntity
+{
+    public Guid ProjectId { get; init; }
+    public string ProjectDescription { get; set; } = string.Empty;
+    public string SystemBoundaries { get; set; } = string.Empty;
+    public string CoreDomains { get; set; } = string.Empty;
+    public string ExternalDependencies { get; set; } = string.Empty;
+    public string DataSensitivity { get; set; } = string.Empty;
+    public bool IsApproved { get; set; }
+    public DateTime LastUpdatedAtUtc { get; set; }
+    public DateTime? LastQuestionGenerationAtUtc { get; set; }
+    public int? LastResourceCount { get; set; }
+}
+
+public sealed class ProjectArchitectureQuestionEntity
+{
+    public Guid Id { get; init; }
+    public Guid ProjectId { get; init; }
+    public string Question { get; set; } = string.Empty;
+    public string? Answer { get; set; }
+    public bool IsApproved { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime? AnsweredAtUtc { get; set; }
 }
 
 file sealed class AzureSubscriptionConfiguration : IEntityTypeConfiguration<AzureSubscription>
@@ -79,6 +108,9 @@ file sealed class DiscoveredResourceConfiguration : IEntityTypeConfiguration<Dis
             classification.Property(c => c.FriendlyName).HasMaxLength(250);
             classification.Property(c => c.ServiceType).HasMaxLength(100);
             classification.Property(c => c.C4Level).HasMaxLength(50);
+            classification.Property(c => c.ClassificationSource).HasMaxLength(50);
+            classification.Property(c => c.Confidence);
+            classification.Property(c => c.IsInfrastructure);
         });
     }
 }
@@ -123,5 +155,39 @@ file sealed class McpServerConfigConfiguration : IEntityTypeConfiguration<McpSer
         builder.Property(c => c.AuthMode).HasMaxLength(50).IsRequired();
         builder.Property(c => c.CreatedAtUtc).IsRequired();
         builder.HasIndex(c => c.ProjectId);
+    }
+}
+
+file sealed class ProjectArchitectureProfileConfiguration : IEntityTypeConfiguration<ProjectArchitectureProfileEntity>
+{
+    public void Configure(EntityTypeBuilder<ProjectArchitectureProfileEntity> builder)
+    {
+        builder.ToTable("project_architecture_profiles");
+        builder.HasKey(p => p.ProjectId);
+        builder.Property(p => p.ProjectDescription).HasColumnType("text").IsRequired();
+        builder.Property(p => p.SystemBoundaries).HasColumnType("text").IsRequired();
+        builder.Property(p => p.CoreDomains).HasColumnType("text").IsRequired();
+        builder.Property(p => p.ExternalDependencies).HasColumnType("text").IsRequired();
+        builder.Property(p => p.DataSensitivity).HasColumnType("text").IsRequired();
+        builder.Property(p => p.IsApproved).IsRequired();
+        builder.Property(p => p.LastUpdatedAtUtc).IsRequired();
+        builder.Property(p => p.LastQuestionGenerationAtUtc);
+        builder.Property(p => p.LastResourceCount);
+    }
+}
+
+file sealed class ProjectArchitectureQuestionConfiguration : IEntityTypeConfiguration<ProjectArchitectureQuestionEntity>
+{
+    public void Configure(EntityTypeBuilder<ProjectArchitectureQuestionEntity> builder)
+    {
+        builder.ToTable("project_architecture_questions");
+        builder.HasKey(q => q.Id);
+        builder.Property(q => q.ProjectId).IsRequired();
+        builder.Property(q => q.Question).HasColumnType("text").IsRequired();
+        builder.Property(q => q.Answer).HasColumnType("text");
+        builder.Property(q => q.IsApproved).IsRequired();
+        builder.Property(q => q.CreatedAtUtc).IsRequired();
+        builder.Property(q => q.AnsweredAtUtc);
+        builder.HasIndex(q => q.ProjectId);
     }
 }

@@ -15,6 +15,11 @@ type GraphNodeDto = {
   environment?: string;
   serviceType?: string;
   resourceGroup?: string;
+  domain?: string;
+  isInfrastructure?: boolean;
+  classificationSource?: string;
+  classificationConfidence?: number;
+  groupKey?: string;
 };
 
 type GraphEdgeDto = {
@@ -72,6 +77,11 @@ function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
     serviceType: isValidServiceType(node.serviceType) ? node.serviceType : inferServiceType(node.name),
     environment: node.environment ?? 'unknown',
     ...(node.resourceGroup ? { resourceGroup: node.resourceGroup } : {}),
+    ...(node.domain ? { domain: node.domain } : {}),
+    ...(node.groupKey ? { groupKey: node.groupKey } : {}),
+    ...(typeof node.isInfrastructure === 'boolean' ? { isInfrastructure: node.isInfrastructure } : {}),
+    ...(node.classificationSource ? { classificationSource: node.classificationSource } : {}),
+    ...(typeof node.classificationConfidence === 'number' ? { classificationConfidence: node.classificationConfidence } : {}),
     ...(node.parentNodeId !== undefined && { parentId: node.parentNodeId }),
     ...(node.drift === true && { drift: true }),
   }));
@@ -149,11 +159,20 @@ function applyHealthOverlay(nodes: DiagramNode[], overlay: NodeHealthEntry[]): D
   });
 }
 
+function isVisibleAtLevel(node: DiagramNode, level: 'Context' | 'Container' | 'Component'): boolean {
+  if (level === 'Context') return node.level === 'Context';
+  if (level === 'Container') return node.level === 'Container' || node.level === 'Component';
+  return node.level === 'Component';
+}
+
 export function useDiagram(projectId?: string) {
   const [level, setLevel] = useState<'Context' | 'Container' | 'Component'>('Container');
   const [search, setSearch] = useState('');
   const [timeline, setTimeline] = useState(100);
   const [environment, setEnvironment] = useState('production');
+  const [scope, setScope] = useState<'all' | 'coreHub'>('coreHub');
+  const [groupBy, setGroupBy] = useState<'domain' | 'resourceGroup' | 'none'>('domain');
+  const [includeInfrastructure, setIncludeInfrastructure] = useState<'auto' | 'true' | 'false'>('auto');
   const [hideOrphans, setHideOrphans] = useState(true);
   const [apiData, setApiData] = useState<DiagramData | undefined>(undefined);
   const [loading, setLoading] = useState(false);
@@ -163,7 +182,14 @@ export function useDiagram(projectId?: string) {
     setLoading(true);
     setError(undefined);
     try {
-      const dto = await getJson<GraphDto>(`/api/projects/${id}/graph`);
+      const params = new URLSearchParams({
+        level,
+        scope,
+        groupBy,
+        includeInfrastructure,
+        environment,
+      });
+      const dto = await getJson<GraphDto>(`/api/projects/${id}/graph?${params.toString()}`);
       const mapped = mapGraphDtoToDiagramData(dto);
       setApiData(mapped);
     } catch (err: unknown) {
@@ -173,7 +199,7 @@ export function useDiagram(projectId?: string) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [level, scope, groupBy, includeInfrastructure, environment]);
 
   useEffect(() => {
     if (projectId !== undefined) {
@@ -209,13 +235,8 @@ export function useDiagram(projectId?: string) {
   }, [sourceData]);
 
   const data = useMemo(() => {
-    const levelFiltered = sourceData.nodes.filter((n) =>
-      level === 'Container' ? n.level !== 'Context' : n.level === level,
-    );
-    const envFiltered = environment === 'all'
-      ? levelFiltered
-      : levelFiltered.filter((n) => n.environment === environment);
-    const searchFiltered = envFiltered.filter((n) =>
+    const levelFiltered = sourceData.nodes.filter((n) => isVisibleAtLevel(n, level));
+    const searchFiltered = levelFiltered.filter((n) =>
       n.label.toLowerCase().includes(search.toLowerCase()),
     );
     const visibleNodeIds = new Set(searchFiltered.map((n) => n.id));
@@ -223,7 +244,10 @@ export function useDiagram(projectId?: string) {
       (e) => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to) && e.traffic <= timeline / 100,
     );
 
-    if (!hideOrphans) {
+    const autoDisableHideOrphans = level !== 'Container' || searchFiltered.length <= 30;
+    const effectiveHideOrphans = hideOrphans && !autoDisableHideOrphans;
+
+    if (!effectiveHideOrphans) {
       return { nodes: searchFiltered, edges };
     }
 
@@ -237,7 +261,29 @@ export function useDiagram(projectId?: string) {
       nodes: searchFiltered.filter((n) => connectedNodeIds.has(n.id)),
       edges,
     };
-  }, [sourceData, level, search, timeline, environment, hideOrphans]);
+  }, [sourceData, level, search, timeline, hideOrphans]);
 
-  return { data, level, setLevel, search, setSearch, timeline, setTimeline, environment, setEnvironment, environments, hideOrphans, setHideOrphans, loading, error, refetch: fetchGraph };
+  return {
+    data,
+    level,
+    setLevel,
+    search,
+    setSearch,
+    timeline,
+    setTimeline,
+    environment,
+    setEnvironment,
+    environments,
+    scope,
+    setScope,
+    groupBy,
+    setGroupBy,
+    includeInfrastructure,
+    setIncludeInfrastructure,
+    hideOrphans,
+    setHideOrphans,
+    loading,
+    error,
+    refetch: fetchGraph,
+  };
 }

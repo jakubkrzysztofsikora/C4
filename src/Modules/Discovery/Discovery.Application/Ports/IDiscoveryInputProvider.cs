@@ -30,4 +30,6 @@ public sealed record DiscoveryResourceDescriptor(
     string? ParentResourceId,
     DiscoverySourceKind Source,
     string? AppInsightsAppId = null,
-    IReadOnlyCollection<string>? PropertyReferences = null);
+    IReadOnlyCollection<string>? PropertyReferences = null,
+    string? ResourceGroup = null,
+    IReadOnlyDictionary<string, string>? Tags = null);

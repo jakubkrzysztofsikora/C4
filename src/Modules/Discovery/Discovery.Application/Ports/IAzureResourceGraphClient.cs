@@ -11,4 +11,6 @@ public sealed record AzureResourceRecord(
     string Name,
     string? ParentResourceId,
     string? AppInsightsAppId = null,
-    IReadOnlyCollection<string>? PropertyReferences = null);
+    IReadOnlyCollection<string>? PropertyReferences = null,
+    string? ResourceGroup = null,
+    IReadOnlyDictionary<string, string>? Tags = null);

@@ -61,6 +61,10 @@ file sealed class GraphNodeConfiguration : IEntityTypeConfiguration<GraphNode>
             props.Property(p => p.Technology).HasMaxLength(200).HasColumnName("technology");
             props.Property(p => p.Owner).HasMaxLength(200).HasColumnName("owner");
             props.Property(p => p.Cost).HasColumnName("cost");
+            props.Property(p => p.Domain).HasMaxLength(200).HasColumnName("domain");
+            props.Property(p => p.IsInfrastructure).HasColumnName("is_infrastructure");
+            props.Property(p => p.ClassificationSource).HasMaxLength(50).HasColumnName("classification_source");
+            props.Property(p => p.ClassificationConfidence).HasColumnName("classification_confidence");
             props.Property(p => p.Tags).HasColumnName("tags")
                 .HasConversion(
                     v => string.Join(",", v),

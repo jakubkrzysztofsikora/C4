@@ -6,10 +6,15 @@ using Microsoft.SemanticKernel;
 
 namespace C4.Modules.Graph.Infrastructure.AI;
 
-public sealed class ArchitectureAnalysisPlugin(Kernel kernel, ILearningProvider? learningProvider = null, ILogger<ArchitectureAnalysisPlugin>? logger = null) : IArchitectureAnalyzer
+public sealed class ArchitectureAnalysisPlugin(
+    Kernel kernel,
+    ILearningProvider? learningProvider = null,
+    IProjectArchitectureContextProvider? architectureContextProvider = null,
+    ILogger<ArchitectureAnalysisPlugin>? logger = null) : IArchitectureAnalyzer
 {
     public async Task<ArchitectureAnalysisResult> AnalyzeAsync(Guid projectId, string nodesDescription, string edgesDescription, CancellationToken cancellationToken)
     {
+        var contextSection = await BuildArchitectureContextSectionAsync(projectId, cancellationToken);
         var learningsSection = await BuildLearningsSectionAsync(projectId, cancellationToken);
 
         var prompt = $$"""
@@ -17,6 +22,7 @@ public sealed class ArchitectureAnalysisPlugin(Kernel kernel, ILearningProvider?
 
             Nodes: {{nodesDescription}}
             Edges: {{edgesDescription}}
+            {{contextSection}}
             {{learningsSection}}
             Respond with:
             1. A one-paragraph summary of the architecture
@@ -33,6 +39,44 @@ public sealed class ArchitectureAnalysisPlugin(Kernel kernel, ILearningProvider?
         var text = result.GetValue<string>() ?? string.Empty;
 
         return ParseAnalysisResult(text);
+    }
+
+    private async Task<string> BuildArchitectureContextSectionAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        if (architectureContextProvider is null)
+            return string.Empty;
+
+        try
+        {
+            var context = await architectureContextProvider.GetActiveContextAsync(projectId, cancellationToken);
+            if (context is null)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.AppendLine();
+            sb.AppendLine("Approved project architecture context:");
+            sb.AppendLine($"- Description: {context.ProjectDescription}");
+            sb.AppendLine($"- Boundaries: {context.SystemBoundaries}");
+            sb.AppendLine($"- Core domains: {context.CoreDomains}");
+            sb.AppendLine($"- External dependencies: {context.ExternalDependencies}");
+            sb.AppendLine($"- Data sensitivity: {context.DataSensitivity}");
+            if (context.ApprovedQuestions.Count > 0)
+            {
+                sb.AppendLine("Approved clarifying Q&A:");
+                foreach (var qa in context.ApprovedQuestions.Take(10))
+                {
+                    sb.AppendLine($"- Q: {qa.Question}");
+                    sb.AppendLine($"  A: {qa.Answer}");
+                }
+            }
+
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to fetch project architecture context");
+            return string.Empty;
+        }
     }
 
     private async Task<string> BuildLearningsSectionAsync(Guid projectId, CancellationToken cancellationToken)

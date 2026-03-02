@@ -16,15 +16,18 @@ public static class EnvironmentClassifier
         ("sandbox", "sandbox"),
     ];
 
-    public static string InferEnvironment(string resourceName)
+    public static string InferEnvironment(string resourceName, string? resourceGroup = null)
     {
-        var lower = resourceName.ToLowerInvariant();
+        var lower = $"{resourceGroup} {resourceName}".ToLowerInvariant();
 
         foreach (var (keyword, environment) in EnvironmentPatterns)
         {
             if (ContainsSegment(lower, keyword))
                 return environment;
         }
+
+        if (lower.Contains("nonprod", StringComparison.Ordinal))
+            return "nonprod";
 
         return "unknown";
     }
