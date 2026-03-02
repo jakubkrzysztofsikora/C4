@@ -19,7 +19,7 @@ public sealed class AnalyzeArchitectureHandler(
         var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
         if (!authCheck.IsSuccess) return Result<ArchitectureAnalysisResponse>.Failure(authCheck.Error);
 
-        var graph = await repository.GetByProjectIdAsync(request.ProjectId, cancellationToken);
+        var graph = await repository.GetByProjectIdReadOnlyAsync(request.ProjectId, cancellationToken);
         if (graph is null) return Result<ArchitectureAnalysisResponse>.Failure(GraphErrors.GraphNotFound(request.ProjectId));
 
         var sanitizedNodes = graph.Nodes.Select(n => new { Name = SanitizeName(n.Name), n.Level });

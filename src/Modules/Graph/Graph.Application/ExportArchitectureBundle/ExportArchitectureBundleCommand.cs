@@ -28,7 +28,7 @@ public sealed class ExportArchitectureBundleHandler(
         var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
         if (!authCheck.IsSuccess) return Result<ExportArchitectureBundleResponse>.Failure(authCheck.Error);
 
-        var graph = await repository.GetByProjectIdAsync(request.ProjectId, cancellationToken);
+        var graph = await repository.GetByProjectIdReadOnlyAsync(request.ProjectId, cancellationToken);
         if (graph is null) return Result<ExportArchitectureBundleResponse>.Failure(GraphErrors.GraphNotFound(request.ProjectId));
 
         var nodesDescription = JsonSerializer.Serialize(graph.Nodes.Select(n => new { n.Name, Level = n.Level.ToString(), Technology = n.Properties.Technology }));

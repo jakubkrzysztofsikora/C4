@@ -19,7 +19,7 @@ public sealed class GetThreatAssessmentHandler(
         var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
         if (!authCheck.IsSuccess) return Result<ThreatAssessmentResponse>.Failure(authCheck.Error);
 
-        var graph = await repository.GetByProjectIdAsync(request.ProjectId, cancellationToken);
+        var graph = await repository.GetByProjectIdReadOnlyAsync(request.ProjectId, cancellationToken);
         if (graph is null) return Result<ThreatAssessmentResponse>.Failure(GraphErrors.GraphNotFound(request.ProjectId));
 
         var classifiedNodes = graph.Nodes
