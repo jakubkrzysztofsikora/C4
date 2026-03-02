@@ -2,6 +2,7 @@ using System.Text.Json;
 using C4.Modules.Telemetry.Application.Ports;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 
 namespace C4.Modules.Telemetry.Infrastructure.Adapters;
 
@@ -235,10 +236,11 @@ public sealed class ApplicationInsightsClient(
             return null;
 
         if (value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number))
-            return number;
+            return double.IsFinite(number) ? number : null;
 
-        if (value.ValueKind == JsonValueKind.String && double.TryParse(value.GetString(), out var parsed))
-            return parsed;
+        if (value.ValueKind == JsonValueKind.String
+            && double.TryParse(value.GetString(), NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed))
+            return double.IsFinite(parsed) ? parsed : null;
 
         return null;
     }

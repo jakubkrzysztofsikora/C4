@@ -2,13 +2,11 @@ using C4.Modules.Graph.Application.Ports;
 using C4.Modules.Graph.Domain.Errors;
 using C4.Shared.Kernel;
 using MediatR;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace C4.Modules.Graph.Application.GetGraphSnapshots;
 
 public sealed class GetGraphSnapshotsHandler(
     IArchitectureGraphRepository repository,
-    [FromKeyedServices("Graph")] IUnitOfWork unitOfWork,
     IProjectAuthorizationService authorizationService)
     : IRequestHandler<GetGraphSnapshotsQuery, Result<GetGraphSnapshotsResponse>>
 {
@@ -17,15 +15,8 @@ public sealed class GetGraphSnapshotsHandler(
         var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
         if (!authCheck.IsSuccess) return Result<GetGraphSnapshotsResponse>.Failure(authCheck.Error);
 
-        var graph = await repository.GetByProjectIdAsync(request.ProjectId, cancellationToken);
+        var graph = await repository.GetByProjectIdReadOnlyAsync(request.ProjectId, cancellationToken);
         if (graph is null) return Result<GetGraphSnapshotsResponse>.Failure(GraphErrors.GraphNotFound(request.ProjectId));
-
-        if (graph.Nodes.Count > 0 && (graph.Snapshots.Count == 0 || graph.Snapshots.All(IsEmptySnapshot)))
-        {
-            graph.CreateSnapshot("auto-backfill");
-            await repository.UpsertAsync(graph, cancellationToken);
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-        }
 
         var snapshots = graph.Snapshots
             .Where(s => !IsEmptySnapshot(s))
