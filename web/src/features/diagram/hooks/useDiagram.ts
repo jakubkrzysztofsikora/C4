@@ -636,6 +636,16 @@ export function useDiagram(projectId?: string) {
     removedEdges: diffResult?.removedEdges?.length ?? 0,
   }), [diffResult]);
 
+  const telemetryMetrics = useMemo(() => {
+    const knownNodes = data.nodes.filter((node) => node.telemetryStatus === 'known').length;
+    const knownEdges = data.edges.filter((edge) => edge.trafficState !== undefined && edge.trafficState !== 'unknown').length;
+    return {
+      knownNodes,
+      knownEdges,
+      hasAnyTelemetry: knownNodes > 0 || knownEdges > 0,
+    };
+  }, [data.nodes, data.edges]);
+
   const visibleDiagramData = useMemo<DiagramData>(() => ({
     nodes: data.nodes,
     edges: data.edges,
@@ -734,6 +744,7 @@ export function useDiagram(projectId?: string) {
     diffToSnapshotId,
     setDiffToSnapshotId,
     diffMetrics,
+    telemetryMetrics,
     metrics,
     loading,
     error,

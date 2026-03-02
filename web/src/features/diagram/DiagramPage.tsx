@@ -71,6 +71,7 @@ export function DiagramPage() {
     diffToSnapshotId,
     setDiffToSnapshotId,
     diffMetrics,
+    telemetryMetrics,
     metrics,
     loading,
     error,
@@ -230,6 +231,12 @@ export function DiagramPage() {
           <span>Filtered: {metrics.hiddenByFilters}</span>
           <span>Orphans hidden: {metrics.hiddenAsOrphans}</span>
         </div>
+
+        {!telemetryMetrics.hasAnyTelemetry && (
+          <div className="stale-banner" role="status">
+            No live telemetry found for this view. Health/traffic overlays are shown as <strong>unknown</strong> until telemetry arrives.
+          </div>
+        )}
 
         {activeFilterChips.length > 0 && (
           <div className="filter-chips" aria-label="Active filters">
@@ -455,6 +462,7 @@ export function DiagramPage() {
           <span className="badge drift">Drift detected</span>
           <span className="badge added">Diff: added</span>
           <span className="badge removed">Diff: removed</span>
+          <span className="subtle">Traffic thresholds: red if error ≥5% or p95 ≥2000ms; yellow if error ≥1% or p95 ≥800ms.</span>
         </div>
       </aside>
       <DiagramCanvas data={layoutedData} groupNodes={groupNodes} overlayMode={overlayMode} />
