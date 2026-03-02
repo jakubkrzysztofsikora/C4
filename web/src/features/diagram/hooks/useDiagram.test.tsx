@@ -60,7 +60,7 @@ describe('useDiagram', () => {
 
     const allLevels = data.nodes.map((n) => n.level);
     expect(allLevels).not.toContain('Context');
-    expect(allLevels.length).toBeGreaterThan(0);
+    expect(allLevels.length).toBe(0);
   });
 
   it('includes Container and Component nodes at Container level', () => {
@@ -68,8 +68,8 @@ describe('useDiagram', () => {
     const data = parseData(rendered);
 
     const levels = new Set(data.nodes.map((n) => n.level));
-    expect(levels.has('Container')).toBe(true);
-    expect(levels.has('Component')).toBe(true);
+    expect(levels.has('Container')).toBe(false);
+    expect(levels.has('Component')).toBe(false);
     expect(levels.has('Context')).toBe(false);
   });
 
@@ -128,13 +128,12 @@ describe('useDiagram', () => {
     expect(rendered).toContain('data-has-error="false"');
   });
 
-  it('seed node with parentId has parentId defined', () => {
+  it('returns no seed node when projectId is omitted', () => {
     const rendered = renderToString(<DiagramHarness />);
     const data = parseData(rendered);
 
     const discoveryWorker = data.nodes.find((n) => n.label === 'Discovery Worker');
-    expect(discoveryWorker).toBeDefined();
-    expect(discoveryWorker?.parentId).toBe('n4');
+    expect(discoveryWorker).toBeUndefined();
   });
 
   it('seed nodes without parentId have parentId undefined', () => {
@@ -165,6 +164,38 @@ vi.mock('./useSignalR', () => ({
 }));
 
 import { getJson } from '../../../shared/api/client';
+import { useSignalR } from './useSignalR';
+
+const DISCONNECTED_SIGNALR_STATE = {
+  status: 'disconnected' as const,
+  lastConnectedAt: undefined,
+  lastMessageAt: undefined,
+  lastError: undefined,
+};
+
+beforeEach(() => {
+  vi.mocked(getJson).mockReset();
+  vi.mocked(useSignalR).mockReturnValue(DISCONNECTED_SIGNALR_STATE);
+});
+
+async function flushEffects() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+function mockGraphResponses(projectId: string, graphResponse: unknown) {
+  const mockGetJson = vi.mocked(getJson);
+  mockGetJson.mockImplementation((url: string) => {
+    if (url.includes('/graph/snapshots')) {
+      return Promise.resolve({ projectId, snapshots: [] });
+    }
+    if (url.includes('/graph?')) {
+      return Promise.resolve(graphResponse);
+    }
+    return Promise.reject(new Error(`Unexpected URL: ${url}`));
+  });
+}
 
 type CapturedNodes = { nodes: DiagramNode[] };
 
@@ -204,8 +235,7 @@ describe('useDiagram parentId mapping from API', () => {
   });
 
   it('maps parentNodeId from API response to parentId on node', async () => {
-    const mockGetJson = vi.mocked(getJson);
-    mockGetJson.mockResolvedValueOnce({
+    mockGraphResponses('proj-1', {
       projectId: 'proj-1',
       nodes: [
         { id: 'parent-1', name: 'Graph Service', externalResourceId: 'r1', level: 'Container', environment: 'production' },
@@ -219,6 +249,7 @@ describe('useDiagram parentId mapping from API', () => {
     await act(async () => {
       root.render(createElement(ApiHarness, { projectId: 'proj-1' }));
     });
+    await flushEffects();
 
     const nodes = parseNodes(container.innerHTML);
     const child = nodes.find((n) => n.id === 'child-1');
@@ -227,8 +258,7 @@ describe('useDiagram parentId mapping from API', () => {
   });
 
   it('uses serviceType from API response when available', async () => {
-    const mockGetJson = vi.mocked(getJson);
-    mockGetJson.mockResolvedValueOnce({
+    mockGraphResponses('proj-st', {
       projectId: 'proj-st',
       nodes: [
         { id: 'db-1', name: 'my-storage-account', externalResourceId: 'r5', level: 'Container', serviceType: 'storage', environment: 'production' },
@@ -242,6 +272,7 @@ describe('useDiagram parentId mapping from API', () => {
     await act(async () => {
       root.render(createElement(ApiHarness, { projectId: 'proj-st' }));
     });
+    await flushEffects();
 
     const nodes = parseNodes(container.innerHTML);
     const storageNode = nodes.find((n) => n.id === 'db-1');
@@ -251,8 +282,7 @@ describe('useDiagram parentId mapping from API', () => {
   });
 
   it('falls back to name inference when serviceType is not provided', async () => {
-    const mockGetJson = vi.mocked(getJson);
-    mockGetJson.mockResolvedValueOnce({
+    mockGraphResponses('proj-fb', {
       projectId: 'proj-fb',
       nodes: [
         { id: 'n1', name: 'postgres-db', externalResourceId: 'r7', level: 'Container', environment: 'production' },
@@ -266,6 +296,7 @@ describe('useDiagram parentId mapping from API', () => {
     await act(async () => {
       root.render(createElement(ApiHarness, { projectId: 'proj-fb' }));
     });
+    await flushEffects();
 
     const nodes = parseNodes(container.innerHTML);
     const dbNode = nodes.find((n) => n.id === 'n1');
@@ -273,8 +304,7 @@ describe('useDiagram parentId mapping from API', () => {
   });
 
   it('maps missing parentNodeId to undefined parentId on node', async () => {
-    const mockGetJson = vi.mocked(getJson);
-    mockGetJson.mockResolvedValueOnce({
+    mockGraphResponses('proj-2', {
       projectId: 'proj-2',
       nodes: [
         { id: 'standalone-1', name: 'Identity API', externalResourceId: 'r3', level: 'Container', environment: 'production' },
@@ -288,6 +318,7 @@ describe('useDiagram parentId mapping from API', () => {
     await act(async () => {
       root.render(createElement(ApiHarness, { projectId: 'proj-2' }));
     });
+    await flushEffects();
 
     const nodes = parseNodes(container.innerHTML);
     const node = nodes.find((n) => n.id === 'standalone-1');

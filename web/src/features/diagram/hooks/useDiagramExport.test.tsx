@@ -36,8 +36,8 @@ function SvgContentHarness({ data }: { data: DiagramData }) {
   return <output data-has-export={typeof exportAs === 'function' ? 'true' : 'false'} />;
 }
 
-function captureExportFn(data: DiagramData): (format: 'svg' | 'pdf') => Promise<void> {
-  let exportFn: ((format: 'svg' | 'pdf') => Promise<void>) | undefined;
+function captureExportFn(data: DiagramData): (format: 'svg' | 'png' | 'pdf' | 'graphml') => Promise<void> {
+  let exportFn: ((format: 'svg' | 'png' | 'pdf' | 'graphml') => Promise<void>) | undefined;
 
   function CaptureHarness() {
     const { exportAs } = useDiagramExport(data);
@@ -198,7 +198,7 @@ describe('useDiagramExport SVG generation', () => {
     } as unknown as typeof Image;
 
     const exportFn = captureExportFn(SAMPLE_DATA);
-    await exportFn('pdf');
+    await exportFn('png');
 
     expect(capturedSvgStrings.length).toBeGreaterThanOrEqual(1);
     const svgContent = capturedSvgStrings.find(s => s.includes('<svg'));
