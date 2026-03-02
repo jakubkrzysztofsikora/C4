@@ -94,7 +94,7 @@ public sealed class ExchangeAzureCodeHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ValidState_StoresTokesForEachSubscription()
+    public async Task Handle_ValidState_StoresTokensForEachSubscription()
     {
         var stateStore = new FakeOAuthStateStore();
         var identityService = new FakeAzureIdentityService();
