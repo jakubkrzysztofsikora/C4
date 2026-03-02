@@ -130,7 +130,8 @@ public sealed class GetGraphHandler(
                     node.IsInfrastructure,
                     node.ClassificationSource,
                     node.ClassificationConfidence,
-                    groupKey);
+                    groupKey,
+                    node.Tags);
             }
 
             return new GraphNodeDto(
@@ -156,7 +157,8 @@ public sealed class GetGraphHandler(
                 node.IsInfrastructure,
                 node.ClassificationSource,
                 node.ClassificationConfidence,
-                groupKey);
+                groupKey,
+                node.Tags);
         }).ToArray();
 
         var nodeById = nodeDtos.ToDictionary(n => n.Id, n => n);
@@ -315,7 +317,8 @@ public sealed class GetGraphHandler(
                     string.IsNullOrWhiteSpace(node.Domain) ? "General" : node.Domain,
                     node.IsInfrastructure,
                     string.IsNullOrWhiteSpace(node.ClassificationSource) ? "snapshot" : node.ClassificationSource,
-                    node.ClassificationConfidence <= 0 ? 0.7 : node.ClassificationConfidence))
+                    node.ClassificationConfidence <= 0 ? 0.7 : node.ClassificationConfidence,
+                    node.Tags ?? []))
                 .ToArray();
         }
 
@@ -338,7 +341,8 @@ public sealed class GetGraphHandler(
                     domain,
                     resolved.IsInfrastructure,
                     resolved.ClassificationSource,
-                    resolved.ClassificationConfidence);
+                    resolved.ClassificationConfidence,
+                    node.Properties.Tags);
             })
             .ToArray();
     }
@@ -635,7 +639,8 @@ public sealed class GetGraphHandler(
         string Domain,
         bool IsInfrastructure,
         string ClassificationSource,
-        double ClassificationConfidence);
+        double ClassificationConfidence,
+        IReadOnlyCollection<string> Tags);
 
     private sealed record WorkingEdge(Guid Id, Guid SourceNodeId, Guid TargetNodeId, string Protocol);
 

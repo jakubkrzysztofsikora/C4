@@ -338,6 +338,33 @@ describe('useDiagram parentId mapping from API', () => {
     expect(appNode?.serviceType).toBe('app');
   });
 
+  it('maps tags from API response onto diagram nodes', async () => {
+    mockGraphResponses('proj-tags', {
+      projectId: 'proj-tags',
+      nodes: [
+        {
+          id: 'tag-1',
+          name: 'Tagged Service',
+          externalResourceId: 'r9',
+          level: 'Container',
+          serviceType: 'api',
+          environment: 'production',
+          tags: ['team:platform', 'env:prod'],
+        },
+      ],
+      edges: [],
+    });
+
+    await act(async () => {
+      root.render(createElement(ApiHarness, { projectId: 'proj-tags' }));
+    });
+    await flushEffects();
+
+    const nodes = parseNodes(container.innerHTML);
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]?.tags).toEqual(['team:platform', 'env:prod']);
+  });
+
   it('falls back to name inference when serviceType is not provided', async () => {
     mockGraphResponses('proj-fb', {
       projectId: 'proj-fb',

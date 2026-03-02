@@ -24,7 +24,8 @@ public sealed record GraphNodeDto(
     bool IsInfrastructure = false,
     string ClassificationSource = "fallback",
     double ClassificationConfidence = 0.6,
-    string GroupKey = "");
+    string GroupKey = "",
+    IReadOnlyCollection<string>? Tags = null);
 public sealed record GraphEdgeDto(
     Guid Id,
     Guid SourceNodeId,

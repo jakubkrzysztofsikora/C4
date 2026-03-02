@@ -27,6 +27,7 @@ type GraphNodeDto = {
   classificationSource?: string;
   classificationConfidence?: number;
   groupKey?: string;
+  tags?: ReadonlyArray<string>;
 };
 
 type GraphEdgeDto = {
@@ -126,6 +127,10 @@ function resolveHealth(value: string | undefined): DiagramNode['health'] {
   return 'unknown';
 }
 
+function isOverlayMode(value: string): value is OverlayMode {
+  return value === 'none' || value === 'threat' || value === 'cost' || value === 'security';
+}
+
 function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
   const nodes: DiagramNode[] = (dto.nodes ?? []).map((node) => ({
     id: node.id,
@@ -145,6 +150,7 @@ function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
     ...(node.resourceGroup ? { resourceGroup: node.resourceGroup } : {}),
     ...(node.domain ? { domain: node.domain } : {}),
     ...(node.groupKey ? { groupKey: node.groupKey } : {}),
+    ...(Array.isArray(node.tags) && node.tags.length > 0 ? { tags: node.tags.filter((tag) => typeof tag === 'string' && tag.length > 0) } : {}),
     ...(typeof node.isInfrastructure === 'boolean' ? { isInfrastructure: node.isInfrastructure } : {}),
     ...(node.classificationSource ? { classificationSource: node.classificationSource } : {}),
     ...(typeof node.classificationConfidence === 'number' ? { classificationConfidence: node.classificationConfidence } : {}),
@@ -245,12 +251,15 @@ export function useDiagram(projectId?: string) {
     const initialSnapshotId = getInitialParam('snapshotId', '').trim();
     return initialSnapshotId.length > 0 ? initialSnapshotId : undefined;
   });
-  const [diffEnabled, setDiffEnabled] = useState(false);
-  const [diffFromSnapshotId, setDiffFromSnapshotId] = useState<string>('');
-  const [diffToSnapshotId, setDiffToSnapshotId] = useState<string>('');
+  const [diffEnabled, setDiffEnabled] = useState(() => getInitialBoolParam('diff', false));
+  const [diffFromSnapshotId, setDiffFromSnapshotId] = useState<string>(() => getInitialParam('diffFrom', '').trim());
+  const [diffToSnapshotId, setDiffToSnapshotId] = useState<string>(() => getInitialParam('diffTo', '').trim());
   const [diffResult, setDiffResult] = useState<GraphDiffResponse | undefined>(undefined);
 
-  const [overlayMode, setOverlayMode] = useState<OverlayMode>('none');
+  const [overlayMode, setOverlayMode] = useState<OverlayMode>(() => {
+    const initial = getInitialParam('overlay', 'none');
+    return isOverlayMode(initial) ? initial : 'none';
+  });
   const [threatView, setThreatView] = useState<ThreatView>(() => {
     const initial = getInitialParam('threatView', 'general');
     if (initial === 'api-attack-surface' || initial === 'exit-points' || initial === 'data-exposure' || initial === 'blast-radius') {
@@ -439,6 +448,10 @@ export function useDiagram(projectId?: string) {
       if (search.length > 0) params.set('search', search); else params.delete('search');
       if (tagFilter.length > 0) params.set('tag', tagFilter); else params.delete('tag');
       if (selectedSnapshotId !== undefined) params.set('snapshotId', selectedSnapshotId); else params.delete('snapshotId');
+      params.set('overlay', overlayMode);
+      params.set('diff', diffEnabled ? 'true' : 'false');
+      if (diffFromSnapshotId.length > 0) params.set('diffFrom', diffFromSnapshotId); else params.delete('diffFrom');
+      if (diffToSnapshotId.length > 0) params.set('diffTo', diffToSnapshotId); else params.delete('diffTo');
       params.set('threatView', threatView);
       const next = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState(null, '', next);
@@ -460,6 +473,10 @@ export function useDiagram(projectId?: string) {
     search,
     tagFilter,
     selectedSnapshotId,
+    overlayMode,
+    diffEnabled,
+    diffFromSnapshotId,
+    diffToSnapshotId,
     threatView,
   ]);
 
@@ -482,6 +499,16 @@ export function useDiagram(projectId?: string) {
 
   const technologies = useMemo(() => {
     const set = new Set(sourceData.nodes.map((n) => n.technology).filter((value): value is string => value !== undefined && value.length > 0));
+    return Array.from(set).sort();
+  }, [sourceData]);
+
+  const tags = useMemo(() => {
+    const set = new Set<string>();
+    for (const node of sourceData.nodes) {
+      for (const tag of node.tags ?? []) {
+        if (tag.length > 0) set.add(tag);
+      }
+    }
     return Array.from(set).sort();
   }, [sourceData]);
 
@@ -512,8 +539,12 @@ export function useDiagram(projectId?: string) {
       }
 
       if (lowerTag.length > 0) {
+        const matchesExplicitTag = (n.tags ?? []).some((tag) => tag.toLowerCase().includes(lowerTag));
         const matchesTag =
-          n.label.toLowerCase().includes(lowerTag)
+          matchesExplicitTag
+          || (n.technology ?? '').toLowerCase().includes(lowerTag)
+          || (n.domain ?? '').toLowerCase().includes(lowerTag)
+          || n.label.toLowerCase().includes(lowerTag)
           || (n.externalResourceId ?? '').toLowerCase().includes(lowerTag)
           || (n.resourceGroup ?? '').toLowerCase().includes(lowerTag)
           || (n.classificationSource ?? '').toLowerCase().includes(lowerTag)
@@ -598,6 +629,13 @@ export function useDiagram(projectId?: string) {
     };
   }, [sourceData, data]);
 
+  const diffMetrics = useMemo(() => ({
+    addedNodes: diffResult?.addedNodes?.length ?? 0,
+    removedNodes: diffResult?.removedNodes?.length ?? 0,
+    addedEdges: diffResult?.addedEdges?.length ?? 0,
+    removedEdges: diffResult?.removedEdges?.length ?? 0,
+  }), [diffResult]);
+
   const visibleDiagramData = useMemo<DiagramData>(() => ({
     nodes: data.nodes,
     edges: data.edges,
@@ -675,6 +713,7 @@ export function useDiagram(projectId?: string) {
     technologyFilter,
     setTechnologyFilter,
     technologies,
+    tags,
     domainFilter,
     setDomainFilter,
     domains,
@@ -694,6 +733,7 @@ export function useDiagram(projectId?: string) {
     setDiffFromSnapshotId,
     diffToSnapshotId,
     setDiffToSnapshotId,
+    diffMetrics,
     metrics,
     loading,
     error,

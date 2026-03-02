@@ -52,6 +52,7 @@ function ServiceNode({ data }: { data: { node: DiagramNode; overlayMode: Overlay
     `Technology: ${node.technology ?? 'unknown'}`,
     `Environment: ${node.environment ?? 'unknown'}`,
     `Domain: ${node.domain ?? 'General'}`,
+    (node.tags ?? []).length > 0 ? `Tags: ${(node.tags ?? []).join(', ')}` : undefined,
     `Classification: ${node.classificationSource ?? 'n/a'} (${(node.classificationConfidence ?? 0).toFixed(2)})`,
     `Telemetry: ${node.telemetryStatus ?? 'unknown'}`,
     typeof node.requestRate === 'number' ? `Request rate: ${node.requestRate.toFixed(2)} rps` : undefined,

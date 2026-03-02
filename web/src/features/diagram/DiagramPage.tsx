@@ -50,6 +50,7 @@ export function DiagramPage() {
     technologyFilter,
     setTechnologyFilter,
     technologies,
+    tags,
     domainFilter,
     setDomainFilter,
     domains,
@@ -69,6 +70,7 @@ export function DiagramPage() {
     setDiffFromSnapshotId,
     diffToSnapshotId,
     setDiffToSnapshotId,
+    diffMetrics,
     metrics,
     loading,
     error,
@@ -151,6 +153,7 @@ export function DiagramPage() {
     setDriftOnly(false);
     setTimelineIndex(-1);
     setDiffEnabled(false);
+    setOverlayMode('none');
     setThreatView('general');
   }
 
@@ -328,7 +331,12 @@ export function DiagramPage() {
           </label>
           <label>
             Tag / Metadata Filter
-            <input placeholder="Filter by tag or metadata" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} />
+            <input list="diagram-tag-options" placeholder="Filter by tag or metadata" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} />
+            <datalist id="diagram-tag-options">
+              {tags.map((tag) => (
+                <option key={tag} value={tag} />
+              ))}
+            </datalist>
           </label>
 
           <label>
@@ -381,6 +389,12 @@ export function DiagramPage() {
                   ))}
                 </select>
               </label>
+              <div className="metrics-row" aria-live="polite">
+                <span>Added nodes: <strong>{diffMetrics.addedNodes}</strong></span>
+                <span>Removed nodes: <strong>{diffMetrics.removedNodes}</strong></span>
+                <span>Added edges: <strong>{diffMetrics.addedEdges}</strong></span>
+                <span>Removed edges: <strong>{diffMetrics.removedEdges}</strong></span>
+              </div>
             </>
           )}
 

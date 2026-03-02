@@ -166,7 +166,7 @@ describe('useDiagramExport SVG generation', () => {
     expect(svgText).toContain('DRIFT');
   });
 
-  it('uses Dagre-computed positions from data', async () => {
+  it('normalizes node coordinates while preserving relative layout', async () => {
     const dataWithPositions: DiagramData = {
       nodes: [
         { id: 'p1', label: 'Positioned', level: 'Container', health: 'green', serviceType: 'api', position: { x: 150, y: 200 } },
@@ -178,7 +178,7 @@ describe('useDiagramExport SVG generation', () => {
     await exportFn('svg');
 
     const svgText = capturedSvgStrings[0]!;
-    expect(svgText).toContain('translate(230,280)');
+    expect(svgText).toContain('translate(80,80)');
   });
 
   it('creates SVG blob and Image for PNG export', async () => {

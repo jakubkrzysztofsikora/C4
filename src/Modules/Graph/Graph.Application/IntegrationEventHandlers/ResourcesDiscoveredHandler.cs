@@ -42,7 +42,8 @@ public sealed class ResourcesDiscoveredHandler(
                 domain: resource.Domain ?? "General",
                 isInfrastructure: effectiveClassification.IsInfrastructure,
                 classificationSource: effectiveClassification.ClassificationSource,
-                classificationConfidence: effectiveClassification.ClassificationConfidence);
+                classificationConfidence: effectiveClassification.ClassificationConfidence,
+                tags: ExtractTags(resource.Tags));
         }
 
         var parentMappings = includedResources
@@ -170,6 +171,27 @@ public sealed class ResourcesDiscoveredHandler(
             return parsed;
 
         return C4Level.Container;
+    }
+
+    private static IReadOnlyCollection<string> ExtractTags(IReadOnlyDictionary<string, string>? tags)
+    {
+        if (tags is null || tags.Count == 0)
+            return [];
+
+        HashSet<string> values = new(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in tags)
+        {
+            if (!string.IsNullOrWhiteSpace(key))
+                values.Add(key.Trim());
+
+            if (!string.IsNullOrWhiteSpace(value))
+                values.Add(value.Trim());
+
+            if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(value))
+                values.Add($"{key.Trim()}:{value.Trim()}");
+        }
+
+        return values.Count == 0 ? [] : values.OrderBy(v => v, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     private static int GetSourcePriority(string sourceProvenance)

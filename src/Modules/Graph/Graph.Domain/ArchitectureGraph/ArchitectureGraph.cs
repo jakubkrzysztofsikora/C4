@@ -32,13 +32,14 @@ public sealed class ArchitectureGraph : AggregateRoot<ArchitectureGraphId>
         string domain = "General",
         bool isInfrastructure = false,
         string classificationSource = "fallback",
-        double classificationConfidence = 0.6)
+        double classificationConfidence = 0.6,
+        IReadOnlyCollection<string>? tags = null)
     {
         var existing = _nodes.FirstOrDefault(n => n.ExternalResourceId == externalResourceId);
         var props = new NodeProperties(
             serviceType,
             "n/a",
-            [],
+            tags ?? [],
             0m,
             domain,
             isInfrastructure,

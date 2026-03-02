@@ -6,6 +6,7 @@ import { healthColor, trafficColor } from '../utils';
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 80;
 const PADDING = 80;
+const MAX_EXPORT_DIMENSION = 4096;
 
 function escapeXml(value: string): string {
   return value
@@ -16,17 +17,49 @@ function escapeXml(value: string): string {
     .replace(/'/g, '&apos;');
 }
 
-function buildSvg(data: DiagramData): string {
-  const positioned = data.nodes.map((node) => ({
+function normalizePositions(nodes: DiagramData['nodes']) {
+  const raw = nodes.map((node) => ({
     ...node,
-    x: (node.position?.x ?? 0) + PADDING,
-    y: (node.position?.y ?? 0) + PADDING,
+    x: node.position?.x ?? 0,
+    y: node.position?.y ?? 0,
   }));
 
-  const maxX = positioned.reduce((max, n) => Math.max(max, n.x + NODE_WIDTH), 0);
-  const maxY = positioned.reduce((max, n) => Math.max(max, n.y + NODE_HEIGHT), 0);
-  const width = maxX + PADDING;
-  const height = maxY + PADDING;
+  if (raw.length === 0) {
+    return {
+      nodes: [],
+      width: NODE_WIDTH + (PADDING * 2),
+      height: NODE_HEIGHT + (PADDING * 2),
+    };
+  }
+
+  const minX = raw.reduce((min, n) => Math.min(min, n.x), Number.POSITIVE_INFINITY);
+  const minY = raw.reduce((min, n) => Math.min(min, n.y), Number.POSITIVE_INFINITY);
+  const maxX = raw.reduce((max, n) => Math.max(max, n.x), Number.NEGATIVE_INFINITY);
+  const maxY = raw.reduce((max, n) => Math.max(max, n.y), Number.NEGATIVE_INFINITY);
+
+  const contentWidth = Math.max(1, (maxX - minX) + NODE_WIDTH);
+  const contentHeight = Math.max(1, (maxY - minY) + NODE_HEIGHT);
+  const available = Math.max(1, MAX_EXPORT_DIMENSION - (PADDING * 2));
+  const scale = Math.min(1, available / contentWidth, available / contentHeight);
+
+  const normalized = raw.map((node) => ({
+    ...node,
+    x: PADDING + ((node.x - minX) * scale),
+    y: PADDING + ((node.y - minY) * scale),
+  }));
+
+  return {
+    nodes: normalized,
+    width: Math.max(NODE_WIDTH + (PADDING * 2), Math.ceil((contentWidth * scale) + (PADDING * 2))),
+    height: Math.max(NODE_HEIGHT + (PADDING * 2), Math.ceil((contentHeight * scale) + (PADDING * 2))),
+  };
+}
+
+function buildSvg(data: DiagramData): string {
+  const normalized = normalizePositions(data.nodes);
+  const positioned = normalized.nodes;
+  const width = normalized.width;
+  const height = normalized.height;
 
   const positionById = new Map(positioned.map((n) => [n.id, n]));
 
@@ -153,6 +186,7 @@ function serializeDiagramForBackendExport(data: DiagramData): string {
       level: node.level,
       x: node.position?.x ?? 0,
       y: node.position?.y ?? 0,
+      tags: node.tags ?? [],
     })),
     edges: data.edges.map((edge) => ({
       id: edge.id,
@@ -172,15 +206,21 @@ function downloadLocalPng(svg: string) {
   const svgUrl = URL.createObjectURL(svgBlob);
   const img = new Image();
   img.onload = () => {
+    const exportScale = Math.min(
+      2,
+      MAX_EXPORT_DIMENSION / Math.max(1, img.naturalWidth),
+      MAX_EXPORT_DIMENSION / Math.max(1, img.naturalHeight),
+    );
+    const safeScale = Number.isFinite(exportScale) && exportScale > 0 ? exportScale : 1;
     const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth * 2;
-    canvas.height = img.naturalHeight * 2;
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * safeScale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * safeScale));
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       URL.revokeObjectURL(svgUrl);
       return;
     }
-    ctx.scale(2, 2);
+    ctx.scale(safeScale, safeScale);
     ctx.drawImage(img, 0, 0);
     URL.revokeObjectURL(svgUrl);
     canvas.toBlob((pngBlob) => {

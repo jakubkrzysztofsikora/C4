@@ -35,7 +35,8 @@ public sealed record GraphSnapshot(
             n.Properties.Domain,
             n.Properties.IsInfrastructure,
             n.Properties.ClassificationSource,
-            n.Properties.ClassificationConfidence)).ToArray();
+            n.Properties.ClassificationConfidence,
+            n.Properties.Tags)).ToArray();
 
         var edgeData = edges.Select(e => new GraphSnapshotEdge(
             e.Id.Value,
@@ -64,7 +65,8 @@ public sealed record GraphSnapshotNode(
     string Domain,
     bool IsInfrastructure,
     string ClassificationSource,
-    double ClassificationConfidence);
+    double ClassificationConfidence,
+    IReadOnlyCollection<string>? Tags = null);
 
 public sealed record GraphSnapshotEdge(
     Guid Id,

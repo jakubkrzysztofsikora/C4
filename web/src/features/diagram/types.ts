@@ -24,6 +24,7 @@ export type DiagramNode = {
   environment?: string;
   resourceGroup?: string;
   domain?: string;
+  tags?: string[];
   isInfrastructure?: boolean;
   classificationSource?: string;
   classificationConfidence?: number;
