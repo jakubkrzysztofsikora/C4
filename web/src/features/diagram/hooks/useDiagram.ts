@@ -537,6 +537,11 @@ export function useDiagram(projectId?: string) {
     };
   }, [sourceData, data]);
 
+  const visibleDiagramData = useMemo<DiagramData>(() => ({
+    nodes: data.nodes,
+    edges: data.edges,
+  }), [data.nodes, data.edges]);
+
   useEffect(() => {
     if (projectId === undefined || overlayMode === 'none') {
       setOverlaySummary(undefined);
@@ -585,7 +590,7 @@ export function useDiagram(projectId?: string) {
   }, [signalR.status, lastRefreshAt]);
 
   return {
-    data: { nodes: data.nodes, edges: data.edges },
+    data: visibleDiagramData,
     level,
     setLevel,
     search,
