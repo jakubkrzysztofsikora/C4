@@ -22,7 +22,7 @@ public sealed class AzureIdentityService(IHttpClientFactory httpClientFactory, I
                $"&response_type=code" +
                $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
                $"&scope={scope}" +
-               $"&state={state}" +
+               $"&state={Uri.EscapeDataString(state)}" +
                $"&response_mode=query";
     }
 

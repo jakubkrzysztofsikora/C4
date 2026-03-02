@@ -96,12 +96,12 @@ export function useSubscriptions() {
     }
   }, []);
 
-  const exchangeAzureCode = useCallback(async (code: string, redirectUri: string) => {
+  const exchangeAzureCode = useCallback(async (code: string, redirectUri: string, state: string) => {
     setState(prev => ({ ...prev, loading: true, error: undefined }));
     try {
-      const response = await postJson<{ code: string; redirectUri: string }, ExchangeCodeResponse>(
+      const response = await postJson<{ code: string; redirectUri: string; state: string }, ExchangeCodeResponse>(
         '/api/azure/auth/callback',
-        { code, redirectUri },
+        { code, redirectUri, state },
       );
       setState(prev => ({
         ...prev,
