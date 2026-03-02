@@ -8,6 +8,7 @@ public sealed class ArchitectureGraphRepository(GraphDbContext dbContext) : IArc
 {
     public async Task<ArchitectureGraph?> GetByProjectIdAsync(Guid projectId, CancellationToken cancellationToken) =>
         await dbContext.Graphs
+            .AsSplitQuery()
             .Include(g => g.Nodes)
             .Include(g => g.Edges)
             .Include(g => g.Snapshots)
