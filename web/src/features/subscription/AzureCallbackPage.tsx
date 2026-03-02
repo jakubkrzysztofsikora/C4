@@ -64,7 +64,7 @@ export function AzureCallbackPage() {
     const redirectUri = `${window.location.origin}/azure/callback`;
 
     async function exchange() {
-      const result = await exchangeAzureCode(code!, redirectUri);
+      const result = await exchangeAzureCode(code!, redirectUri, state!);
       if (result !== undefined && result.length > 0) {
         setSubscriptions(result);
         setStatus('selecting');
