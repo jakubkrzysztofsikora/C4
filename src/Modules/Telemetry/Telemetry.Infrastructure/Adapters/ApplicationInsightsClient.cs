@@ -89,9 +89,7 @@ public sealed class ApplicationInsightsClient(
         if (configuredAppIds.Count == 0)
             configuredAppIds = ParseAppIds(configuration["ApplicationInsights:AppId"]);
 
-        var apiKey = !string.IsNullOrWhiteSpace(config?.InstrumentationKey)
-            ? config.InstrumentationKey.Trim()
-            : GlobalApiKey;
+        var apiKey = ResolveApiKey(config?.InstrumentationKey);
 
         if (configuredAppIds.Count == 0 || string.IsNullOrWhiteSpace(apiKey))
         {
@@ -340,4 +338,34 @@ public sealed class ApplicationInsightsClient(
 
     private static string NormalizeKey(string? value)
         => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().ToLowerInvariant();
+
+    private string ResolveApiKey(string? configuredValue)
+    {
+        var configuredKey = configuredValue?.Trim() ?? string.Empty;
+        if (IsLikelyInstrumentationKey(configuredKey))
+        {
+            logger.LogWarning(
+                "Ignoring likely Application Insights instrumentation key configured for query auth; configure an API key instead.");
+            configuredKey = string.Empty;
+        }
+
+        if (!string.IsNullOrWhiteSpace(configuredKey))
+            return configuredKey;
+
+        return GlobalApiKey.Trim();
+    }
+
+    private static bool IsLikelyInstrumentationKey(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        if (Guid.TryParse(value, out _))
+            return true;
+
+        return value.Contains("InstrumentationKey=", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("IngestionEndpoint=", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("ApplicationId=", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("EndpointSuffix=", StringComparison.OrdinalIgnoreCase);
+    }
 }

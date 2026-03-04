@@ -38,7 +38,8 @@ public sealed class TelemetryTargetsEndpoint : IEndpoint
             if (string.IsNullOrWhiteSpace(request.AppId))
                 return Results.BadRequest(new { error = "appId is required." });
 
-            await configStore.StoreAsync(projectId, request.AppId.Trim(), request.InstrumentationKey ?? string.Empty, ct);
+            var apiKey = request.ApiKey ?? request.InstrumentationKey ?? string.Empty;
+            await configStore.StoreAsync(projectId, request.AppId.Trim(), apiKey, ct);
 
             var targets = await configStore.GetTargetsAsync(projectId, ct);
             var response = new TelemetryTargetsResponse(
@@ -73,7 +74,7 @@ public sealed class TelemetryTargetsEndpoint : IEndpoint
         }).RequireAuthorization();
     }
 
-    public sealed record UpsertTelemetryTargetRequest(string AppId, string? InstrumentationKey);
+    public sealed record UpsertTelemetryTargetRequest(string AppId, string? ApiKey, string? InstrumentationKey);
     public sealed record TelemetryTargetsResponse(Guid ProjectId, IReadOnlyCollection<TelemetryTargetDto> Targets);
     public sealed record TelemetryTargetDto(string TargetId, string AppId, string Source);
 }
