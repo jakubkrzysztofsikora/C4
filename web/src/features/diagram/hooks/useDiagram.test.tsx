@@ -163,7 +163,7 @@ vi.mock('./useSignalR', () => ({
   useSignalR: vi.fn(),
 }));
 
-import { getJson } from '../../../shared/api/client';
+import { getJson, ApiError } from '../../../shared/api/client';
 import { useSignalR } from './useSignalR';
 
 const DISCONNECTED_SIGNALR_STATE = {
@@ -408,5 +408,43 @@ describe('useDiagram parentId mapping from API', () => {
     const node = nodes.find((n) => n.id === 'standalone-1');
     expect(node).toBeDefined();
     expect(node?.parentId).toBeUndefined();
+  });
+
+  it('does not fetch snapshots for a no-graph project after switching projects', async () => {
+    const mockGetJson = vi.mocked(getJson);
+    mockGetJson.mockImplementation((url: string) => {
+      if (url.includes('/api/projects/proj-a/graph?')) {
+        return Promise.resolve({ projectId: 'proj-a', nodes: [], edges: [] });
+      }
+      if (url.includes('/api/projects/proj-a/graph/snapshots')) {
+        return Promise.resolve({ projectId: 'proj-a', snapshots: [] });
+      }
+      if (url.includes('/api/projects/proj-b/graph?')) {
+        return Promise.reject(new ApiError(404, 'graph.not_found'));
+      }
+      if (url.includes('/api/projects/proj-b/graph/snapshots')) {
+        return Promise.reject(new Error('snapshots should not be fetched for graph.not_found project'));
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    });
+
+    await act(async () => {
+      root.render(createElement(ApiHarness, { projectId: 'proj-a' }));
+    });
+    await flushEffects();
+    await flushEffects();
+
+    await act(async () => {
+      root.render(createElement(ApiHarness, { projectId: 'proj-b' }));
+    });
+    await flushEffects();
+    await flushEffects();
+
+    const urls = mockGetJson.mock.calls.map(([url]) => String(url));
+    const projectBGraphCalls = urls.filter((url) => url.includes('/api/projects/proj-b/graph?'));
+    const projectBSnapshotCalls = urls.filter((url) => url.includes('/api/projects/proj-b/graph/snapshots'));
+
+    expect(projectBGraphCalls).toHaveLength(1);
+    expect(projectBSnapshotCalls).toHaveLength(0);
   });
 });

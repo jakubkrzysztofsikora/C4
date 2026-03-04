@@ -10,6 +10,7 @@ public sealed class AppInsightsConfigStore(TelemetryDbContext dbContext) : IAppI
     {
         var incomingTargets = ParseTargets(appId);
         var serializedIncoming = SerializeTargets(incomingTargets);
+        var normalizedInstrumentationKey = instrumentationKey.Trim();
 
         var existing = await dbContext.AppInsightsConfigs.FirstOrDefaultAsync(c => c.ProjectId == projectId, cancellationToken);
 
@@ -22,7 +23,8 @@ public sealed class AppInsightsConfigStore(TelemetryDbContext dbContext) : IAppI
             }
 
             existing.AppId = SerializeTargets(merged);
-            existing.InstrumentationKey = instrumentationKey;
+            if (!string.IsNullOrWhiteSpace(normalizedInstrumentationKey))
+                existing.InstrumentationKey = normalizedInstrumentationKey;
             existing.UpdatedAtUtc = DateTime.UtcNow;
         }
         else
@@ -31,7 +33,7 @@ public sealed class AppInsightsConfigStore(TelemetryDbContext dbContext) : IAppI
             {
                 ProjectId = projectId,
                 AppId = serializedIncoming,
-                InstrumentationKey = instrumentationKey,
+                InstrumentationKey = normalizedInstrumentationKey,
                 UpdatedAtUtc = DateTime.UtcNow
             }, cancellationToken);
         }

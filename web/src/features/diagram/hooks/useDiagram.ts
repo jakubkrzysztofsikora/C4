@@ -316,6 +316,7 @@ export function useDiagram(projectId?: string) {
   const [error, setError] = useState<string | undefined>(undefined);
   const [graphNotFound, setGraphNotFound] = useState(false);
   const [hasGraphData, setHasGraphData] = useState(false);
+  const [loadedProjectId, setLoadedProjectId] = useState<string | undefined>(undefined);
   const [lastRefreshAt, setLastRefreshAt] = useState<number | undefined>(undefined);
 
   useEffect(() => {
@@ -323,7 +324,11 @@ export function useDiagram(projectId?: string) {
     setGraphQuality(undefined);
     setGraphNotFound(false);
     setHasGraphData(false);
+    setLoadedProjectId(undefined);
     setSnapshots([]);
+    setSelectedSnapshotId(undefined);
+    setDiffFromSnapshotId('');
+    setDiffToSnapshotId('');
     setDiffResult(undefined);
     setLastRefreshAt(undefined);
   }, [projectId]);
@@ -364,15 +369,18 @@ export function useDiagram(projectId?: string) {
       setApiData(mapped);
       setGraphQuality(dto.quality);
       setHasGraphData(true);
+      setLoadedProjectId(id);
       setLastRefreshAt(Date.now());
     } catch (err: unknown) {
       if (isApiError(err) && err.status === 404) {
         setGraphNotFound(true);
         setError(undefined);
         setHasGraphData(false);
+        setLoadedProjectId(undefined);
       } else {
         setError(extractErrorMessage(err));
         setHasGraphData(false);
+        setLoadedProjectId(undefined);
       }
       setApiData(undefined);
       setGraphQuality(undefined);
@@ -429,9 +437,9 @@ export function useDiagram(projectId?: string) {
   }, []);
 
   useEffect(() => {
-    if (projectId === undefined || !hasGraphData) return;
+    if (projectId === undefined || !hasGraphData || loadedProjectId !== projectId) return;
     void fetchSnapshots(projectId);
-  }, [projectId, hasGraphData, fetchSnapshots]);
+  }, [projectId, hasGraphData, loadedProjectId, fetchSnapshots]);
 
   useEffect(() => {
     if (projectId === undefined) return;
@@ -469,9 +477,9 @@ export function useDiagram(projectId?: string) {
   useEffect(() => {
     if (projectId === undefined) return;
     if (signalR.status !== 'connected') return;
-    if (!hasGraphData || graphNotFound) return;
+    if (!hasGraphData || graphNotFound || loadedProjectId !== projectId) return;
     void fetchGraph(projectId, selectedSnapshotId);
-  }, [projectId, signalR.status, signalR.lastConnectedAt, selectedSnapshotId, fetchGraph, hasGraphData, graphNotFound]);
+  }, [projectId, signalR.status, signalR.lastConnectedAt, selectedSnapshotId, fetchGraph, hasGraphData, graphNotFound, loadedProjectId]);
 
   useEffect(() => {
     if (projectId === undefined) return;
