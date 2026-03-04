@@ -8,6 +8,8 @@ const C4_DIMENSIONS: Record<DiagramNode['level'], { width: number; height: numbe
   Context: { width: 360, height: 140 },
   Container: { width: 280, height: 100 },
   Component: { width: 220, height: 80 },
+  Code: { width: 200, height: 72 },
+  Unknown: { width: 220, height: 84 },
 };
 
 const ELK_OPTIONS = {
