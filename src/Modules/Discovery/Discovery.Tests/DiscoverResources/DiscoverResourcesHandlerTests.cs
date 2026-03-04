@@ -124,6 +124,29 @@ public sealed class DiscoverResourcesHandlerTests
         });
     }
 
+    [Fact]
+    public async Task Handle_WithoutExplicitSources_DefaultsToAzureRuntimeDiscovery()
+    {
+        var repo = new FakeDiscoveredResourceRepository();
+        var classifier = new FakeResourceClassifier();
+        var sourceCapture = new SourceCapturingDiscoveryInputProvider();
+        var handler = new DiscoverResourcesHandler(
+            new FakeDiscoveryInputPlanner(),
+            sourceCapture,
+            repo,
+            classifier,
+            new DiscoveryDataPreparer(),
+            new FakeMediator(),
+            new FakeUnitOfWork(),
+            NullLogger<DiscoverResourcesHandler>.Instance,
+            new AlwaysAuthorizingService());
+
+        await handler.Handle(new DiscoverResourcesCommand(Guid.NewGuid(), "sub-1", Guid.NewGuid()), CancellationToken.None);
+
+        sourceCapture.LastSources.Should().NotBeNull();
+        sourceCapture.LastSources.Should().ContainSingle().Which.Should().Be(DiscoverySourceKind.AzureSubscription);
+    }
+
     private sealed class FakeDiscoveryInputProvider : IDiscoveryInputProvider
     {
         public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
@@ -211,6 +234,20 @@ public sealed class DiscoverResourcesHandlerTests
     {
         public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
             => throw new HttpRequestException("Connector unavailable");
+    }
+
+    private sealed class SourceCapturingDiscoveryInputProvider : IDiscoveryInputProvider
+    {
+        public IReadOnlyCollection<DiscoverySourceKind>? LastSources { get; private set; }
+
+        public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
+        {
+            LastSources = request.Sources;
+            return Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(
+            [
+                new("/r1", "Microsoft.Web/sites", "frontend", null, DiscoverySourceKind.AzureSubscription),
+            ]);
+        }
     }
 
     private sealed class FakeDiscoveredResourceRepository : IDiscoveredResourceRepository

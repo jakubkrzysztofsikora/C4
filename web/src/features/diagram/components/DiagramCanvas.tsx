@@ -118,9 +118,10 @@ export function DiagramCanvas({
 
   const edges: Edge[] = data.edges.map((edge) => {
     const stroke = trafficColor(edge.traffic, edge.trafficState);
+    const trafficLabel = edge.trafficLabel ?? (edge.trafficState === 'unknown' ? 'N/A' : `${Math.round(edge.traffic * 100)}%`);
     const title = [
       `Traffic state: ${edge.trafficState ?? 'unknown'}`,
-      `Traffic score: ${Math.round(edge.traffic * 100)}%`,
+      `Traffic score: ${trafficLabel}`,
       typeof edge.requestRate === 'number' ? `Request rate: ${edge.requestRate.toFixed(2)} rps` : undefined,
       typeof edge.errorRate === 'number' ? `Error rate: ${(edge.errorRate * 100).toFixed(2)}%` : undefined,
       typeof edge.p95LatencyMs === 'number' ? `p95 latency: ${edge.p95LatencyMs.toFixed(0)}ms` : undefined,
@@ -137,7 +138,7 @@ export function DiagramCanvas({
         stroke,
         strokeDasharray: edge.diffStatus === 'removed' ? '6 4' : undefined,
       },
-      label: `${Math.round(edge.traffic * 100)}%`,
+      label: trafficLabel,
       data: { title },
       ariaLabel: title,
     };

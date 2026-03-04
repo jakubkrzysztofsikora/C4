@@ -1,6 +1,7 @@
 using C4.Modules.Graph.Application.Ports;
 using C4.Modules.Graph.Domain.Errors;
 using C4.Shared.Kernel;
+using C4.Shared.Kernel.IntegrationEvents;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,7 +15,8 @@ public sealed record GraphSnapshotDto(Guid SnapshotId, DateTime CreatedAtUtc, st
 public sealed class CreateGraphSnapshotHandler(
     IArchitectureGraphRepository repository,
     [FromKeyedServices("Graph")] IUnitOfWork unitOfWork,
-    IProjectAuthorizationService authorizationService)
+    IProjectAuthorizationService authorizationService,
+    IMediator? mediator = null)
     : IRequestHandler<CreateGraphSnapshotCommand, Result<GraphSnapshotDto>>
 {
     public async Task<Result<GraphSnapshotDto>> Handle(CreateGraphSnapshotCommand request, CancellationToken cancellationToken)
@@ -30,6 +32,13 @@ public sealed class CreateGraphSnapshotHandler(
 
         await repository.UpsertAsync(graph, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (mediator is not null)
+        {
+            await mediator.Publish(
+                new GraphChangedIntegrationEvent(request.ProjectId, "snapshot", DateTime.UtcNow),
+                cancellationToken);
+        }
 
         return Result<GraphSnapshotDto>.Success(new GraphSnapshotDto(snapshot.Id.Value, snapshot.CreatedAtUtc, snapshot.Source));
     }

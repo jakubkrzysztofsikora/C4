@@ -8,11 +8,15 @@ public sealed class GetDriftOverviewEndpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/projects/{projectId:guid}/drift", async (Guid projectId, ISender sender, CancellationToken ct) =>
+        static async Task<IResult> HandleGetDrift(Guid projectId, ISender sender, CancellationToken ct)
         {
             var result = await sender.Send(new GetDriftOverviewQuery(projectId), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
-        })
-        .RequireAuthorization();
+        }
+
+        app.MapGet("/api/projects/{projectId:guid}/drift", HandleGetDrift)
+            .RequireAuthorization();
+        app.MapGet("/api/projects/{projectId:guid}/drift/runs/latest", HandleGetDrift)
+            .RequireAuthorization();
     }
 }

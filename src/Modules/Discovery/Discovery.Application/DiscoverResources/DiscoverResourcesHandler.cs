@@ -47,7 +47,7 @@ public sealed class DiscoverResourcesHandler(
             request.ProjectId,
             request.OrganizationId,
             request.ExternalSubscriptionId,
-            request.Sources ?? DiscoverySourceKindDefaults.All);
+            request.Sources ?? DiscoverySourceKindDefaults.Runtime);
 
         IReadOnlyCollection<DiscoveryResourceDescriptor> descriptors;
         try
@@ -148,17 +148,20 @@ public sealed class DiscoverResourcesHandler(
         IReadOnlyCollection<DiscoveryResourceDescriptor> descriptors,
         CancellationToken cancellationToken)
     {
-        DiscoveryResourceDescriptor? appInsightsDescriptor = descriptors
-            .FirstOrDefault(d =>
+        var appInsightAppIds = descriptors
+            .Where(d =>
                 d.ResourceType.Equals("microsoft.insights/components", StringComparison.OrdinalIgnoreCase)
-                && !string.IsNullOrWhiteSpace(d.AppInsightsAppId));
+                && !string.IsNullOrWhiteSpace(d.AppInsightsAppId))
+            .Select(d => d.AppInsightsAppId!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-        if (appInsightsDescriptor is null)
-            return;
-
-        await mediator.Publish(
-            new AppInsightsDiscoveredEvent(projectId, appInsightsDescriptor.AppInsightsAppId!, string.Empty),
-            cancellationToken);
+        foreach (var appId in appInsightAppIds)
+        {
+            await mediator.Publish(
+                new AppInsightsDiscoveredEvent(projectId, appId, string.Empty),
+                cancellationToken);
+        }
     }
 
     private static string MapSourceProvenance(DiscoverySourceKind source) => source switch

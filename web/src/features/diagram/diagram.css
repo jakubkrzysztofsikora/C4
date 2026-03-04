@@ -196,6 +196,17 @@
   border-style: dotted;
 }
 
+.service-node.c4-code {
+  font-size: 11px;
+  opacity: 0.82;
+  border-style: dotted;
+  border-width: 1px;
+}
+
+.service-node.c4-unknown {
+  border-style: dashed;
+}
+
 .diagram-stage .react-flow__minimap {
   background: var(--panel);
   border: 1px solid var(--border);

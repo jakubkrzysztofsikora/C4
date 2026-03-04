@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getJson, postJson, ApiError } from '../../../shared/api/client';
-import { DiagramData, DiagramNode, DiagramEdge, ServiceType, RiskLevel } from '../types';
+import { DiagramData, DiagramNode, DiagramEdge, ServiceType, RiskLevel, DiagramLevel } from '../types';
 import { useSignalR } from './useSignalR';
 
 type GraphNodeDto = {
@@ -36,16 +36,28 @@ type GraphEdgeDto = {
   targetNodeId: string;
   traffic?: number;
   trafficState?: string;
+  trafficLabel?: string;
   requestRate?: number;
   errorRate?: number;
   p95LatencyMs?: number;
   protocol?: string;
+  sourceExternalResourceId?: string;
+  targetExternalResourceId?: string;
+};
+
+type GraphQualityDto = {
+  totalNodes: number;
+  fallbackClassificationCount: number;
+  unknownEnvironmentCount: number;
+  nonRuntimeNodeCount: number;
+  rawDeclarationLabelCount: number;
 };
 
 type GraphDto = {
   projectId: string;
   nodes: ReadonlyArray<GraphNodeDto>;
   edges: ReadonlyArray<GraphEdgeDto>;
+  quality?: GraphQualityDto;
 };
 
 type GraphSnapshotsResponse = {
@@ -97,8 +109,10 @@ function getInitialBoolParam(name: string, fallback: boolean): boolean {
 function mapLevel(level: string): DiagramNode['level'] {
   const normalized = level.toLowerCase();
   if (normalized === 'context') return 'Context';
+  if (normalized === 'container') return 'Container';
   if (normalized === 'component') return 'Component';
-  return 'Container';
+  if (normalized === 'code') return 'Code';
+  return 'Unknown';
 }
 
 function inferServiceType(name: string): DiagramNode['serviceType'] {
@@ -169,7 +183,10 @@ function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
     ...(typeof edge.requestRate === 'number' ? { requestRate: edge.requestRate } : {}),
     ...(typeof edge.errorRate === 'number' ? { errorRate: edge.errorRate } : {}),
     ...(typeof edge.p95LatencyMs === 'number' ? { p95LatencyMs: edge.p95LatencyMs } : {}),
+    ...(typeof edge.trafficLabel === 'string' && edge.trafficLabel.length > 0 ? { trafficLabel: edge.trafficLabel } : {}),
     ...(edge.protocol ? { protocol: edge.protocol } : {}),
+    ...(edge.sourceExternalResourceId ? { sourceExternalResourceId: edge.sourceExternalResourceId } : {}),
+    ...(edge.targetExternalResourceId ? { targetExternalResourceId: edge.targetExternalResourceId } : {}),
   }));
 
   return { nodes, edges };
@@ -214,18 +231,19 @@ function applyHealthOverlay(nodes: DiagramNode[], overlay: NodeHealthEntry[]): D
   });
 }
 
-function isVisibleAtLevel(node: DiagramNode, level: 'Context' | 'Container' | 'Component'): boolean {
+function isVisibleAtLevel(node: DiagramNode, level: Exclude<DiagramLevel, 'Unknown'>): boolean {
   if (level === 'Context') return node.level === 'Context';
-  if (level === 'Container') return node.level === 'Container' || node.level === 'Component';
-  return node.level === 'Component';
+  if (level === 'Container') return node.level === 'Container';
+  if (level === 'Component') return node.level === 'Component';
+  return node.level === 'Code';
 }
 
 const EMPTY_DIAGRAM_DATA: DiagramData = { nodes: [], edges: [] };
 
 export function useDiagram(projectId?: string) {
-  const [level, setLevel] = useState<'Context' | 'Container' | 'Component'>(() => {
+  const [level, setLevel] = useState<Exclude<DiagramLevel, 'Unknown'>>(() => {
     const initial = getInitialParam('level', 'Container');
-    return initial === 'Context' || initial === 'Component' ? initial : 'Container';
+    return initial === 'Context' || initial === 'Component' || initial === 'Code' ? initial : 'Container';
   });
   const [search, setSearch] = useState(() => getInitialParam('search', ''));
   const [environment, setEnvironment] = useState(() => getInitialParam('environment', 'all'));
@@ -270,8 +288,10 @@ export function useDiagram(projectId?: string) {
   const [overlaySummary, setOverlaySummary] = useState<OverlaySummary | undefined>(undefined);
 
   const [apiData, setApiData] = useState<DiagramData | undefined>(undefined);
+  const [graphQuality, setGraphQuality] = useState<GraphQualityDto | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [graphNotFound, setGraphNotFound] = useState(false);
   const [lastRefreshAt, setLastRefreshAt] = useState<number | undefined>(undefined);
 
   const timelineIndex = useMemo(() => {
@@ -292,6 +312,7 @@ export function useDiagram(projectId?: string) {
   const fetchGraph = useCallback(async (id: string, snapshotId?: string) => {
     setLoading(true);
     setError(undefined);
+    setGraphNotFound(false);
     try {
       const params = new URLSearchParams({
         level,
@@ -307,10 +328,17 @@ export function useDiagram(projectId?: string) {
       const dto = await getJson<GraphDto>(`/api/projects/${id}/graph?${params.toString()}`);
       const mapped = mapGraphDtoToDiagramData(dto);
       setApiData(mapped);
+      setGraphQuality(dto.quality);
       setLastRefreshAt(Date.now());
     } catch (err: unknown) {
-      setError(extractErrorMessage(err));
+      if (isApiError(err) && err.status === 404) {
+        setGraphNotFound(true);
+        setError(undefined);
+      } else {
+        setError(extractErrorMessage(err));
+      }
       setApiData(undefined);
+      setGraphQuality(undefined);
     } finally {
       setLoading(false);
     }
@@ -344,6 +372,7 @@ export function useDiagram(projectId?: string) {
     } catch {
       setSnapshots([]);
       setSelectedSnapshotId(undefined);
+      setGraphNotFound(false);
     }
   }, []);
 
@@ -588,7 +617,7 @@ export function useDiagram(projectId?: string) {
       });
 
       edges = edges.map((edge) => {
-        const key = `${edge.from}->${edge.to}`;
+        const key = `${edge.sourceExternalResourceId ?? edge.from}->${edge.targetExternalResourceId ?? edge.to}`;
         if (addedEdges.has(key)) return { ...edge, diffStatus: 'added' };
         if (removedEdges.has(key)) return { ...edge, diffStatus: 'removed' };
         return { ...edge, diffStatus: 'unchanged' };
@@ -626,8 +655,12 @@ export function useDiagram(projectId?: string) {
       renderedEdges,
       hiddenByFilters,
       hiddenAsOrphans,
+      fallbackClassificationCount: graphQuality?.fallbackClassificationCount ?? 0,
+      unknownEnvironmentCount: graphQuality?.unknownEnvironmentCount ?? 0,
+      nonRuntimeNodeCount: graphQuality?.nonRuntimeNodeCount ?? 0,
+      rawDeclarationLabelCount: graphQuality?.rawDeclarationLabelCount ?? 0,
     };
-  }, [sourceData, data]);
+  }, [sourceData, data, graphQuality]);
 
   const diffMetrics = useMemo(() => ({
     addedNodes: diffResult?.addedNodes?.length ?? 0,
@@ -748,6 +781,7 @@ export function useDiagram(projectId?: string) {
     metrics,
     loading,
     error,
+    graphNotFound,
     signalR,
     isStale,
     lastRefreshAt,

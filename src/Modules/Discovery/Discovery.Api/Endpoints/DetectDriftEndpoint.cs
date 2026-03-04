@@ -8,12 +8,16 @@ public sealed class DetectDriftEndpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/discovery/subscriptions/{subscriptionId:guid}/drift", async (Guid subscriptionId, DetectDriftRequest request, ISender sender, CancellationToken ct) =>
+        static async Task<IResult> HandleDetectDrift(Guid subscriptionId, DetectDriftRequest request, ISender sender, CancellationToken ct)
         {
             var result = await sender.Send(new DetectDriftCommand(subscriptionId, request.IacContent, request.Format), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-        })
-        .RequireAuthorization();
+        }
+
+        app.MapPost("/api/discovery/subscriptions/{subscriptionId:guid}/drift", HandleDetectDrift)
+            .RequireAuthorization();
+        app.MapPost("/api/discovery/subscriptions/{subscriptionId:guid}/drift/run", HandleDetectDrift)
+            .RequireAuthorization();
     }
 
     public sealed record DetectDriftRequest(string IacContent, string Format);

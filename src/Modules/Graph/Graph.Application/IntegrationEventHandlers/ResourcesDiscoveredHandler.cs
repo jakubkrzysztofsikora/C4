@@ -11,7 +11,8 @@ namespace C4.Modules.Graph.Application.IntegrationEventHandlers;
 public sealed class ResourcesDiscoveredHandler(
     IArchitectureGraphRepository repository,
     [FromKeyedServices("Graph")] IUnitOfWork unitOfWork,
-    IResourceRelationshipInferrer? relationshipInferrer = null)
+    IResourceRelationshipInferrer? relationshipInferrer = null,
+    IMediator? mediator = null)
     : INotificationHandler<ResourcesDiscoveredIntegrationEvent>
 {
     public async Task Handle(ResourcesDiscoveredIntegrationEvent notification, CancellationToken cancellationToken)
@@ -70,6 +71,13 @@ public sealed class ResourcesDiscoveredHandler(
         graph.CreateSnapshot();
         await repository.UpsertAsync(graph, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        if (mediator is not null)
+        {
+            await mediator.Publish(
+                new GraphChangedIntegrationEvent(notification.ProjectId, "discovery", DateTime.UtcNow),
+                cancellationToken);
+        }
     }
 
     private static EffectiveClassification ResolveClassification(DiscoveredResourceEventItem resource)

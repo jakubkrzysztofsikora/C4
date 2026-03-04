@@ -8,12 +8,20 @@ public sealed class SyncApplicationInsightsTelemetryEndpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/projects/{projectId:guid}/telemetry/sync-app-insights", async (Guid projectId, SyncApplicationInsightsTelemetryRequest? request, ISender sender, CancellationToken ct) =>
+        static async Task<IResult> HandleSync(
+            Guid projectId,
+            SyncApplicationInsightsTelemetryRequest? request,
+            ISender sender,
+            CancellationToken ct)
         {
             var result = await sender.Send(new SyncApplicationInsightsTelemetryCommand(projectId, request?.LookbackMinutes ?? 30), ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-        })
-        .RequireAuthorization();
+        }
+
+        app.MapPost("/api/projects/{projectId:guid}/telemetry/sync-app-insights", HandleSync)
+            .RequireAuthorization();
+        app.MapPost("/api/projects/{projectId:guid}/telemetry/sync", HandleSync)
+            .RequireAuthorization();
     }
 
     public sealed record SyncApplicationInsightsTelemetryRequest(int LookbackMinutes = 30);

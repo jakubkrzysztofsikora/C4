@@ -58,6 +58,15 @@ public sealed class GetGraphHandler(
         if (requestedLevel.HasValue)
             filteredNodes = filteredNodes.Where(n => n.EffectiveLevel == requestedLevel.Value);
 
+        filteredNodes = filteredNodes.Where(n => IsRenderableInRuntimeMap(n.Node));
+
+        var quality = new GraphQualityDto(
+            projections.Length,
+            projections.Count(n => n.Node.ClassificationSource.Equals("fallback", StringComparison.OrdinalIgnoreCase)),
+            projections.Count(n => n.Environment.Equals("unknown", StringComparison.OrdinalIgnoreCase)),
+            projections.Count(n => IsNonRuntimeNode(n.Node.ExternalResourceId)),
+            projections.Count(n => LooksLikeRawIacDeclarationLabel(n.Node.Name)));
+
         var filteredList = filteredNodes.ToArray();
         var visibleNodeIds = filteredList.Select(n => n.Node.Id).ToHashSet();
         var filteredEdges = sourceEdges
@@ -98,6 +107,9 @@ public sealed class GetGraphHandler(
                 "none" => "",
                 _ => entry.Domain
             };
+            var source = ResolveNodeSource(entry.Node.ExternalResourceId);
+            var entityKind = ResolveEntityKind(entry.Node.ServiceType, entry.Node.IsInfrastructure);
+            var dataQualityFlags = BuildDataQualityFlags(entry.Node, entry.Environment);
 
             if (TryResolveNodeHealth(
                     node.Name,
@@ -131,7 +143,10 @@ public sealed class GetGraphHandler(
                     node.ClassificationSource,
                     node.ClassificationConfidence,
                     groupKey,
-                    node.Tags);
+                    node.Tags,
+                    source,
+                    entityKind,
+                    dataQualityFlags);
             }
 
             return new GraphNodeDto(
@@ -158,7 +173,10 @@ public sealed class GetGraphHandler(
                 node.ClassificationSource,
                 node.ClassificationConfidence,
                 groupKey,
-                node.Tags);
+                node.Tags,
+                source,
+                entityKind,
+                dataQualityFlags);
         }).ToArray();
 
         var nodeById = nodeDtos.ToDictionary(n => n.Id, n => n);
@@ -175,6 +193,9 @@ public sealed class GetGraphHandler(
             var traffic = ResolveTrafficScore(requestRate, errorRate, p95LatencyMs);
             var trafficState = ResolveTrafficState(requestRate, errorRate, p95LatencyMs);
             var protocol = dependencySummary?.Protocol ?? e.Protocol;
+            var trafficLabel = ResolveTrafficLabel(trafficState, traffic);
+            var telemetrySource = ResolveTelemetrySource(dependencySummary, sourceNode, targetNode);
+            var telemetryWindow = telemetrySource is null ? null : "last-30m";
 
             return new GraphEdgeDto(
                 e.Id,
@@ -182,13 +203,18 @@ public sealed class GetGraphHandler(
                 e.TargetNodeId,
                 traffic,
                 trafficState,
+                trafficLabel,
                 requestRate,
                 errorRate,
                 p95LatencyMs,
-                protocol);
+                protocol,
+                telemetrySource,
+                telemetryWindow,
+                sourceNode?.ExternalResourceId,
+                targetNode?.ExternalResourceId);
         }).ToArray();
 
-        return Result<GraphDto>.Success(new GraphDto(request.ProjectId, nodeDtos, edgeDtos));
+        return Result<GraphDto>.Success(new GraphDto(request.ProjectId, nodeDtos, edgeDtos, quality));
     }
 
     private static C4Level? ParseLevel(string? level)
@@ -626,6 +652,85 @@ public sealed class GetGraphHandler(
         }
 
         return new string(buffer[..index]);
+    }
+
+    private static string ResolveTrafficLabel(string trafficState, double traffic)
+        => trafficState.Equals("unknown", StringComparison.OrdinalIgnoreCase)
+            ? "N/A"
+            : $"{Math.Round(traffic * 100)}%";
+
+    private static string? ResolveTelemetrySource(
+        ServiceDependencySummary? dependencySummary,
+        GraphNodeDto? sourceNode,
+        GraphNodeDto? targetNode)
+    {
+        if (dependencySummary is not null)
+            return "app-insights.dependencies";
+
+        if (sourceNode?.TelemetryStatus == "known" || targetNode?.TelemetryStatus == "known")
+            return "service-health.derived";
+
+        return null;
+    }
+
+    private static bool IsRenderableInRuntimeMap(WorkingNode node)
+    {
+        if (IsNonRuntimeNode(node.ExternalResourceId))
+            return false;
+
+        return !LooksLikeRawIacDeclarationLabel(node.Name);
+    }
+
+    private static bool IsNonRuntimeNode(string externalResourceId)
+        => externalResourceId.StartsWith("/providers/", StringComparison.OrdinalIgnoreCase);
+
+    private static bool LooksLikeRawIacDeclarationLabel(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return false;
+
+        var normalized = name.TrimStart();
+        return normalized.StartsWith("resource ", StringComparison.OrdinalIgnoreCase)
+               || normalized.StartsWith("module ", StringComparison.OrdinalIgnoreCase)
+               || normalized.Contains("Microsoft.", StringComparison.OrdinalIgnoreCase) && normalized.Contains("'", StringComparison.Ordinal);
+    }
+
+    private static string ResolveNodeSource(string externalResourceId)
+    {
+        if (externalResourceId.StartsWith("/subscriptions/", StringComparison.OrdinalIgnoreCase))
+            return "azure-subscription";
+
+        if (externalResourceId.StartsWith("/providers/", StringComparison.OrdinalIgnoreCase))
+            return "repository-iac";
+
+        return "runtime";
+    }
+
+    private static string ResolveEntityKind(string serviceType, bool isInfrastructure)
+    {
+        if (isInfrastructure)
+            return "infrastructure";
+
+        return serviceType.Equals("boundary", StringComparison.OrdinalIgnoreCase) ? "boundary" : "service";
+    }
+
+    private static IReadOnlyCollection<string>? BuildDataQualityFlags(WorkingNode node, string environment)
+    {
+        List<string> flags = [];
+
+        if (node.ClassificationSource.Equals("fallback", StringComparison.OrdinalIgnoreCase))
+            flags.Add("classification:fallback");
+
+        if (environment.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+            flags.Add("environment:unknown");
+
+        if (IsNonRuntimeNode(node.ExternalResourceId))
+            flags.Add("runtime:non-runtime");
+
+        if (LooksLikeRawIacDeclarationLabel(node.Name))
+            flags.Add("label:raw-declaration");
+
+        return flags.Count == 0 ? null : flags;
     }
 
     private sealed record WorkingNode(

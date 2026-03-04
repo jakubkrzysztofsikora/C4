@@ -102,6 +102,30 @@ public sealed class GetGraphDiffHandlerTests
     }
 
     [Fact]
+    public async Task Handle_EdgeDiff_UsesStableExternalResourceIds()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        var serviceA = graph.AddOrUpdateNode("/r/a", "ServiceA", Domain.C4Level.Container);
+        var serviceB = graph.AddOrUpdateNode("/r/b", "ServiceB", Domain.C4Level.Container);
+        var fromSnapshot = graph.CreateSnapshot();
+
+        var serviceC = graph.AddOrUpdateNode("/r/c", "ServiceC", Domain.C4Level.Container);
+        graph.AddEdge(serviceB, serviceC);
+        var toSnapshot = graph.CreateSnapshot();
+
+        var repository = new FakeRepository(graph);
+        var handler = new GetGraphDiffHandler(repository, new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(
+            new GetGraphDiffQuery(graph.ProjectId, fromSnapshot.Id.Value, toSnapshot.Id.Value),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.AddedEdges.Should().Contain("/r/b->/r/c");
+        result.Value.AddedEdges.Should().NotContain(edge => edge.Contains(serviceA.Id.Value.ToString(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task Handle_UnauthorizedProject_ReturnsFailure()
     {
         var repository = new FakeRepository(null);

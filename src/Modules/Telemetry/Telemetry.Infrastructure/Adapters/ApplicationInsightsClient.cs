@@ -19,10 +19,13 @@ public sealed class ApplicationInsightsClient(
         TimeSpan lookbackWindow,
         CancellationToken cancellationToken)
     {
-        var responseJson = await ExecuteKqlQueryAsync(projectId, BuildHealthQuery(lookbackWindow), cancellationToken);
-        if (responseJson is null) return [];
+        var responsePayloads = await ExecuteKqlQueriesAsync(projectId, BuildHealthQuery(lookbackWindow), cancellationToken);
+        if (responsePayloads.Count == 0) return [];
 
-        return ParseHealthQueryResponse(responseJson);
+        var records = responsePayloads
+            .SelectMany(ParseHealthQueryResponse)
+            .ToArray();
+        return AggregateHealthRecords(records);
     }
 
     public async Task<IReadOnlyCollection<ApplicationInsightsDependencyRecord>> QueryDependencyHealthAsync(
@@ -30,10 +33,13 @@ public sealed class ApplicationInsightsClient(
         TimeSpan lookbackWindow,
         CancellationToken cancellationToken)
     {
-        var responseJson = await ExecuteKqlQueryAsync(projectId, BuildDependencyQuery(lookbackWindow), cancellationToken);
-        if (responseJson is null) return [];
+        var responsePayloads = await ExecuteKqlQueriesAsync(projectId, BuildDependencyQuery(lookbackWindow), cancellationToken);
+        if (responsePayloads.Count == 0) return [];
 
-        return ParseDependencyQueryResponse(responseJson);
+        var records = responsePayloads
+            .SelectMany(ParseDependencyQueryResponse)
+            .ToArray();
+        return AggregateDependencyRecords(records);
     }
 
     private static string BuildHealthQuery(TimeSpan lookbackWindow)
@@ -73,39 +79,51 @@ public sealed class ApplicationInsightsClient(
             """;
     }
 
-    private async Task<string?> ExecuteKqlQueryAsync(
+    private async Task<IReadOnlyCollection<string>> ExecuteKqlQueriesAsync(
         Guid projectId,
         string kql,
         CancellationToken cancellationToken)
     {
         var config = await configStore.GetAsync(projectId, cancellationToken);
-        var appId = config?.AppId ?? configuration["ApplicationInsights:AppId"] ?? string.Empty;
+        var configuredAppIds = ParseAppIds(config?.AppId);
+        if (configuredAppIds.Count == 0)
+            configuredAppIds = ParseAppIds(configuration["ApplicationInsights:AppId"]);
+
         var apiKey = GlobalApiKey;
 
-        if (string.IsNullOrWhiteSpace(appId) || string.IsNullOrWhiteSpace(apiKey))
+        if (configuredAppIds.Count == 0 || string.IsNullOrWhiteSpace(apiKey))
         {
             logger.LogWarning(
-                "Application Insights not configured for project {ProjectId} (missing AppId or ApiKey); returning empty results",
+                "Application Insights not configured for project {ProjectId} (missing AppId(s) or ApiKey); returning empty results",
                 projectId);
-            return null;
+            return [];
         }
 
         var encodedQuery = Uri.EscapeDataString(kql);
-        var url = $"https://api.applicationinsights.io/v1/apps/{appId}/query?query={encodedQuery}";
-
         using var client = httpClientFactory.CreateClient();
         client.DefaultRequestHeaders.Add("x-api-key", apiKey);
 
-        var response = await client.GetAsync(url, cancellationToken);
-        var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
+        List<string> successfulPayloads = [];
+        foreach (var appId in configuredAppIds)
         {
-            logger.LogError("Application Insights query failed ({StatusCode}): {Response}", response.StatusCode, responseJson);
-            return null;
+            var url = $"https://api.applicationinsights.io/v1/apps/{appId}/query?query={encodedQuery}";
+            var response = await client.GetAsync(url, cancellationToken);
+            var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning(
+                    "Application Insights query failed for app {AppId} ({StatusCode}): {Response}",
+                    appId,
+                    response.StatusCode,
+                    responseJson);
+                continue;
+            }
+
+            successfulPayloads.Add(responseJson);
         }
 
-        return responseJson;
+        return successfulPayloads;
     }
 
     private static IReadOnlyCollection<ApplicationInsightsHealthRecord> ParseHealthQueryResponse(string responseJson)
@@ -244,4 +262,80 @@ public sealed class ApplicationInsightsClient(
 
         return null;
     }
+
+    private static List<string> ParseAppIds(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return [];
+
+        return raw
+            .Split([';', ',', '\n', '\r', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IReadOnlyCollection<ApplicationInsightsHealthRecord> AggregateHealthRecords(
+        IReadOnlyCollection<ApplicationInsightsHealthRecord> records)
+    {
+        if (records.Count == 0)
+            return [];
+
+        return records
+            .GroupBy(r => r.Service, StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                var totalRequestRate = group.Sum(record => record.RequestRate ?? 0);
+                var weightedErrorNumerator = group.Sum(record => (record.ErrorRate ?? 0) * (record.RequestRate ?? 1));
+                var weightedErrorDenominator = group.Sum(record => record.RequestRate ?? 1);
+                var errorRate = weightedErrorDenominator > 0
+                    ? weightedErrorNumerator / weightedErrorDenominator
+                    : group.Average(record => record.ErrorRate ?? 0);
+                var score = Math.Clamp(1 - errorRate, 0, 1);
+                var p95Latency = group.Max(record => record.P95LatencyMs ?? 0);
+
+                return new ApplicationInsightsHealthRecord(
+                    group.Key,
+                    Math.Round(score, 2),
+                    group.Max(record => record.ObservedAtUtc),
+                    totalRequestRate,
+                    errorRate,
+                    p95Latency);
+            })
+            .ToArray();
+    }
+
+    private static IReadOnlyCollection<ApplicationInsightsDependencyRecord> AggregateDependencyRecords(
+        IReadOnlyCollection<ApplicationInsightsDependencyRecord> records)
+    {
+        if (records.Count == 0)
+            return [];
+
+        return records
+            .GroupBy(record =>
+                $"{NormalizeKey(record.SourceService)}->{NormalizeKey(record.TargetService)}|{NormalizeKey(record.Protocol)}",
+                StringComparer.Ordinal)
+            .Select(group =>
+            {
+                var requestRate = group.Sum(record => record.RequestRate);
+                var weightedErrorNumerator = group.Sum(record => record.ErrorRate * Math.Max(record.RequestRate, 1));
+                var weightedErrorDenominator = group.Sum(record => Math.Max(record.RequestRate, 1));
+                var errorRate = weightedErrorDenominator > 0
+                    ? weightedErrorNumerator / weightedErrorDenominator
+                    : group.Average(record => record.ErrorRate);
+
+                return new ApplicationInsightsDependencyRecord(
+                    group.First().SourceService,
+                    group.First().TargetService,
+                    requestRate,
+                    errorRate,
+                    group.Max(record => record.P95LatencyMs),
+                    group.Max(record => record.ObservedAtUtc),
+                    group.First().Protocol);
+            })
+            .ToArray();
+    }
+
+    private static string NormalizeKey(string? value)
+        => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().ToLowerInvariant();
 }

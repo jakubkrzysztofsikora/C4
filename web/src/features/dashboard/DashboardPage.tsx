@@ -123,7 +123,7 @@ type DiscoverRequest = {
   externalSubscriptionId: string;
   projectId: string;
   organizationId: string | null;
-  sources: null;
+  sources: ReadonlyArray<'AzureSubscription' | 'RepositoryIac' | 'RemoteMcp'>;
 };
 
 type DiscoverResponse = {
@@ -268,7 +268,7 @@ export function DashboardPage() {
           externalSubscriptionId: setup.externalSubscriptionId,
           projectId,
           organizationId: null,
-          sources: null,
+          sources: ['AzureSubscription'],
         },
       );
       setDiscovery({ phase: 'done', result, errorMessage: undefined });

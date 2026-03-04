@@ -10,7 +10,7 @@ public sealed class BicepParser : IIacStateParser
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex NameAssignmentRegex = new(
-        @"^\s*name\s*:\s*'(?<name>[^']+)'",
+        @"^\s*name\s*:\s*(?<value>[^,\r\n]+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public Task<IReadOnlyCollection<IacResourceRecord>> ParseAsync(string iacContent, string format, CancellationToken cancellationToken)
@@ -44,7 +44,9 @@ public sealed class BicepParser : IIacStateParser
                 var nameMatch = NameAssignmentRegex.Match(next);
                 if (nameMatch.Success)
                 {
-                    name = nameMatch.Groups["name"].Value;
+                    var parsedName = TryExtractNameLiteral(nameMatch.Groups["value"].Value);
+                    if (!string.IsNullOrWhiteSpace(parsedName))
+                        name = parsedName!;
                     break;
                 }
             }
@@ -54,9 +56,33 @@ public sealed class BicepParser : IIacStateParser
                 normalizedType = "bicep/resource";
 
             var resourceId = $"/providers/{normalizedType}/{name}".ToLowerInvariant();
-            resources.Add(new IacResourceRecord(resourceId, normalizedType, line));
+            resources.Add(new IacResourceRecord(resourceId, normalizedType, name));
         }
 
         return Task.FromResult<IReadOnlyCollection<IacResourceRecord>>(resources);
+    }
+
+    private static string? TryExtractNameLiteral(string rawValue)
+    {
+        var value = rawValue.Trim();
+        if (value.Length < 2)
+            return null;
+
+        if ((value[0] == '\'' && value[^1] == '\'') || (value[0] == '"' && value[^1] == '"'))
+            return value[1..^1];
+
+        if (value.StartsWith("'", StringComparison.Ordinal))
+        {
+            var end = value.IndexOf('\'', 1);
+            return end > 1 ? value[1..end] : null;
+        }
+
+        if (value.StartsWith("\"", StringComparison.Ordinal))
+        {
+            var end = value.IndexOf('"', 1);
+            return end > 1 ? value[1..end] : null;
+        }
+
+        return null;
     }
 }

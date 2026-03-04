@@ -75,8 +75,9 @@ function buildSvg(data: DiagramData): string {
       const color = trafficColor(edge.traffic, edge.trafficState);
       const mx = (x1 + x2) / 2;
       const my = (y1 + y2) / 2;
+      const trafficLabel = edge.trafficLabel ?? (edge.trafficState === 'unknown' ? 'N/A' : `${Math.round(edge.traffic * 100)}%`);
       return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2" marker-end="url(#arrow-${color.slice(1)})"/>
-<text x="${mx}" y="${my - 4}" font-family="Inter,sans-serif" font-size="10" fill="${color}" text-anchor="middle">${Math.round(edge.traffic * 100)}%</text>`;
+<text x="${mx}" y="${my - 4}" font-family="Inter,sans-serif" font-size="10" fill="${color}" text-anchor="middle">${trafficLabel}</text>`;
     })
     .join('\n');
 

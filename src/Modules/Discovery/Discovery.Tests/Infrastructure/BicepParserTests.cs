@@ -13,5 +13,6 @@ public sealed class BicepParserTests
         var result = await parser.ParseAsync(content, "bicep", CancellationToken.None);
 
         result.Should().HaveCount(2);
+        result.Should().NotContain(r => r.Name.StartsWith("resource ", StringComparison.OrdinalIgnoreCase));
     }
 }

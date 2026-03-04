@@ -30,11 +30,35 @@ public sealed class GetGraphDiffHandler(
         var added = toSet.Except(fromSet).ToArray();
         var removed = fromSet.Except(toSet).ToArray();
 
-        var fromEdges = from.Edges.Select(e => $"{e.SourceNodeId}->{e.TargetNodeId}").ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var toEdges = to.Edges.Select(e => $"{e.SourceNodeId}->{e.TargetNodeId}").ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var fromNodeIdToExternal = from.Nodes.ToDictionary(n => n.Id, n => n.ExternalResourceId);
+        var toNodeIdToExternal = to.Nodes.ToDictionary(n => n.Id, n => n.ExternalResourceId);
+
+        var fromEdges = from.Edges
+            .Select(e => ResolveStableEdgeKey(e.SourceNodeId, e.TargetNodeId, fromNodeIdToExternal))
+            .Where(key => key is not null)
+            .Cast<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var toEdges = to.Edges
+            .Select(e => ResolveStableEdgeKey(e.SourceNodeId, e.TargetNodeId, toNodeIdToExternal))
+            .Where(key => key is not null)
+            .Cast<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var addedEdges = toEdges.Except(fromEdges).ToArray();
         var removedEdges = fromEdges.Except(toEdges).ToArray();
 
         return Result<GetGraphDiffResponse>.Success(new GetGraphDiffResponse(added, removed, addedEdges, removedEdges));
+    }
+
+    private static string? ResolveStableEdgeKey(
+        Guid sourceNodeId,
+        Guid targetNodeId,
+        IReadOnlyDictionary<Guid, string> nodeIdToExternalResourceId)
+    {
+        if (!nodeIdToExternalResourceId.TryGetValue(sourceNodeId, out var source) || string.IsNullOrWhiteSpace(source))
+            return null;
+        if (!nodeIdToExternalResourceId.TryGetValue(targetNodeId, out var target) || string.IsNullOrWhiteSpace(target))
+            return null;
+
+        return $"{source}->{target}";
     }
 }

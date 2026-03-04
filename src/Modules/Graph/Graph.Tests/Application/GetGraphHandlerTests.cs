@@ -100,6 +100,44 @@ public sealed class GetGraphHandlerTests
         result.Value.Nodes.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Handle_NoTelemetry_EdgeLabelUsesNaInsteadOfZeroPercent()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        var source = graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Web/sites/api", "api", Domain.C4Level.Container);
+        var target = graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Sql/servers/sql", "sql", Domain.C4Level.Container);
+        graph.AddEdge(source, target);
+
+        var repo = new FakeRepository(graph);
+        var handler = new GetGraphHandler(repo, new EmptyTelemetryQueryService(), new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, "Container"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Edges.Should().ContainSingle();
+        result.Value.Edges.Single().TrafficState.Should().Be("unknown");
+        result.Value.Edges.Single().TrafficLabel.Should().Be("N/A");
+    }
+
+    [Fact]
+    public async Task Handle_FiltersOutRawNonRuntimeIacNodes()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        graph.AddOrUpdateNode("/providers/microsoft.storage/storageAccounts/stacc", "resource stacc 'Microsoft.Storage/storageAccounts@2023-01-01'", Domain.C4Level.Container);
+        graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Web/sites/api", "api", Domain.C4Level.Container);
+
+        var repo = new FakeRepository(graph);
+        var handler = new GetGraphHandler(repo, new EmptyTelemetryQueryService(), new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, "Container"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Nodes.Should().ContainSingle(n => n.Name == "api");
+        result.Value.Quality.Should().NotBeNull();
+        result.Value.Quality!.NonRuntimeNodeCount.Should().Be(1);
+        result.Value.Quality.RawDeclarationLabelCount.Should().Be(1);
+    }
+
     private sealed class FakeRepository(ArchitectureGraph graph) : IArchitectureGraphRepository
     {
         public Task<ArchitectureGraph?> GetByProjectIdAsync(Guid projectId, CancellationToken cancellationToken)

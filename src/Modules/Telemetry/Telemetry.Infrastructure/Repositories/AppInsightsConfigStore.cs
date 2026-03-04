@@ -8,11 +8,20 @@ public sealed class AppInsightsConfigStore(TelemetryDbContext dbContext) : IAppI
 {
     public async Task StoreAsync(Guid projectId, string appId, string instrumentationKey, CancellationToken cancellationToken)
     {
+        var incomingTargets = ParseTargets(appId);
+        var serializedIncoming = SerializeTargets(incomingTargets);
+
         var existing = await dbContext.AppInsightsConfigs.FirstOrDefaultAsync(c => c.ProjectId == projectId, cancellationToken);
 
         if (existing is not null)
         {
-            existing.AppId = appId;
+            var merged = ParseTargets(existing.AppId);
+            foreach (var target in incomingTargets)
+            {
+                merged.Add(target);
+            }
+
+            existing.AppId = SerializeTargets(merged);
             existing.InstrumentationKey = instrumentationKey;
             existing.UpdatedAtUtc = DateTime.UtcNow;
         }
@@ -21,10 +30,49 @@ public sealed class AppInsightsConfigStore(TelemetryDbContext dbContext) : IAppI
             await dbContext.AppInsightsConfigs.AddAsync(new AppInsightsConfigEntity
             {
                 ProjectId = projectId,
-                AppId = appId,
+                AppId = serializedIncoming,
                 InstrumentationKey = instrumentationKey,
                 UpdatedAtUtc = DateTime.UtcNow
             }, cancellationToken);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<string>> GetTargetsAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        var entity = await dbContext.AppInsightsConfigs.FirstOrDefaultAsync(c => c.ProjectId == projectId, cancellationToken);
+        if (entity is null)
+            return [];
+
+        return ParseTargets(entity.AppId).OrderBy(v => v, StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    public async Task SaveTargetsAsync(
+        Guid projectId,
+        IReadOnlyCollection<string> appIds,
+        string instrumentationKey,
+        CancellationToken cancellationToken)
+    {
+        var serialized = SerializeTargets(appIds);
+        var existing = await dbContext.AppInsightsConfigs.FirstOrDefaultAsync(c => c.ProjectId == projectId, cancellationToken);
+
+        if (existing is null)
+        {
+            await dbContext.AppInsightsConfigs.AddAsync(new AppInsightsConfigEntity
+            {
+                ProjectId = projectId,
+                AppId = serialized,
+                InstrumentationKey = instrumentationKey,
+                UpdatedAtUtc = DateTime.UtcNow
+            }, cancellationToken);
+        }
+        else
+        {
+            existing.AppId = serialized;
+            if (!string.IsNullOrWhiteSpace(instrumentationKey))
+                existing.InstrumentationKey = instrumentationKey;
+            existing.UpdatedAtUtc = DateTime.UtcNow;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -39,4 +87,22 @@ public sealed class AppInsightsConfigStore(TelemetryDbContext dbContext) : IAppI
 
         return new AppInsightsConfig(entity.ProjectId, entity.AppId, entity.InstrumentationKey);
     }
+
+    private static HashSet<string> ParseTargets(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return [];
+
+        var parts = value
+            .Split([';', ',', '\n', '\r', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(part => !string.IsNullOrWhiteSpace(part));
+
+        return new HashSet<string>(parts, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string SerializeTargets(IEnumerable<string> values)
+        => string.Join(';', values
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(v => v, StringComparer.OrdinalIgnoreCase));
 }

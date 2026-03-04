@@ -238,7 +238,7 @@ describe('useDiagram parentId mapping from API', () => {
       projectId: 'proj-1',
       nodes: [
         { id: 'parent-1', name: 'Graph Service', externalResourceId: 'r1', level: 'Container', environment: 'production' },
-        { id: 'child-1', name: 'Discovery Worker', externalResourceId: 'r2', level: 'Component', parentNodeId: 'parent-1', environment: 'production' },
+        { id: 'child-1', name: 'Discovery Worker', externalResourceId: 'r2', level: 'Container', parentNodeId: 'parent-1', environment: 'production' },
       ],
       edges: [
         { id: 'e1', sourceNodeId: 'parent-1', targetNodeId: 'child-1', traffic: 1 },

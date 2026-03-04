@@ -3,12 +3,13 @@ export type TelemetryStatus = 'known' | 'unknown';
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type TrafficState = 'green' | 'yellow' | 'red' | 'unknown';
 export type DiffStatus = 'added' | 'removed' | 'unchanged';
+export type DiagramLevel = 'Context' | 'Container' | 'Component' | 'Code' | 'Unknown';
 
 export type DiagramNode = {
   id: string;
   label: string;
   externalResourceId?: string;
-  level: 'Context' | 'Container' | 'Component';
+  level: DiagramLevel;
   health: 'green' | 'yellow' | 'red' | 'unknown';
   telemetryStatus?: TelemetryStatus;
   requestRate?: number;
@@ -38,10 +39,13 @@ export type DiagramEdge = {
   to: string;
   traffic: number;
   trafficState?: TrafficState;
+  trafficLabel?: string;
   requestRate?: number;
   errorRate?: number;
   p95LatencyMs?: number;
   protocol?: string;
+  sourceExternalResourceId?: string;
+  targetExternalResourceId?: string;
   diffStatus?: DiffStatus;
 };
 export type DiagramData = { nodes: DiagramNode[]; edges: DiagramEdge[] };

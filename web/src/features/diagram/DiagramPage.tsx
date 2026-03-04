@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DiagramCanvas } from './components/DiagramCanvas';
 import { useDiagram } from './hooks/useDiagram';
 import { useDiagramExport } from './hooks/useDiagramExport';
@@ -7,6 +8,7 @@ import { usePanZoom } from './hooks/usePanZoom';
 import { useProject } from '../../shared/project/ProjectContext';
 import { useToast } from '../../shared/hooks/useToast';
 import { ToastContainer } from '../../shared/components/Toast';
+import { getJsonOrNull, postJson } from '../../shared/api/client';
 import './diagram.css';
 
 const DEFAULTS = {
@@ -24,7 +26,18 @@ const DEFAULTS = {
   driftOnly: false,
 } as const;
 
+type CurrentSubscriptionResponse = {
+  subscriptionId: string;
+  externalSubscriptionId: string;
+  displayName: string;
+};
+
+type DiscoverResponse = {
+  resourcesCount: number;
+};
+
 export function DiagramPage() {
+  const navigate = useNavigate();
   const { activeProject, loading: projectLoading } = useProject();
   const projectId = activeProject?.id;
   const {
@@ -75,6 +88,7 @@ export function DiagramPage() {
     metrics,
     loading,
     error,
+    graphNotFound,
     signalR,
     isStale,
     lastRefreshAt,
@@ -84,11 +98,13 @@ export function DiagramPage() {
     setThreatView,
     overlaySummary,
     captureSnapshot,
+    refetch,
   } = useDiagram(projectId);
   const { layoutedData, groupNodes, isLayouting } = useElkLayout(data);
   const { zoom, setZoom } = usePanZoom();
   const { exportAs } = useDiagramExport(layoutedData, projectId);
   const { toasts, addToast, removeToast } = useToast();
+  const [discoveringFromEmptyState, setDiscoveringFromEmptyState] = useState(false);
 
   const activeFilterChips = useMemo(() => {
     const chips: string[] = [];
@@ -131,6 +147,7 @@ export function DiagramPage() {
       if (event.key === '1') setLevel('Context');
       if (event.key === '2') setLevel('Container');
       if (event.key === '3') setLevel('Component');
+      if (event.key === '4') setLevel('Code');
       if (event.key.toLowerCase() === 'r') resetToFullMap();
     }
 
@@ -156,6 +173,42 @@ export function DiagramPage() {
     setDiffEnabled(false);
     setOverlayMode('none');
     setThreatView('general');
+  }
+
+  async function handleDiscoverFromEmptyState() {
+    if (projectId === undefined) return;
+
+    setDiscoveringFromEmptyState(true);
+    try {
+      const subscription = await getJsonOrNull<CurrentSubscriptionResponse>('/api/discovery/subscriptions/current');
+      if (subscription === null) {
+        addToast('No Azure subscription connected. Connect one first.', 'error');
+        navigate('/subscriptions');
+        return;
+      }
+
+      const result = await postJson<{
+        externalSubscriptionId: string;
+        projectId: string;
+        organizationId: string | null;
+        sources: ReadonlyArray<'AzureSubscription'>;
+      }, DiscoverResponse>(
+        `/api/discovery/subscriptions/${subscription.subscriptionId}/discover`,
+        {
+          externalSubscriptionId: subscription.externalSubscriptionId,
+          projectId,
+          organizationId: null,
+          sources: ['AzureSubscription'],
+        },
+      );
+
+      addToast(`Discovery complete (${result.resourcesCount} resources).`, 'success');
+      await refetch(projectId);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Discovery failed', 'error');
+    } finally {
+      setDiscoveringFromEmptyState(false);
+    }
   }
 
   async function handleExport(format: 'svg' | 'png' | 'pdf' | 'graphml') {
@@ -212,7 +265,29 @@ export function DiagramPage() {
           </div>
         )}
 
-        {error !== undefined && (
+        {graphNotFound && !loading && (
+          <div className="card" style={{ marginBottom: 10 }}>
+            <strong>No graph for the selected project.</strong>
+            <p className="subtle" style={{ marginTop: 6 }}>
+              Run discovery now to build the runtime map for this project.
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                className="btn"
+                type="button"
+                disabled={discoveringFromEmptyState}
+                onClick={() => void handleDiscoverFromEmptyState()}
+              >
+                {discoveringFromEmptyState ? 'Discovering...' : 'Discover resources'}
+              </button>
+              <button className="btn btn-sm" type="button" onClick={() => navigate('/subscriptions')}>
+                Configure subscription
+              </button>
+            </div>
+          </div>
+        )}
+
+        {error !== undefined && !graphNotFound && (
           <p style={{ color: 'var(--error)' }}>{error}</p>
         )}
 
@@ -230,6 +305,10 @@ export function DiagramPage() {
           <span>Edges: <strong>{metrics.renderedEdges}</strong> / {metrics.totalEdges}</span>
           <span>Filtered: {metrics.hiddenByFilters}</span>
           <span>Orphans hidden: {metrics.hiddenAsOrphans}</span>
+          <span>Fallback classes: {metrics.fallbackClassificationCount}</span>
+          <span>Unknown env: {metrics.unknownEnvironmentCount}</span>
+          <span>Non-runtime: {metrics.nonRuntimeNodeCount}</span>
+          <span>Raw IaC labels: {metrics.rawDeclarationLabelCount}</span>
         </div>
 
         {!telemetryMetrics.hasAnyTelemetry && (
@@ -250,10 +329,11 @@ export function DiagramPage() {
         <div className="toolbox" role="group" aria-label="Diagram controls">
           <label>
             C4 Level
-            <select value={level} onChange={(e) => setLevel(e.target.value as 'Context' | 'Container' | 'Component')}>
+            <select value={level} onChange={(e) => setLevel(e.target.value as 'Context' | 'Container' | 'Component' | 'Code')}>
               <option>Context</option>
               <option>Container</option>
               <option>Component</option>
+              <option>Code</option>
             </select>
           </label>
           <label>
@@ -402,6 +482,9 @@ export function DiagramPage() {
                 <span>Added edges: <strong>{diffMetrics.addedEdges}</strong></span>
                 <span>Removed edges: <strong>{diffMetrics.removedEdges}</strong></span>
               </div>
+              {diffMetrics.addedNodes === 0 && diffMetrics.removedNodes === 0 && diffMetrics.addedEdges === 0 && diffMetrics.removedEdges === 0 && (
+                <small className="subtle">No structural change between selected snapshots.</small>
+              )}
             </>
           )}
 

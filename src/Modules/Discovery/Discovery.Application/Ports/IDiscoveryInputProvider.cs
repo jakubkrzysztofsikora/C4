@@ -20,6 +20,7 @@ public enum DiscoverySourceKind
 
 public static class DiscoverySourceKindDefaults
 {
+    public static readonly IReadOnlyCollection<DiscoverySourceKind> Runtime = [DiscoverySourceKind.AzureSubscription];
     public static readonly IReadOnlyCollection<DiscoverySourceKind> All = (IReadOnlyCollection<DiscoverySourceKind>)Enum.GetValues<DiscoverySourceKind>();
 }
 
