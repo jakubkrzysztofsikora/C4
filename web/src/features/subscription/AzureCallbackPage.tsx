@@ -38,6 +38,38 @@ type SelectedSubscription = {
   displayName: string;
 };
 
+function parseDiscoverError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return 'Could not discover resources from your Azure subscription.';
+  }
+
+  const message = error.message;
+  const payloadStart = message.indexOf('{');
+  if (payloadStart >= 0) {
+    const payload = message.slice(payloadStart);
+    try {
+      const parsed = JSON.parse(payload) as {
+        errorMessage?: string;
+        message?: string;
+        title?: string;
+      };
+      if (typeof parsed.errorMessage === 'string' && parsed.errorMessage.length > 0) {
+        return parsed.errorMessage;
+      }
+      if (typeof parsed.message === 'string' && parsed.message.length > 0) {
+        return parsed.message;
+      }
+      if (typeof parsed.title === 'string' && parsed.title.length > 0) {
+        return parsed.title;
+      }
+    } catch {
+      // Keep original error text if payload is not valid JSON.
+    }
+  }
+
+  return message;
+}
+
 export function AzureCallbackPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -106,7 +138,7 @@ export function AzureCallbackPage() {
         setDiscoverResult(discoverResp);
         setStatus('discover-done');
       } catch (err: unknown) {
-        setDiscoverError(err instanceof Error ? err.message : 'Discovery failed');
+        setDiscoverError(parseDiscoverError(err));
         setStatus('discover-error');
       }
     } else {
