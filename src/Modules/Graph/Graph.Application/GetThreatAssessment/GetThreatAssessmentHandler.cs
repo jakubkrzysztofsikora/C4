@@ -64,7 +64,13 @@ public sealed class GetThreatAssessmentHandler(
         }
 
         return Result<ThreatAssessmentResponse>.Success(
-            new ThreatAssessmentResponse(request.ProjectId, result.RiskLevel, result.Threats));
+            new ThreatAssessmentResponse(
+                request.ProjectId,
+                result.RiskLevel,
+                result.Threats,
+                DataProvenance: "heuristic",
+                GeneratedAtUtc: DateTime.UtcNow,
+                IsHeuristic: true));
     }
 
     private static ThreatDetectionResult BuildDeterministicThreats(
@@ -118,7 +124,9 @@ public sealed class GetThreatAssessmentHandler(
                 n.Node.Name,
                 "API Attack Surface",
                 "High",
-                "Enforce strong authentication, rate limits, and request validation on public-facing endpoints."))
+                "Enforce strong authentication, rate limits, and request validation on public-facing endpoints.",
+                "heuristic",
+                true))
             .ToList();
     }
 
@@ -131,7 +139,9 @@ public sealed class GetThreatAssessmentHandler(
                 n.Node.Name,
                 "Data Egress / Exit Point",
                 "Medium",
-                "Review outbound connectivity, destination allowlists, and egress monitoring controls."))
+                "Review outbound connectivity, destination allowlists, and egress monitoring controls.",
+                "heuristic",
+                true))
             .ToList();
     }
 
@@ -144,7 +154,9 @@ public sealed class GetThreatAssessmentHandler(
                 n.Node.Name,
                 "Sensitive Data Exposure",
                 "Critical",
-                "Apply encryption-at-rest/in-transit, strict IAM policies, key rotation, and audit logging."))
+                "Apply encryption-at-rest/in-transit, strict IAM policies, key rotation, and audit logging.",
+                "heuristic",
+                true))
             .ToList();
     }
 
@@ -165,7 +177,9 @@ public sealed class GetThreatAssessmentHandler(
                 n.Name,
                 "Blast Radius Concentration",
                 n.Degree >= 10 ? "High" : "Medium",
-                "Segment trust boundaries and isolate high-connectivity services to reduce lateral movement impact."))
+                "Segment trust boundaries and isolate high-connectivity services to reduce lateral movement impact.",
+                "heuristic",
+                true))
             .ToList();
     }
 

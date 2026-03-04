@@ -4,6 +4,7 @@ export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type TrafficState = 'green' | 'yellow' | 'red' | 'unknown';
 export type DiffStatus = 'added' | 'removed' | 'unchanged';
 export type DiagramLevel = 'Context' | 'Container' | 'Component' | 'Code' | 'Unknown';
+export type SecuritySeverity = 'none' | 'low' | 'medium' | 'high' | 'critical';
 
 export type DiagramNode = {
   id: string;
@@ -30,6 +31,8 @@ export type DiagramNode = {
   classificationSource?: string;
   classificationConfidence?: number;
   groupKey?: string;
+  securitySeverity?: SecuritySeverity;
+  securityFindingCount?: number;
   diffStatus?: DiffStatus;
 };
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getJson, postJson, ApiError } from '../../../shared/api/client';
-import { DiagramData, DiagramNode, DiagramEdge, ServiceType, RiskLevel, DiagramLevel } from '../types';
+import { DiagramData, DiagramNode, DiagramEdge, ServiceType, RiskLevel, DiagramLevel, SecuritySeverity } from '../types';
 import { useSignalR } from './useSignalR';
 
 type GraphNodeDto = {
@@ -91,6 +91,11 @@ type OverlaySummary = {
   lines: string[];
 };
 
+type SecurityNodeSummary = {
+  severity: SecuritySeverity;
+  count: number;
+};
+
 function getInitialParam(name: string, fallback: string): string {
   try {
     const url = new URL(window.location.href);
@@ -143,6 +148,23 @@ function resolveHealth(value: string | undefined): DiagramNode['health'] {
 
 function isOverlayMode(value: string): value is OverlayMode {
   return value === 'none' || value === 'threat' || value === 'cost' || value === 'security';
+}
+
+const SECURITY_SEVERITY_RANK: Readonly<Record<SecuritySeverity, number>> = {
+  none: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4,
+};
+
+function normalizeSecuritySeverity(value: unknown): SecuritySeverity {
+  if (value === 'critical' || value === 'high' || value === 'medium' || value === 'low') return value;
+  return 'none';
+}
+
+function maxSecuritySeverity(left: SecuritySeverity, right: SecuritySeverity): SecuritySeverity {
+  return SECURITY_SEVERITY_RANK[left] >= SECURITY_SEVERITY_RANK[right] ? left : right;
 }
 
 function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
@@ -286,6 +308,7 @@ export function useDiagram(projectId?: string) {
     return 'general';
   });
   const [overlaySummary, setOverlaySummary] = useState<OverlaySummary | undefined>(undefined);
+  const [securityByNodeId, setSecurityByNodeId] = useState<ReadonlyMap<string, SecurityNodeSummary>>(new Map());
 
   const [apiData, setApiData] = useState<DiagramData | undefined>(undefined);
   const [graphQuality, setGraphQuality] = useState<GraphQualityDto | undefined>(undefined);
@@ -372,7 +395,6 @@ export function useDiagram(projectId?: string) {
     } catch {
       setSnapshots([]);
       setSelectedSnapshotId(undefined);
-      setGraphNotFound(false);
     }
   }, []);
 
@@ -439,6 +461,7 @@ export function useDiagram(projectId?: string) {
   useEffect(() => {
     if (projectId === undefined) return;
     if (signalR.status === 'connected') return;
+    if (graphNotFound) return;
 
     const id = window.setInterval(() => {
       void fetchGraph(projectId, selectedSnapshotId);
@@ -447,7 +470,7 @@ export function useDiagram(projectId?: string) {
     return () => {
       window.clearInterval(id);
     };
-  }, [projectId, signalR.status, selectedSnapshotId, fetchGraph]);
+  }, [projectId, signalR.status, selectedSnapshotId, fetchGraph, graphNotFound]);
 
   const captureSnapshot = useCallback(async (source = 'manual'): Promise<void> => {
     if (projectId === undefined) return;
@@ -624,6 +647,17 @@ export function useDiagram(projectId?: string) {
       });
     }
 
+    if (overlayMode === 'security') {
+      nodes = nodes.map((node) => {
+        const summary = securityByNodeId.get(node.id);
+        return {
+          ...node,
+          securitySeverity: summary?.severity ?? 'none',
+          securityFindingCount: summary?.count ?? 0,
+        };
+      });
+    }
+
     return { nodes, edges, preOrphanCount: filtered.length };
   }, [
     sourceData,
@@ -638,6 +672,8 @@ export function useDiagram(projectId?: string) {
     hideOrphans,
     diffEnabled,
     diffResult,
+    overlayMode,
+    securityByNodeId,
   ]);
 
   const metrics = useMemo(() => {
@@ -687,37 +723,80 @@ export function useDiagram(projectId?: string) {
   useEffect(() => {
     if (projectId === undefined || overlayMode === 'none') {
       setOverlaySummary(undefined);
+      setSecurityByNodeId(new Map());
       return;
     }
 
     const load = async () => {
       try {
+        if (overlayMode !== 'security') {
+          setSecurityByNodeId(new Map());
+        }
+
         if (overlayMode === 'threat') {
-          const threat = await getJson<{ riskLevel: string; threats: Array<{ component: string; threatType: string; severity: string; mitigation: string }> }>(
+          const threat = await getJson<{
+            riskLevel: string;
+            dataProvenance?: string;
+            isHeuristic?: boolean;
+            threats: Array<{ component: string; threatType: string; severity: string; mitigation: string }>;
+          }>(
             `/api/projects/${projectId}/threats?view=${encodeURIComponent(threatView)}`,
           );
+          const provenance = threat.dataProvenance ?? (threat.isHeuristic === true ? 'heuristic' : 'runtime');
           setOverlaySummary({
-            title: `Threat Overlay (${threat.riskLevel})`,
+            title: `Threat Overlay (${threat.riskLevel}, ${provenance})`,
             lines: (threat.threats ?? []).slice(0, 20).map((t) => `${t.component}: ${t.threatType} [${t.severity}]`),
           });
           return;
         }
 
         if (overlayMode === 'cost') {
-          const cost = await getJson<{ totalHourlyCostUsd: number; topCostNodes: Array<{ name: string; hourlyCostUsd: number }> }>(`/api/projects/${projectId}/cost`);
+          const cost = await getJson<{
+            totalHourlyCostUsd: number;
+            dataProvenance?: string;
+            isHeuristic?: boolean;
+            topCostNodes: Array<{ name: string; hourlyCostUsd: number }>;
+          }>(`/api/projects/${projectId}/cost`);
+          const provenance = cost.dataProvenance ?? (cost.isHeuristic === true ? 'heuristic' : 'source-backed');
           setOverlaySummary({
-            title: `Cost Overlay ($${cost.totalHourlyCostUsd.toFixed(2)}/hr)`,
+            title: `Cost Overlay ($${cost.totalHourlyCostUsd.toFixed(2)}/hr, ${provenance})`,
             lines: (cost.topCostNodes ?? []).slice(0, 20).map((n) => `${n.name}: $${n.hourlyCostUsd.toFixed(2)}/hr`),
           });
           return;
         }
 
-        const security = await getJson<{ totalFindings: number; findings: Array<{ severity: string; nodeName: string; message: string }> }>(`/api/projects/${projectId}/security-findings`);
+        const security = await getJson<{
+          totalFindings: number;
+          dataProvenance?: string;
+          isHeuristic?: boolean;
+          findings: Array<{ nodeId: string; severity: string; nodeName: string; message: string }>;
+        }>(
+          `/api/projects/${projectId}/security-findings`,
+        );
+        const provenance = security.dataProvenance ?? (security.isHeuristic === true ? 'heuristic' : 'source-backed');
+        const byNode = new Map<string, SecurityNodeSummary>();
+        for (const finding of security.findings ?? []) {
+          if (typeof finding.nodeId !== 'string' || finding.nodeId.length === 0) continue;
+          const severity = normalizeSecuritySeverity(finding.severity?.toLowerCase());
+          const existing = byNode.get(finding.nodeId);
+          if (existing === undefined) {
+            byNode.set(finding.nodeId, { severity, count: 1 });
+            continue;
+          }
+
+          byNode.set(finding.nodeId, {
+            severity: maxSecuritySeverity(existing.severity, severity),
+            count: existing.count + 1,
+          });
+        }
+        setSecurityByNodeId(byNode);
+
         setOverlaySummary({
-          title: `Security Overlay (${security.totalFindings} findings)`,
+          title: `Security Overlay (${security.totalFindings} findings, ${provenance})`,
           lines: (security.findings ?? []).slice(0, 20).map((f) => `[${f.severity}] ${f.nodeName}: ${f.message}`),
         });
       } catch {
+        setSecurityByNodeId(new Map());
         setOverlaySummary({
           title: 'Overlay unavailable',
           lines: ['No data available for the selected overlay.'],

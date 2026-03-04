@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { MdBusiness, MdCloud, MdHub, MdCheckCircle, MdArrowForward, MdSearch, MdError, MdWarning } from 'react-icons/md';
-import { ApiError, getJsonOrNull, postJson, deleteJson } from '../../shared/api/client';
+import { ApiError, getJsonOrNull, postJson } from '../../shared/api/client';
 import { useDashboard } from './useDashboard';
 import { useSearch } from '../../shared/search/SearchContext';
 import { useProject } from '../../shared/project/ProjectContext';
@@ -247,17 +247,8 @@ export function DashboardPage() {
     setVisibleCount(50);
   }, [searchQuery]);
 
-  const runDiscovery = useCallback(async (clearFirst: boolean) => {
+  const runDiscovery = useCallback(async () => {
     if (!setup.subscriptionId || !projectId) return;
-
-    if (clearFirst) {
-      setDiscovery({ phase: 'clearing', result: undefined, errorMessage: undefined });
-      try {
-        await deleteJson(`/api/projects/${projectId}/graph`);
-      } catch {
-        // Not critical if graph didn't exist
-      }
-    }
 
     setDiscovery({ phase: 'scanning', result: undefined, errorMessage: undefined });
 
@@ -283,8 +274,8 @@ export function DashboardPage() {
     }
   }, [setup.subscriptionId, setup.externalSubscriptionId, projectId, refetch]);
 
-  const handleDiscover = useCallback(() => void runDiscovery(false), [runDiscovery]);
-  const handleRediscover = useCallback(() => void runDiscovery(true), [runDiscovery]);
+  const handleDiscover = useCallback(() => void runDiscovery(), [runDiscovery]);
+  const handleRediscover = useCallback(() => void runDiscovery(), [runDiscovery]);
 
   if (setup.loading) {
     return (

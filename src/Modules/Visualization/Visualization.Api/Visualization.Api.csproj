@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="../../Graph/Graph.Application/Graph.Application.csproj" />
     <ProjectReference Include="../Visualization.Application/Visualization.Application.csproj" />
     <ProjectReference Include="../Visualization.Infrastructure/Visualization.Infrastructure.csproj" />
     <ProjectReference Include="../../../Shared/Infrastructure/Infrastructure.csproj" />

@@ -123,6 +123,16 @@ a:hover { text-decoration: underline; }
   max-width: 180px;
 }
 
+select {
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+select option {
+  background: var(--panel);
+  color: var(--text);
+}
+
 .header-user {
   font-size: 13px;
   color: var(--muted);

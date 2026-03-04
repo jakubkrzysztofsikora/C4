@@ -3,6 +3,7 @@ using C4.Modules.Discovery.Application.Ports;
 using C4.Shared.Infrastructure.Endpoints;
 using MediatR;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace C4.Modules.Discovery.Api.Endpoints;
 
@@ -12,9 +13,26 @@ public sealed class DiscoverResourcesEndpoint : IEndpoint
     {
         app.MapPost("/api/discovery/subscriptions/{subscriptionId:guid}/discover", async (Guid subscriptionId, DiscoverResourcesRequest request, ISender sender, ILogger<DiscoverResourcesEndpoint> logger, CancellationToken ct) =>
         {
+            if (!TryParseSources(request.Sources, out var parsedSources, out var invalidSources))
+            {
+                return Results.BadRequest(new DiscoverResourcesValidationErrorResponse(
+                    "discovery.invalid_sources",
+                    "One or more discovery sources are invalid. Use enum names or numeric values.",
+                    "sources",
+                    invalidSources,
+                    Enum.GetNames<DiscoverySourceKind>()));
+            }
+
             try
             {
-                var result = await sender.Send(new DiscoverResourcesCommand(subscriptionId, request.ExternalSubscriptionId, request.ProjectId, request.OrganizationId, request.Sources), ct);
+                var result = await sender.Send(
+                    new DiscoverResourcesCommand(
+                        subscriptionId,
+                        request.ExternalSubscriptionId,
+                        request.ProjectId,
+                        request.OrganizationId,
+                        parsedSources),
+                    ct);
 
                 if (result.IsSuccess)
                 {
@@ -46,7 +64,73 @@ public sealed class DiscoverResourcesEndpoint : IEndpoint
         .RequireAuthorization();
     }
 
-    public sealed record DiscoverResourcesRequest(string ExternalSubscriptionId, Guid ProjectId, string? OrganizationId, IReadOnlyCollection<DiscoverySourceKind>? Sources);
+    private static bool TryParseSources(
+        IReadOnlyCollection<JsonElement>? rawSources,
+        out IReadOnlyCollection<DiscoverySourceKind>? parsedSources,
+        out IReadOnlyCollection<string> invalidSources)
+    {
+        parsedSources = null;
+        invalidSources = [];
+
+        if (rawSources is null || rawSources.Count == 0)
+            return true;
+
+        List<DiscoverySourceKind> parsed = [];
+        List<string> invalid = [];
+
+        foreach (var source in rawSources)
+        {
+            if (source.ValueKind == JsonValueKind.String)
+            {
+                var value = source.GetString();
+                if (!string.IsNullOrWhiteSpace(value) &&
+                    Enum.TryParse<DiscoverySourceKind>(value, ignoreCase: true, out var enumValue))
+                {
+                    parsed.Add(enumValue);
+                }
+                else
+                {
+                    invalid.Add(value ?? "<null>");
+                }
+
+                continue;
+            }
+
+            if (source.ValueKind == JsonValueKind.Number && source.TryGetInt32(out var numericValue))
+            {
+                if (Enum.IsDefined(typeof(DiscoverySourceKind), numericValue))
+                {
+                    parsed.Add((DiscoverySourceKind)numericValue);
+                }
+                else
+                {
+                    invalid.Add(numericValue.ToString());
+                }
+
+                continue;
+            }
+
+            if (source.ValueKind == JsonValueKind.Null)
+                continue;
+
+            invalid.Add(source.ToString());
+        }
+
+        if (invalid.Count > 0)
+        {
+            invalidSources = invalid.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            return false;
+        }
+
+        parsedSources = parsed.Distinct().ToArray();
+        return true;
+    }
+
+    public sealed record DiscoverResourcesRequest(
+        string ExternalSubscriptionId,
+        Guid ProjectId,
+        string? OrganizationId,
+        IReadOnlyCollection<JsonElement>? Sources);
 
     public sealed record DiscoverResourcesErrorResponse(
         string ErrorCode,
@@ -54,4 +138,11 @@ public sealed class DiscoverResourcesEndpoint : IEndpoint
         DiscoveryExecutionStatus Status,
         DiscoveryEscalationLevel EscalationLevel,
         string? UserActionHint);
+
+    public sealed record DiscoverResourcesValidationErrorResponse(
+        string ErrorCode,
+        string ErrorMessage,
+        string Field,
+        IReadOnlyCollection<string> InvalidValues,
+        IReadOnlyCollection<string> AllowedValues);
 }

@@ -78,7 +78,10 @@ public sealed class DiscoverResourcesHandler(
                     classification = await classifier.ClassifyAsync(request.ProjectId, record.ResourceType, record.Name, cancellationToken);
                     classificationCache[record.ResourceType] = classification;
                 }
-                var resource = DiscoveredResource.Create(record.RawResourceId ?? record.StableResourceId, record.ResourceType, record.Name, classification);
+                var canonicalResourceId = string.IsNullOrWhiteSpace(record.StableResourceId)
+                    ? (record.RawResourceId ?? string.Empty)
+                    : record.StableResourceId;
+                var resource = DiscoveredResource.Create(canonicalResourceId, record.ResourceType, record.Name, classification);
                 classifiedPairs.Add((record, resource));
             }
             catch
@@ -87,10 +90,27 @@ public sealed class DiscoverResourcesHandler(
             }
         }
 
-        var resources = classifiedPairs.Select(p => p.Resource).ToList();
+        var dedupedPairs = classifiedPairs
+            .GroupBy(pair => pair.Resource.ResourceId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderByDescending(pair => pair.Record.ConfidenceScore)
+                .ThenByDescending(pair => pair.Record.Relationships.Count)
+                .First())
+            .ToArray();
+
+        var removedDuplicates = classifiedPairs.Count - dedupedPairs.Length;
+        if (removedDuplicates > 0)
+        {
+            logger.LogInformation(
+                "Discovery duplicate elimination removed {RemovedDuplicates} items for subscription {SubscriptionId}",
+                removedDuplicates,
+                request.SubscriptionId);
+        }
+
+        var resources = dedupedPairs.Select(p => p.Resource).ToList();
         await discoveredResourceRepository.UpsertRangeAsync(request.SubscriptionId, resources, cancellationToken);
 
-        var diagramItems = classifiedPairs
+        var diagramItems = dedupedPairs
             .Select(p =>
             {
                 IReadOnlyCollection<ResourceRelationship>? relationships = p.Record.Relationships.Count > 0

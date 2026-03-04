@@ -89,12 +89,14 @@ public sealed class ApplicationInsightsClient(
         if (configuredAppIds.Count == 0)
             configuredAppIds = ParseAppIds(configuration["ApplicationInsights:AppId"]);
 
-        var apiKey = GlobalApiKey;
+        var apiKey = !string.IsNullOrWhiteSpace(config?.InstrumentationKey)
+            ? config.InstrumentationKey.Trim()
+            : GlobalApiKey;
 
         if (configuredAppIds.Count == 0 || string.IsNullOrWhiteSpace(apiKey))
         {
             logger.LogWarning(
-                "Application Insights not configured for project {ProjectId} (missing AppId(s) or ApiKey); returning empty results",
+                "Application Insights not configured for project {ProjectId} (missing AppId(s) or API key); returning empty results",
                 projectId);
             return [];
         }

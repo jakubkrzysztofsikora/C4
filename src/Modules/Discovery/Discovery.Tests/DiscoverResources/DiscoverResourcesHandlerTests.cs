@@ -147,6 +147,35 @@ public sealed class DiscoverResourcesHandlerTests
         sourceCapture.LastSources.Should().ContainSingle().Which.Should().Be(DiscoverySourceKind.AzureSubscription);
     }
 
+    [Fact]
+    public async Task Handle_DuplicateStableResources_DeduplicatesBeforePersistenceAndEventPublishing()
+    {
+        var repo = new FakeDiscoveredResourceRepository();
+        var classifier = new FakeResourceClassifier();
+        var mediator = new CapturingMediator();
+        var handler = new DiscoverResourcesHandler(
+            new FakeDiscoveryInputPlanner(),
+            new DuplicateStableIdDiscoveryInputProvider(),
+            repo,
+            classifier,
+            new DiscoveryDataPreparer(),
+            mediator,
+            new FakeUnitOfWork(),
+            NullLogger<DiscoverResourcesHandler>.Instance,
+            new AlwaysAuthorizingService());
+
+        var subscriptionId = Guid.NewGuid();
+        var result = await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.ResourcesCount.Should().Be(2);
+        (await repo.GetBySubscriptionAsync(subscriptionId, CancellationToken.None))
+            .Should()
+            .HaveCount(2);
+        mediator.PublishedEvent.Should().NotBeNull();
+        mediator.PublishedEvent!.Resources.Should().HaveCount(2);
+    }
+
     private sealed class FakeDiscoveryInputProvider : IDiscoveryInputProvider
     {
         public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
@@ -248,6 +277,17 @@ public sealed class DiscoverResourcesHandlerTests
                 new("/r1", "Microsoft.Web/sites", "frontend", null, DiscoverySourceKind.AzureSubscription),
             ]);
         }
+    }
+
+    private sealed class DuplicateStableIdDiscoveryInputProvider : IDiscoveryInputProvider
+    {
+        public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(
+            [
+                new("/subscriptions/s1/resourceGroups/rg/providers/Microsoft.Web/sites/api", "Microsoft.Web/sites", "api", null, DiscoverySourceKind.AzureSubscription),
+                new("/subscriptions/s1//resourceGroups/rg/providers/microsoft.web/sites/API", "Microsoft.Web/sites", "api-duplicate", null, DiscoverySourceKind.AzureSubscription),
+                new("/subscriptions/s1/resourceGroups/rg/providers/Microsoft.Sql/servers/sql-1", "Microsoft.Sql/servers", "sql-1", null, DiscoverySourceKind.AzureSubscription),
+            ]);
     }
 
     private sealed class FakeDiscoveredResourceRepository : IDiscoveredResourceRepository

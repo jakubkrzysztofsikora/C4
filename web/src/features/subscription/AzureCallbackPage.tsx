@@ -19,7 +19,7 @@ type DiscoverRequest = {
   externalSubscriptionId: string;
   projectId: string;
   organizationId: string | null;
-  sources: null;
+  sources: ReadonlyArray<'AzureSubscription'>;
 };
 
 type DiscoverResponse = {
@@ -133,7 +133,7 @@ export function AzureCallbackPage() {
       try {
         const discoverResp = await postJson<DiscoverRequest, DiscoverResponse>(
           `/api/discovery/subscriptions/${result.subscriptionId}/discover`,
-          { externalSubscriptionId: result.externalSubscriptionId, projectId, organizationId: null, sources: null },
+          { externalSubscriptionId: result.externalSubscriptionId, projectId, organizationId: null, sources: ['AzureSubscription'] },
         );
         setDiscoverResult(discoverResp);
         setStatus('discover-done');
@@ -347,6 +347,7 @@ export function AzureCallbackPage() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              color: 'var(--text)',
             }}
           >
             <div>

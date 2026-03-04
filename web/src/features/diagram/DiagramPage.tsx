@@ -36,6 +36,11 @@ type DiscoverResponse = {
   resourcesCount: number;
 };
 
+type DetectDriftResponse = {
+  driftedCount: number;
+  inSyncCount: number;
+};
+
 export function DiagramPage() {
   const navigate = useNavigate();
   const { activeProject, loading: projectLoading } = useProject();
@@ -105,6 +110,9 @@ export function DiagramPage() {
   const { exportAs } = useDiagramExport(layoutedData, projectId);
   const { toasts, addToast, removeToast } = useToast();
   const [discoveringFromEmptyState, setDiscoveringFromEmptyState] = useState(false);
+  const [driftIacContent, setDriftIacContent] = useState('');
+  const [driftFormat, setDriftFormat] = useState<'bicep' | 'terraform'>('bicep');
+  const [runningDrift, setRunningDrift] = useState(false);
 
   const activeFilterChips = useMemo(() => {
     const chips: string[] = [];
@@ -226,6 +234,38 @@ export function DiagramPage() {
       addToast('Snapshot captured', 'success');
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Snapshot capture failed', 'error');
+    }
+  }
+
+  async function handleRunDriftDetection() {
+    if (projectId === undefined) return;
+    if (driftIacContent.trim().length === 0) {
+      addToast('Paste IaC content before running drift detection.', 'error');
+      return;
+    }
+
+    setRunningDrift(true);
+    try {
+      const subscription = await getJsonOrNull<CurrentSubscriptionResponse>('/api/discovery/subscriptions/current');
+      if (subscription === null) {
+        addToast('No Azure subscription connected.', 'error');
+        navigate('/subscriptions');
+        return;
+      }
+
+      const result = await postJson<{ iacContent: string; format: string }, DetectDriftResponse>(
+        `/api/discovery/subscriptions/${subscription.subscriptionId}/drift/run`,
+        {
+          iacContent: driftIacContent,
+          format: driftFormat,
+        },
+      );
+      addToast(`Drift detection complete (${result.driftedCount} drifted, ${result.inSyncCount} in sync).`, 'success');
+      await refetch(projectId);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Drift detection failed', 'error');
+    } finally {
+      setRunningDrift(false);
     }
   }
 
@@ -547,6 +587,47 @@ export function DiagramPage() {
           <span className="badge removed">Diff: removed</span>
           <span className="subtle">Traffic thresholds: red if error ≥5% or p95 ≥2000ms; yellow if error ≥1% or p95 ≥800ms.</span>
         </div>
+
+        <div className="card" style={{ marginTop: 10 }}>
+          <strong>Run Drift Detection</strong>
+          <p className="subtle" style={{ marginTop: 6, marginBottom: 10 }}>
+            Paste Bicep or Terraform desired state and run drift detection against discovered runtime resources.
+          </p>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <select value={driftFormat} onChange={(e) => setDriftFormat(e.target.value as 'bicep' | 'terraform')}>
+              <option value="bicep">Bicep</option>
+              <option value="terraform">Terraform</option>
+            </select>
+            <button className="btn btn-sm" type="button" disabled={runningDrift} onClick={() => void handleRunDriftDetection()}>
+              {runningDrift ? 'Running...' : 'Run Drift Detection'}
+            </button>
+          </div>
+          <textarea
+            value={driftIacContent}
+            onChange={(e) => setDriftIacContent(e.target.value)}
+            placeholder="Paste IaC content here"
+            style={{
+              width: '100%',
+              minHeight: 120,
+              background: 'var(--input-bg)',
+              color: 'var(--text)',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              padding: 10,
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+              fontSize: 12,
+            }}
+          />
+        </div>
+
+        {level === 'Code' && !loading && !graphNotFound && data.nodes.length === 0 && (
+          <div className="card" style={{ marginTop: 10 }}>
+            <strong>No code artifacts available</strong>
+            <p className="subtle" style={{ marginTop: 6, marginBottom: 0 }}>
+              Code-level view requires repository-derived code metadata. Configure repository discovery and rerun discovery.
+            </p>
+          </div>
+        )}
       </aside>
       <DiagramCanvas data={layoutedData} groupNodes={groupNodes} overlayMode={overlayMode} />
       <ToastContainer toasts={toasts} onRemove={removeToast} />

@@ -35,7 +35,9 @@ public sealed class GetSecurityFindingsHandler(
                     "medium",
                     "exposure",
                     "Externally exposed boundary component detected.",
-                    "Validate network ACLs, WAF/rate limits, and authentication controls."));
+                    "Validate network ACLs, WAF/rate limits, and authentication controls.",
+                    "heuristic",
+                    true));
             }
 
             if (resolved.ServiceType.Equals("storage", StringComparison.OrdinalIgnoreCase)
@@ -47,7 +49,9 @@ public sealed class GetSecurityFindingsHandler(
                     "high",
                     "data",
                     "Data-bearing service requires encryption and access review.",
-                    "Enforce least privilege, key rotation, and audit logging for data access."));
+                    "Enforce least privilege, key rotation, and audit logging for data access.",
+                    "heuristic",
+                    true));
             }
 
             if (resolved.ClassificationSource.Equals("fallback", StringComparison.OrdinalIgnoreCase))
@@ -58,7 +62,9 @@ public sealed class GetSecurityFindingsHandler(
                     "low",
                     "visibility",
                     "Resource classification confidence is low.",
-                    "Improve tagging and architecture metadata for more accurate security analysis."));
+                    "Improve tagging and architecture metadata for more accurate security analysis.",
+                    "heuristic",
+                    true));
             }
         }
 
@@ -68,7 +74,14 @@ public sealed class GetSecurityFindingsHandler(
             .Take(200)
             .ToArray();
 
-        return Result<GetSecurityFindingsResponse>.Success(new GetSecurityFindingsResponse(request.ProjectId, deduped.Length, deduped));
+        return Result<GetSecurityFindingsResponse>.Success(
+            new GetSecurityFindingsResponse(
+                request.ProjectId,
+                deduped.Length,
+                deduped,
+                DataProvenance: "heuristic",
+                GeneratedAtUtc: DateTime.UtcNow,
+                IsHeuristic: true));
     }
 
     private static string? ExtractResourceGroup(string resourceId)

@@ -33,7 +33,9 @@ public sealed class GetCostInsightsHandler(
                     node.Name,
                     resolved.ServiceType,
                     hourly,
-                    BuildRecommendation(resolved.ServiceType, resolved.IsInfrastructure, hourly));
+                    BuildRecommendation(resolved.ServiceType, resolved.IsInfrastructure, hourly),
+                    DataProvenance: "heuristic",
+                    IsHeuristic: true);
             })
             .OrderByDescending(n => n.HourlyCostUsd)
             .ToArray();
@@ -48,7 +50,15 @@ public sealed class GetCostInsightsHandler(
             .Take(8)
             .ToArray();
 
-        return Result<GetCostInsightsResponse>.Success(new GetCostInsightsResponse(request.ProjectId, total, topCostNodes, recommendations));
+        return Result<GetCostInsightsResponse>.Success(
+            new GetCostInsightsResponse(
+                request.ProjectId,
+                total,
+                topCostNodes,
+                recommendations,
+                DataProvenance: "heuristic",
+                GeneratedAtUtc: DateTime.UtcNow,
+                IsHeuristic: true));
     }
 
     private static string BuildRecommendation(string serviceType, bool isInfrastructure, double hourly)

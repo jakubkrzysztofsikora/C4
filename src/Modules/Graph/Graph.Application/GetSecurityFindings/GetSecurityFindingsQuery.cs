@@ -11,9 +11,14 @@ public sealed record SecurityFindingDto(
     string Severity,
     string Category,
     string Message,
-    string Recommendation);
+    string Recommendation,
+    string DataProvenance = "heuristic",
+    bool IsHeuristic = true);
 
 public sealed record GetSecurityFindingsResponse(
     Guid ProjectId,
     int TotalFindings,
-    IReadOnlyCollection<SecurityFindingDto> Findings);
+    IReadOnlyCollection<SecurityFindingDto> Findings,
+    string DataProvenance = "heuristic",
+    DateTime? GeneratedAtUtc = null,
+    bool IsHeuristic = true);
