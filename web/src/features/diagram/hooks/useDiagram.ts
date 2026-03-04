@@ -315,7 +315,18 @@ export function useDiagram(projectId?: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const [graphNotFound, setGraphNotFound] = useState(false);
+  const [hasGraphData, setHasGraphData] = useState(false);
   const [lastRefreshAt, setLastRefreshAt] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    setApiData(undefined);
+    setGraphQuality(undefined);
+    setGraphNotFound(false);
+    setHasGraphData(false);
+    setSnapshots([]);
+    setDiffResult(undefined);
+    setLastRefreshAt(undefined);
+  }, [projectId]);
 
   const timelineIndex = useMemo(() => {
     if (selectedSnapshotId === undefined) return -1;
@@ -352,13 +363,16 @@ export function useDiagram(projectId?: string) {
       const mapped = mapGraphDtoToDiagramData(dto);
       setApiData(mapped);
       setGraphQuality(dto.quality);
+      setHasGraphData(true);
       setLastRefreshAt(Date.now());
     } catch (err: unknown) {
       if (isApiError(err) && err.status === 404) {
         setGraphNotFound(true);
         setError(undefined);
+        setHasGraphData(false);
       } else {
         setError(extractErrorMessage(err));
+        setHasGraphData(false);
       }
       setApiData(undefined);
       setGraphQuality(undefined);
@@ -415,9 +429,9 @@ export function useDiagram(projectId?: string) {
   }, []);
 
   useEffect(() => {
-    if (projectId === undefined) return;
+    if (projectId === undefined || !hasGraphData) return;
     void fetchSnapshots(projectId);
-  }, [projectId, fetchSnapshots]);
+  }, [projectId, hasGraphData, fetchSnapshots]);
 
   useEffect(() => {
     if (projectId === undefined) return;
@@ -455,8 +469,9 @@ export function useDiagram(projectId?: string) {
   useEffect(() => {
     if (projectId === undefined) return;
     if (signalR.status !== 'connected') return;
+    if (!hasGraphData || graphNotFound) return;
     void fetchGraph(projectId, selectedSnapshotId);
-  }, [projectId, signalR.status, signalR.lastConnectedAt, selectedSnapshotId, fetchGraph]);
+  }, [projectId, signalR.status, signalR.lastConnectedAt, selectedSnapshotId, fetchGraph, hasGraphData, graphNotFound]);
 
   useEffect(() => {
     if (projectId === undefined) return;
@@ -721,7 +736,7 @@ export function useDiagram(projectId?: string) {
   }), [data.nodes, data.edges]);
 
   useEffect(() => {
-    if (projectId === undefined || overlayMode === 'none') {
+    if (projectId === undefined || overlayMode === 'none' || graphNotFound || !hasGraphData) {
       setOverlaySummary(undefined);
       setSecurityByNodeId(new Map());
       return;
@@ -805,7 +820,7 @@ export function useDiagram(projectId?: string) {
     };
 
     void load();
-  }, [projectId, overlayMode, threatView]);
+  }, [projectId, overlayMode, threatView, graphNotFound, hasGraphData]);
 
   const isStale = useMemo(() => {
     if (signalR.status === 'connected') return false;

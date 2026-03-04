@@ -11,14 +11,10 @@ public static class DiscoveryErrors
         new("discovery.subscription.invalid", $"Subscription '{externalId}' is invalid.");
 
     public static Error ConnectorUnavailable(string connectorName, string? detail = null) =>
-        new("discovery.connector.unavailable", detail is not null
-            ? $"Connector '{connectorName}' failed: {detail}"
-            : $"Connector '{connectorName}' is unavailable.");
+        new("discovery.connector.unavailable", $"Connector '{connectorName}' is unavailable.");
 
     public static Error AuthPermissionFailure(string providerName, string? detail = null) =>
-        new("discovery.auth.permission", detail is not null
-            ? $"Authorization failed for '{providerName}': {detail}"
-            : $"Authorization failed for provider '{providerName}'.");
+        new("discovery.auth.permission", $"Authorization failed for provider '{providerName}'. Reconnect Azure and retry discovery.");
 
     public static Error SchemaContractViolation(string providerName) =>
         new("discovery.schema.contract", $"Provider '{providerName}' returned a schema/contract violating payload.");

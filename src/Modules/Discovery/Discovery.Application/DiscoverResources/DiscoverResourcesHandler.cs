@@ -56,6 +56,11 @@ public sealed class DiscoverResourcesHandler(
         }
         catch (Exception ex)
         {
+            logger.LogWarning(
+                ex,
+                "Discovery provider failed for subscription {SubscriptionId} (external {ExternalSubscriptionId})",
+                request.SubscriptionId,
+                request.ExternalSubscriptionId);
             return Result<DiscoverResourcesResponse>.Failure(DiscoveryEscalationMapper.MapExternalFailure(ex));
         }
 

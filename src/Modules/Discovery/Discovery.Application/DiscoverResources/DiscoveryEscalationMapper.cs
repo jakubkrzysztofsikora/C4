@@ -20,11 +20,11 @@ public static class DiscoveryEscalationMapper
             "discovery.connector.unavailable" => new(
                 DiscoveryExecutionStatus.Failed,
                 DiscoveryEscalationLevel.NotifyUser,
-                error.Message),
+                "Discovery connector is temporarily unavailable. Retry shortly and check provider connectivity."),
             "discovery.auth.permission" => new(
                 DiscoveryExecutionStatus.Failed,
                 DiscoveryEscalationLevel.NotifyUser,
-                error.Message),
+                "Azure authorization expired or is invalid. Reconnect your Azure subscription, then retry discovery."),
             "discovery.schema.contract" => new(
                 DiscoveryExecutionStatus.Failed,
                 DiscoveryEscalationLevel.BlockPipeline,

@@ -9,7 +9,7 @@ export function createDiagramHubConnection(): HubConnection {
       accessTokenFactory: () => localStorage.getItem(TOKEN_STORAGE_KEY) ?? '',
     })
     .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-    .configureLogging(LogLevel.Information)
+    .configureLogging(LogLevel.Warning)
     .build();
 }
 
