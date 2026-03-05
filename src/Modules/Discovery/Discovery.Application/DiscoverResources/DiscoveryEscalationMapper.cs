@@ -1,5 +1,6 @@
 using C4.Modules.Discovery.Domain.Errors;
 using C4.Shared.Kernel;
+using System.Net;
 
 namespace C4.Modules.Discovery.Application.DiscoverResources;
 
@@ -41,6 +42,8 @@ public static class DiscoveryEscalationMapper
         {
             UnauthorizedAccessException ex => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph", ex.Message),
             InvalidOperationException ex when IsAuthRelated(ex.Message) => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph", ex.Message),
+            HttpRequestException ex when ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+                => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph", ex.Message),
             HttpRequestException ex => DiscoveryErrors.ConnectorUnavailable("azure-resource-graph", ex.Message),
             System.Text.Json.JsonException => DiscoveryErrors.SchemaContractViolation("azure-resource-graph"),
             FormatException => DiscoveryErrors.SchemaContractViolation("azure-resource-graph"),
