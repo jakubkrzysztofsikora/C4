@@ -1,8 +1,11 @@
+using System.Globalization;
+using System.Net;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using C4.Modules.Telemetry.Application.Ports;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System.Globalization;
+using C4.Shared.Kernel.Contracts;
 
 namespace C4.Modules.Telemetry.Infrastructure.Adapters;
 
@@ -10,6 +13,7 @@ public sealed class ApplicationInsightsClient(
     IHttpClientFactory httpClientFactory,
     IAppInsightsConfigStore configStore,
     IConfiguration configuration,
+    IApplicationInsightsTokenProvider? tokenProvider,
     ILogger<ApplicationInsightsClient> logger) : IApplicationInsightsClient
 {
     private string GlobalApiKey => configuration["ApplicationInsights:ApiKey"] ?? string.Empty;
@@ -90,40 +94,76 @@ public sealed class ApplicationInsightsClient(
             configuredAppIds = ParseAppIds(configuration["ApplicationInsights:AppId"]);
 
         var apiKey = ResolveApiKey(config?.InstrumentationKey);
+        string? bearerToken = null;
 
-        if (configuredAppIds.Count == 0 || string.IsNullOrWhiteSpace(apiKey))
+        if (string.IsNullOrWhiteSpace(apiKey) && tokenProvider is not null)
+        {
+            bearerToken = await tokenProvider.GetAccessTokenAsync(projectId, cancellationToken);
+        }
+
+        if (configuredAppIds.Count == 0 || (string.IsNullOrWhiteSpace(apiKey) && string.IsNullOrWhiteSpace(bearerToken)))
         {
             logger.LogWarning(
-                "Application Insights not configured for project {ProjectId} (missing AppId(s) or API key); returning empty results",
+                "Application Insights not configured for project {ProjectId} (missing AppId(s) and auth material); returning empty results",
                 projectId);
             return [];
         }
 
         var encodedQuery = Uri.EscapeDataString(kql);
         using var client = httpClientFactory.CreateClient();
-        client.DefaultRequestHeaders.Add("x-api-key", apiKey);
-
         List<string> successfulPayloads = [];
         foreach (var appId in configuredAppIds)
         {
-            var url = $"https://api.applicationinsights.io/v1/apps/{appId}/query?query={encodedQuery}";
-            var response = await client.GetAsync(url, cancellationToken);
-            var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+            var result = await ExecuteKqlQueryAsync(client, appId, encodedQuery, apiKey, bearerToken, cancellationToken);
 
-            if (!response.IsSuccessStatusCode)
+            if (!result.IsSuccess && !string.IsNullOrWhiteSpace(apiKey) && result.IsAuthFailure && tokenProvider is not null)
+            {
+                bearerToken ??= await tokenProvider.GetAccessTokenAsync(projectId, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(bearerToken))
+                {
+                    result = await ExecuteKqlQueryAsync(client, appId, encodedQuery, apiKey: null, bearerToken, cancellationToken);
+                }
+            }
+
+            if (!result.IsSuccess)
             {
                 logger.LogWarning(
                     "Application Insights query failed for app {AppId} ({StatusCode}): {Response}",
                     appId,
-                    response.StatusCode,
-                    responseJson);
+                    result.StatusCode,
+                    result.ResponseJson);
                 continue;
             }
 
-            successfulPayloads.Add(responseJson);
+            successfulPayloads.Add(result.ResponseJson);
         }
 
         return successfulPayloads;
+    }
+
+    private static async Task<KqlQueryResult> ExecuteKqlQueryAsync(
+        HttpClient client,
+        string appId,
+        string encodedQuery,
+        string? apiKey,
+        string? bearerToken,
+        CancellationToken cancellationToken)
+    {
+        var url = $"https://api.applicationinsights.io/v1/apps/{appId}/query?query={encodedQuery}";
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            request.Headers.Add("x-api-key", apiKey);
+        }
+        else if (!string.IsNullOrWhiteSpace(bearerToken))
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
+        }
+
+        var response = await client.SendAsync(request, cancellationToken);
+        var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+        return new KqlQueryResult(response.IsSuccessStatusCode, response.StatusCode, responseJson);
     }
 
     private static IReadOnlyCollection<ApplicationInsightsHealthRecord> ParseHealthQueryResponse(string responseJson)
@@ -367,5 +407,10 @@ public sealed class ApplicationInsightsClient(
             || value.Contains("IngestionEndpoint=", StringComparison.OrdinalIgnoreCase)
             || value.Contains("ApplicationId=", StringComparison.OrdinalIgnoreCase)
             || value.Contains("EndpointSuffix=", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed record KqlQueryResult(bool IsSuccess, HttpStatusCode StatusCode, string ResponseJson)
+    {
+        public bool IsAuthFailure => StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;
     }
 }

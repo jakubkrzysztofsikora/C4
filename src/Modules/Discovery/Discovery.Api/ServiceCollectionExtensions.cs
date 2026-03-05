@@ -71,6 +71,7 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton<IAzureTokenStore, DatabaseAzureTokenStore>();
         }
+        services.AddScoped<IApplicationInsightsTokenProvider, DiscoveryApplicationInsightsTokenProvider>();
         services.AddHttpClient();
         services.AddSingleton<IAzureIdentityService, AzureIdentityService>();
         services.AddSingleton<IOAuthStateStore, InMemoryOAuthStateStore>();
