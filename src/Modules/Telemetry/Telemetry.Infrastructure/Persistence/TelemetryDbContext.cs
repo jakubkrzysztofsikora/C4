@@ -52,8 +52,8 @@ file sealed class AppInsightsConfigEntityConfiguration : IEntityTypeConfiguratio
     {
         builder.ToTable("app_insights_configs");
         builder.HasKey(x => x.ProjectId);
-        builder.Property(x => x.AppId).HasMaxLength(200).IsRequired();
-        builder.Property(x => x.InstrumentationKey).HasMaxLength(200);
+        builder.Property(x => x.AppId).HasColumnType("text").IsRequired();
+        builder.Property(x => x.InstrumentationKey).HasColumnType("text");
         builder.Property(x => x.UpdatedAtUtc).IsRequired();
     }
 }
