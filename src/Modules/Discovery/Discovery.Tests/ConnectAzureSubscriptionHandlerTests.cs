@@ -33,6 +33,21 @@ public sealed class ConnectAzureSubscriptionHandlerTests
         result.Error.Code.Should().Be("discovery.subscription.duplicate");
     }
 
+    [Fact]
+    public async Task Handle_DuplicateSubscriptionRaceOnSave_ReturnsError()
+    {
+        var repository = new FakeAzureSubscriptionRepository();
+        var handler = new ConnectAzureSubscriptionHandler(
+            repository,
+            new FakeUnitOfWork(new InvalidOperationException("duplicate key value violates unique constraint IX_azure_subscriptions_ExternalSubscriptionId")),
+            new FakeDataProtectionService());
+
+        var result = await handler.Handle(new ConnectAzureSubscriptionCommand("sub-001", "Production", null, null), CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("discovery.subscription.duplicate");
+    }
+
     private sealed class FakeAzureSubscriptionRepository : IAzureSubscriptionRepository
     {
         private readonly List<AzureSubscription> _subscriptions = [];
@@ -59,9 +74,17 @@ public sealed class ConnectAzureSubscriptionHandlerTests
         }
     }
 
-    private sealed class FakeUnitOfWork : IUnitOfWork
+    private sealed class FakeUnitOfWork(Exception? saveChangesException = null) : IUnitOfWork
     {
-        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(1);
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            if (saveChangesException is not null)
+            {
+                throw saveChangesException;
+            }
+
+            return Task.FromResult(1);
+        }
     }
 
     private sealed class FakeDataProtectionService : IDataProtectionService

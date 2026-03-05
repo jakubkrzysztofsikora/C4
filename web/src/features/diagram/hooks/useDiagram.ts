@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, postJson, ApiError } from '../../../shared/api/client';
 import { DiagramData, DiagramNode, DiagramEdge, ServiceType, RiskLevel, DiagramLevel, SecuritySeverity } from '../types';
 import { useSignalR } from './useSignalR';
@@ -263,6 +263,8 @@ function isVisibleAtLevel(node: DiagramNode, level: Exclude<DiagramLevel, 'Unkno
 const EMPTY_DIAGRAM_DATA: DiagramData = { nodes: [], edges: [] };
 
 export function useDiagram(projectId?: string) {
+  const inFlightGraphRequestKey = useRef<string | undefined>(undefined);
+
   const [level, setLevel] = useState<Exclude<DiagramLevel, 'Unknown'>>(() => {
     const initial = getInitialParam('level', 'Container');
     return initial === 'Context' || initial === 'Component' || initial === 'Code' ? initial : 'Container';
@@ -320,6 +322,7 @@ export function useDiagram(projectId?: string) {
   const [lastRefreshAt, setLastRefreshAt] = useState<number | undefined>(undefined);
 
   useEffect(() => {
+    inFlightGraphRequestKey.current = undefined;
     setApiData(undefined);
     setGraphQuality(undefined);
     setGraphNotFound(false);
@@ -349,6 +352,21 @@ export function useDiagram(projectId?: string) {
   }, [snapshots]);
 
   const fetchGraph = useCallback(async (id: string, snapshotId?: string) => {
+    const requestKey = [
+      id,
+      level,
+      scope,
+      groupBy,
+      includeInfrastructure,
+      environment,
+      snapshotId ?? '',
+    ].join('|');
+
+    if (inFlightGraphRequestKey.current === requestKey) {
+      return;
+    }
+
+    inFlightGraphRequestKey.current = requestKey;
     setLoading(true);
     setError(undefined);
     setGraphNotFound(false);
@@ -385,6 +403,9 @@ export function useDiagram(projectId?: string) {
       setApiData(undefined);
       setGraphQuality(undefined);
     } finally {
+      if (inFlightGraphRequestKey.current === requestKey) {
+        inFlightGraphRequestKey.current = undefined;
+      }
       setLoading(false);
     }
   }, [level, scope, groupBy, includeInfrastructure, environment]);

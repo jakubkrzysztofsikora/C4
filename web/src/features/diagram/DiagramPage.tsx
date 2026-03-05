@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DiagramCanvas } from './components/DiagramCanvas';
 import { useDiagram } from './hooks/useDiagram';
@@ -8,7 +8,7 @@ import { usePanZoom } from './hooks/usePanZoom';
 import { useProject } from '../../shared/project/ProjectContext';
 import { useToast } from '../../shared/hooks/useToast';
 import { ToastContainer } from '../../shared/components/Toast';
-import { getJsonOrNull, postJson } from '../../shared/api/client';
+import { getJson, getJsonOrNull, postJson } from '../../shared/api/client';
 import './diagram.css';
 
 const DEFAULTS = {
@@ -39,6 +39,18 @@ type DiscoverResponse = {
 type DetectDriftResponse = {
   driftedCount: number;
   inSyncCount: number;
+};
+
+type DriftOverviewResponse = {
+  projectId: string;
+  driftedCount: number;
+  driftedNodes: ReadonlyArray<{ nodeId: string; name: string; externalResourceId: string; level: string }>;
+};
+
+type SyncTelemetryResponse = {
+  metricsIngested: number;
+  healthMetricsIngested: number;
+  dependencyMetricsIngested: number;
 };
 
 export function DiagramPage() {
@@ -113,6 +125,9 @@ export function DiagramPage() {
   const [driftIacContent, setDriftIacContent] = useState('');
   const [driftFormat, setDriftFormat] = useState<'bicep' | 'terraform'>('bicep');
   const [runningDrift, setRunningDrift] = useState(false);
+  const [runningTelemetrySync, setRunningTelemetrySync] = useState(false);
+  const [latestDrift, setLatestDrift] = useState<DriftOverviewResponse | undefined>(undefined);
+  const [loadingLatestDrift, setLoadingLatestDrift] = useState(false);
 
   const activeFilterChips = useMemo(() => {
     const chips: string[] = [];
@@ -237,6 +252,53 @@ export function DiagramPage() {
     }
   }
 
+  const refreshLatestDrift = useCallback(async () => {
+    if (projectId === undefined) {
+      setLatestDrift(undefined);
+      return;
+    }
+
+    setLoadingLatestDrift(true);
+    try {
+      const latest = await getJson<DriftOverviewResponse>(`/api/projects/${projectId}/drift/runs/latest`);
+      setLatestDrift(latest);
+    } catch {
+      setLatestDrift(undefined);
+    } finally {
+      setLoadingLatestDrift(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (projectId === undefined || graphNotFound) {
+      setLatestDrift(undefined);
+      return;
+    }
+
+    void refreshLatestDrift();
+  }, [projectId, graphNotFound, refreshLatestDrift]);
+
+  async function handleSyncTelemetry() {
+    if (projectId === undefined) return;
+
+    setRunningTelemetrySync(true);
+    try {
+      const result = await postJson<{ lookbackMinutes: number }, SyncTelemetryResponse>(
+        `/api/projects/${projectId}/telemetry/sync`,
+        { lookbackMinutes: 240 },
+      );
+      addToast(
+        `Telemetry sync complete (${result.metricsIngested} metrics: ${result.healthMetricsIngested} health, ${result.dependencyMetricsIngested} dependencies).`,
+        'success',
+      );
+      await refetch(projectId);
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Telemetry sync failed', 'error');
+    } finally {
+      setRunningTelemetrySync(false);
+    }
+  }
+
   async function handleRunDriftDetection() {
     if (projectId === undefined) return;
     if (driftIacContent.trim().length === 0) {
@@ -262,6 +324,7 @@ export function DiagramPage() {
       );
       addToast(`Drift detection complete (${result.driftedCount} drifted, ${result.inSyncCount} in sync).`, 'success');
       await refetch(projectId);
+      await refreshLatestDrift();
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Drift detection failed', 'error');
     } finally {
@@ -354,6 +417,16 @@ export function DiagramPage() {
         {!telemetryMetrics.hasAnyTelemetry && (
           <div className="stale-banner" role="status">
             No live telemetry found for this view. Health/traffic overlays are shown as <strong>unknown</strong> until telemetry arrives.
+            <div style={{ marginTop: 8 }}>
+              <button
+                className="btn btn-sm"
+                type="button"
+                disabled={runningTelemetrySync}
+                onClick={() => void handleSyncTelemetry()}
+              >
+                {runningTelemetrySync ? 'Syncing telemetry...' : 'Sync telemetry now'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -593,6 +666,22 @@ export function DiagramPage() {
           <p className="subtle" style={{ marginTop: 6, marginBottom: 10 }}>
             Paste Bicep or Terraform desired state and run drift detection against discovered runtime resources.
           </p>
+          <div className="subtle" style={{ fontSize: 13, marginBottom: 10 }}>
+            {loadingLatestDrift
+              ? 'Loading latest drift status...'
+              : latestDrift !== undefined
+                ? `Latest drifted resources: ${latestDrift.driftedCount}`
+                : 'Latest drift status is unavailable.'}
+          </div>
+          {latestDrift !== undefined && latestDrift.driftedNodes.length > 0 && (
+            <div style={{ marginBottom: 10, maxHeight: 120, overflowY: 'auto' }}>
+              {latestDrift.driftedNodes.slice(0, 6).map((node) => (
+                <div key={node.nodeId} className="subtle" style={{ fontSize: 12 }}>
+                  {node.name} ({node.level})
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <select value={driftFormat} onChange={(e) => setDriftFormat(e.target.value as 'bicep' | 'terraform')}>
               <option value="bicep">Bicep</option>

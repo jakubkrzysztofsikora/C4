@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getJsonOrNull, postJson } from '../../shared/api/client';
+import { ApiError, getJsonOrNull, postJson } from '../../shared/api/client';
 import { useSubscriptions } from './useSubscriptions';
 
 type AzureSubscription = {
@@ -39,6 +39,14 @@ type SelectedSubscription = {
 };
 
 function parseDiscoverError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status >= 500) {
+      return 'Discovery service is temporarily unavailable. Your subscription was connected successfully; retry discovery from the Dashboard.';
+    }
+
+    return error.message;
+  }
+
   if (!(error instanceof Error)) {
     return 'Could not discover resources from your Azure subscription.';
   }
@@ -81,6 +89,17 @@ export function AzureCallbackPage() {
   const [gitPatToken, setGitPatToken] = useState('');
   const [discoverResult, setDiscoverResult] = useState<DiscoverResponse | undefined>(undefined);
   const [discoverError, setDiscoverError] = useState<string | undefined>(undefined);
+
+  function resolveDiscoveryProjectId(org: OrgResponse | null): string | undefined {
+    if (org === null || org.projects.length === 0) return undefined;
+
+    const activeProjectId = localStorage.getItem('c4_active_project') ?? undefined;
+    if (activeProjectId !== undefined && org.projects.some((project) => project.projectId === activeProjectId)) {
+      return activeProjectId;
+    }
+
+    return org.projects[0]?.projectId;
+  }
 
   useEffect(() => {
     const code = searchParams.get('code');
@@ -127,7 +146,7 @@ export function AzureCallbackPage() {
 
     setStatus('discovering');
     const org = await getJsonOrNull<OrgResponse>('/api/organizations/current');
-    const projectId = org?.projects[0]?.projectId;
+    const projectId = resolveDiscoveryProjectId(org);
 
     if (projectId !== undefined) {
       try {
@@ -338,7 +357,7 @@ export function AzureCallbackPage() {
         {subscriptions.map(sub => (
           <button
             key={sub.subscriptionId}
-            className="card"
+            className="card subscription-option"
             type="button"
             onClick={() => void handleSelect(sub.subscriptionId, sub.displayName)}
             style={{
@@ -351,10 +370,10 @@ export function AzureCallbackPage() {
               background: 'linear-gradient(180deg, var(--panel-2), var(--panel))',
               borderColor: 'var(--border)',
             }}
-          >
+            >
             <div>
-              <strong style={{ color: 'var(--text)' }}>{sub.displayName}</strong>
-              <div style={{ fontSize: 13, color: 'var(--text)', opacity: 0.82, fontFamily: 'monospace', marginTop: 4 }}>
+              <strong className="subscription-option-name">{sub.displayName}</strong>
+              <div className="subscription-option-id" style={{ fontSize: 13, fontFamily: 'monospace', marginTop: 4 }}>
                 {sub.subscriptionId}
               </div>
             </div>

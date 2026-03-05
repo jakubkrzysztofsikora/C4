@@ -178,9 +178,8 @@ export function DiagramCanvas({
           nodeColor={(n) => {
             const nodeData = n.data as { node?: DiagramNode };
             if (!nodeData.node) return 'var(--border)';
-            return nodeData.node.telemetryStatus === 'known'
-              ? healthColor(nodeData.node.health)
-              : '#64748b';
+            const telemetryKnown = nodeData.node.telemetryStatus === 'known';
+            return resolveBorderColor(nodeData.node, overlayMode, telemetryKnown);
           }}
           nodeStrokeWidth={0}
           pannable

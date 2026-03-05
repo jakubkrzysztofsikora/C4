@@ -16,9 +16,11 @@ public sealed class ConnectAzureSubscriptionHandler(
 {
     public async Task<Result<ConnectAzureSubscriptionResponse>> Handle(ConnectAzureSubscriptionCommand request, CancellationToken cancellationToken)
     {
-        if (await repository.ExistsByExternalIdAsync(request.ExternalSubscriptionId.Trim(), cancellationToken))
+        var normalizedExternalId = request.ExternalSubscriptionId.Trim();
+
+        if (await repository.ExistsByExternalIdAsync(normalizedExternalId, cancellationToken))
         {
-            return Result<ConnectAzureSubscriptionResponse>.Failure(DiscoveryErrors.DuplicateSubscription(request.ExternalSubscriptionId.Trim()));
+            return Result<ConnectAzureSubscriptionResponse>.Failure(DiscoveryErrors.DuplicateSubscription(normalizedExternalId));
         }
 
         var subscriptionResult = AzureSubscription.Connect(request.ExternalSubscriptionId, request.DisplayName);
@@ -33,12 +35,43 @@ public sealed class ConnectAzureSubscriptionHandler(
 
         subscriptionResult.Value.ConfigureGitRepository(request.GitRepoUrl, encryptedPat);
 
-        await repository.AddAsync(subscriptionResult.Value, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await repository.AddAsync(subscriptionResult.Value, cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex) when (IsDuplicateSubscriptionPersistenceError(ex))
+        {
+            return Result<ConnectAzureSubscriptionResponse>.Failure(DiscoveryErrors.DuplicateSubscription(normalizedExternalId));
+        }
 
         return Result<ConnectAzureSubscriptionResponse>.Success(new ConnectAzureSubscriptionResponse(
             subscriptionResult.Value.Id.Value,
             subscriptionResult.Value.ExternalSubscriptionId,
             subscriptionResult.Value.DisplayName));
+    }
+
+    private static bool IsDuplicateSubscriptionPersistenceError(Exception exception)
+    {
+        Exception? current = exception;
+        while (current is not null)
+        {
+            var message = current.Message;
+            if (!string.IsNullOrWhiteSpace(message)
+                && (message.Contains("duplicate", StringComparison.OrdinalIgnoreCase)
+                    || message.Contains("unique", StringComparison.OrdinalIgnoreCase)
+                    || message.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+                && (message.Contains("ExternalSubscriptionId", StringComparison.OrdinalIgnoreCase)
+                    || message.Contains("external_subscription_id", StringComparison.OrdinalIgnoreCase)
+                    || message.Contains("azure_subscriptions", StringComparison.OrdinalIgnoreCase)
+                    || message.Contains("IX_azure_subscriptions_ExternalSubscriptionId", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            current = current.InnerException;
+        }
+
+        return false;
     }
 }

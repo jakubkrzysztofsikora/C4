@@ -213,6 +213,15 @@ button.card {
   appearance: none;
 }
 
+.subscription-option,
+.subscription-option * {
+  color: var(--text);
+}
+
+.subscription-option-id {
+  opacity: 0.85;
+}
+
 .subtle { color: var(--muted); }
 
 .input {
