@@ -22,6 +22,8 @@ public sealed class SyncApplicationInsightsTelemetryHandlerTests
 
         result.IsSuccess.Should().BeTrue();
         result.Value.MetricsIngested.Should().Be(2);
+        result.Value.HealthMetricsIngested.Should().Be(2);
+        result.Value.DependencyMetricsIngested.Should().Be(0);
         repo.Metrics.Should().HaveCount(2);
         mediator.PublishedTelemetryEvents.Should().HaveCount(1);
         unitOfWork.SaveCalls.Should().Be(1);

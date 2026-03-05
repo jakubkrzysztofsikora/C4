@@ -129,9 +129,10 @@ public sealed class ApplicationInsightsClient(
         {
             var result = await ExecuteKqlQueryAsync(client, appId, encodedQuery, apiKey, bearerToken, cancellationToken);
 
-            if (!result.IsSuccess && !string.IsNullOrWhiteSpace(apiKey) && result.IsAuthFailure && tokenProvider is not null)
+            if (!result.IsSuccess && result.IsAuthFailure && tokenProvider is not null)
             {
-                bearerToken ??= await tokenProvider.GetAccessTokenAsync(projectId, cancellationToken);
+                // Retry once with a freshly acquired delegated/client token on auth failures.
+                bearerToken = await tokenProvider.GetAccessTokenAsync(projectId, cancellationToken);
                 if (!string.IsNullOrWhiteSpace(bearerToken))
                 {
                     result = await ExecuteKqlQueryAsync(client, appId, encodedQuery, apiKey: null, bearerToken, cancellationToken);

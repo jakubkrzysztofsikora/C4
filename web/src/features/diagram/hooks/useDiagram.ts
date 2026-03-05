@@ -443,8 +443,9 @@ export function useDiagram(projectId?: string) {
 
   useEffect(() => {
     if (projectId === undefined) return;
+    if (graphNotFound && !hasGraphData) return;
     void fetchGraph(projectId, selectedSnapshotId);
-  }, [projectId, selectedSnapshotId, fetchGraph]);
+  }, [projectId, selectedSnapshotId, fetchGraph, graphNotFound, hasGraphData]);
 
   useEffect(() => {
     if (projectId === undefined || !diffEnabled) {
@@ -525,8 +526,13 @@ export function useDiagram(projectId?: string) {
       if (selectedSnapshotId !== undefined) params.set('snapshotId', selectedSnapshotId); else params.delete('snapshotId');
       params.set('overlay', overlayMode);
       params.set('diff', diffEnabled ? 'true' : 'false');
-      if (diffFromSnapshotId.length > 0) params.set('diffFrom', diffFromSnapshotId); else params.delete('diffFrom');
-      if (diffToSnapshotId.length > 0) params.set('diffTo', diffToSnapshotId); else params.delete('diffTo');
+      if (diffEnabled) {
+        if (diffFromSnapshotId.length > 0) params.set('diffFrom', diffFromSnapshotId); else params.delete('diffFrom');
+        if (diffToSnapshotId.length > 0) params.set('diffTo', diffToSnapshotId); else params.delete('diffTo');
+      } else {
+        params.delete('diffFrom');
+        params.delete('diffTo');
+      }
       params.set('threatView', threatView);
       const next = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState(null, '', next);

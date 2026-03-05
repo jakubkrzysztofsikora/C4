@@ -348,11 +348,13 @@ export function AzureCallbackPage() {
               justifyContent: 'space-between',
               alignItems: 'center',
               color: 'var(--text)',
+              background: 'linear-gradient(180deg, var(--panel-2), var(--panel))',
+              borderColor: 'var(--border)',
             }}
           >
             <div>
-              <strong>{sub.displayName}</strong>
-              <div style={{ fontSize: 13, color: 'var(--muted)', fontFamily: 'monospace', marginTop: 4 }}>
+              <strong style={{ color: 'var(--text)' }}>{sub.displayName}</strong>
+              <div style={{ fontSize: 13, color: 'var(--text)', opacity: 0.82, fontFamily: 'monospace', marginTop: 4 }}>
                 {sub.subscriptionId}
               </div>
             </div>

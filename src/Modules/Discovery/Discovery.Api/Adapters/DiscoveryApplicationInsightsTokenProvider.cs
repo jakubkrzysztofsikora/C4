@@ -34,50 +34,46 @@ public sealed class DiscoveryApplicationInsightsTokenProvider(
             return null;
         }
 
-        var clientCredentialsToken = await AcquireClientCredentialsTokenAsync(cancellationToken);
-        if (!string.IsNullOrWhiteSpace(clientCredentialsToken))
-            return clientCredentialsToken;
-
         var externalSubscriptionId = await ResolveExternalSubscriptionIdAsync(projectId, cancellationToken);
-        if (string.IsNullOrWhiteSpace(externalSubscriptionId))
+        if (!string.IsNullOrWhiteSpace(externalSubscriptionId))
+        {
+            var tokenInfo = await tokenStore.GetAsync(externalSubscriptionId, cancellationToken);
+            if (tokenInfo is not null && !string.IsNullOrWhiteSpace(tokenInfo.RefreshToken))
+            {
+                var refreshed = await RefreshForAppInsightsScopeAsync(tokenInfo.RefreshToken, cancellationToken);
+                if (refreshed is not null)
+                {
+                    if (!string.IsNullOrWhiteSpace(refreshed.RefreshToken)
+                        && !string.Equals(refreshed.RefreshToken, tokenInfo.RefreshToken, StringComparison.Ordinal))
+                    {
+                        await tokenStore.StoreAsync(
+                            externalSubscriptionId,
+                            tokenInfo with { RefreshToken = refreshed.RefreshToken },
+                            cancellationToken);
+                    }
+
+                    return refreshed.AccessToken;
+                }
+
+                logger.LogDebug(
+                    "Falling back to client-credentials App Insights token for project {ProjectId} after delegated token refresh failed",
+                    projectId);
+            }
+            else
+            {
+                logger.LogDebug(
+                    "Azure delegated token unavailable for project {ProjectId}; falling back to client-credentials token",
+                    projectId);
+            }
+        }
+        else
         {
             logger.LogDebug(
-                "No connected Azure subscription found for project {ProjectId}; cannot resolve Application Insights delegated token",
+                "No connected Azure subscription found for project {ProjectId}; falling back to client-credentials token",
                 projectId);
-            return null;
         }
 
-        var tokenInfo = await tokenStore.GetAsync(externalSubscriptionId, cancellationToken);
-        if (tokenInfo is null)
-        {
-            logger.LogDebug(
-                "No Azure token found for subscription {ExternalSubscriptionId}; cannot resolve Application Insights delegated token",
-                externalSubscriptionId);
-            return null;
-        }
-
-        if (string.IsNullOrWhiteSpace(tokenInfo.RefreshToken))
-        {
-            logger.LogWarning(
-                "Azure token for subscription {ExternalSubscriptionId} does not contain refresh token; reconnect Azure subscription to enable delegated telemetry auth",
-                externalSubscriptionId);
-            return null;
-        }
-
-        var refreshed = await RefreshForAppInsightsScopeAsync(tokenInfo.RefreshToken, cancellationToken);
-        if (refreshed is null)
-            return null;
-
-        if (!string.IsNullOrWhiteSpace(refreshed.RefreshToken)
-            && !string.Equals(refreshed.RefreshToken, tokenInfo.RefreshToken, StringComparison.Ordinal))
-        {
-            await tokenStore.StoreAsync(
-                externalSubscriptionId,
-                tokenInfo with { RefreshToken = refreshed.RefreshToken },
-                cancellationToken);
-        }
-
-        return refreshed.AccessToken;
+        return await AcquireClientCredentialsTokenAsync(cancellationToken);
     }
 
     private async Task<string?> ResolveExternalSubscriptionIdAsync(Guid projectId, CancellationToken cancellationToken)

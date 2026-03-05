@@ -20,20 +20,31 @@ public sealed class SyncApplicationInsightsTelemetryHandler(
         var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
         if (!authCheck.IsSuccess) return Result<SyncApplicationInsightsTelemetryResponse>.Failure(authCheck.Error);
 
-        var records = await applicationInsightsClient.QueryServiceHealthAsync(request.ProjectId, TimeSpan.FromMinutes(request.LookbackMinutes), cancellationToken);
+        var lookback = TimeSpan.FromMinutes(request.LookbackMinutes);
+        var healthTask = applicationInsightsClient.QueryServiceHealthAsync(request.ProjectId, lookback, cancellationToken);
+        var dependencyTask = applicationInsightsClient.QueryDependencyHealthAsync(request.ProjectId, lookback, cancellationToken);
+        await Task.WhenAll(healthTask, dependencyTask);
 
-        foreach (var record in records)
+        var healthRecords = healthTask.Result;
+        var dependencyRecords = dependencyTask.Result;
+
+        foreach (var record in healthRecords)
         {
             await telemetryRepository.AddMetricAsync(new MetricDataPoint(request.ProjectId, record.Service, record.Score, record.ObservedAtUtc), cancellationToken);
         }
 
-        var updates = records
+        var updates = healthRecords
             .Select(record => new TelemetryUpdatedServiceItem(record.Service, record.Score, ServiceHealthStatusExtensions.FromScore(record.Score).ToString()))
             .ToArray();
 
         await mediator.Publish(new TelemetryUpdatedIntegrationEvent(request.ProjectId, updates), cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result<SyncApplicationInsightsTelemetryResponse>.Success(new SyncApplicationInsightsTelemetryResponse(request.ProjectId, records.Count));
+        return Result<SyncApplicationInsightsTelemetryResponse>.Success(
+            new SyncApplicationInsightsTelemetryResponse(
+                request.ProjectId,
+                healthRecords.Count + dependencyRecords.Count,
+                healthRecords.Count,
+                dependencyRecords.Count));
     }
 }
