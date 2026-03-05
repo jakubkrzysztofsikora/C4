@@ -22,6 +22,8 @@ public sealed class ResourcesDiscoveredHandler(
     private const int ServiceTypeMaxLength = 200;
     private const int DomainMaxLength = 200;
     private const int ClassificationSourceMaxLength = 50;
+    private static readonly TimeSpan AiInferenceTimeout = TimeSpan.FromSeconds(20);
+    private const int MaxAiInferenceResourceGroups = 10;
 
     public async Task Handle(ResourcesDiscoveredIntegrationEvent notification, CancellationToken cancellationToken)
     {
@@ -139,7 +141,7 @@ public sealed class ResourcesDiscoveredHandler(
             .Select(n => n.ExternalResourceId)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var orphanResources = includedResources
+        var groupedOrphans = includedResources
             .Where(r => orphanNodeIds.Contains(r.StableResourceId ?? r.ResourceId))
             .Select(r => new
             {
@@ -149,14 +151,16 @@ public sealed class ResourcesDiscoveredHandler(
             .Where(x => x.ResourceGroup is not null)
             .GroupBy(x => x.ResourceGroup!, StringComparer.OrdinalIgnoreCase)
             .Where(g => g.Count() > 1)
-            .SelectMany(g => g.Select(x => x.Resource))
-            .Distinct()
+            .OrderByDescending(g => g.Count())
+            .Take(MaxAiInferenceResourceGroups)
             .ToArray();
 
-        if (orphanResources.Length == 0)
+        if (groupedOrphans.Length == 0)
             return;
 
-        var resourcesForInference = orphanResources
+        var resourcesForInference = groupedOrphans
+            .SelectMany(g => g.Select(x => x.Resource))
+            .Distinct()
             .Select(r => new ResourceForInference(
                 r.StableResourceId ?? r.ResourceId,
                 r.Name,
@@ -164,6 +168,9 @@ public sealed class ResourcesDiscoveredHandler(
                 r.C4Level ?? string.Empty,
                 ExtractResourceGroup(r.StableResourceId ?? r.ResourceId) ?? string.Empty))
             .ToArray();
+
+        if (resourcesForInference.Length == 0)
+            return;
 
         var existingEdgeDescriptions = graph.Edges
             .Select(e =>
@@ -177,7 +184,9 @@ public sealed class ResourcesDiscoveredHandler(
             .OfType<string>()
             .ToArray();
 
-        var inferred = await inferrer.InferRelationshipsAsync(projectId, resourcesForInference, existingEdgeDescriptions, cancellationToken);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(AiInferenceTimeout);
+        var inferred = await inferrer.InferRelationshipsAsync(projectId, resourcesForInference, existingEdgeDescriptions, timeoutCts.Token);
 
         foreach (var relationship in inferred.Where(r => r.Confidence >= 0.6))
         {
