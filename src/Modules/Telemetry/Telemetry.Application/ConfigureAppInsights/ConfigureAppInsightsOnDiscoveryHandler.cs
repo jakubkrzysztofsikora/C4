@@ -1,5 +1,4 @@
 using C4.Modules.Telemetry.Application.Ports;
-using C4.Modules.Telemetry.Application.SyncApplicationInsightsTelemetry;
 using C4.Shared.Kernel.IntegrationEvents;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -8,7 +7,6 @@ namespace C4.Modules.Telemetry.Application.ConfigureAppInsights;
 
 public sealed class ConfigureAppInsightsOnDiscoveryHandler(
     IAppInsightsConfigStore configStore,
-    IMediator mediator,
     ILogger<ConfigureAppInsightsOnDiscoveryHandler> logger)
     : INotificationHandler<AppInsightsDiscoveredEvent>
 {
@@ -20,15 +18,9 @@ public sealed class ConfigureAppInsightsOnDiscoveryHandler(
             notification.InstrumentationKey,
             cancellationToken);
 
-        try
-        {
-            await mediator.Send(
-                new SyncApplicationInsightsTelemetryCommand(notification.ProjectId),
-                cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "Auto-sync of App Insights telemetry failed for project {ProjectId}; manual sync may be needed", notification.ProjectId);
-        }
+        logger.LogInformation(
+            "Stored Application Insights target {AppId} for project {ProjectId}. Telemetry sync is deferred to explicit/manual sync endpoints.",
+            notification.AppId,
+            notification.ProjectId);
     }
 }
