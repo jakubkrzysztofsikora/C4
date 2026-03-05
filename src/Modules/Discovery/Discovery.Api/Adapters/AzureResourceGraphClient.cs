@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using C4.Modules.Discovery.Application.Ports;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace C4.Modules.Discovery.Api.Adapters;
@@ -12,9 +13,11 @@ public sealed class AzureResourceGraphClient(
     IHttpClientFactory httpClientFactory,
     IAzureTokenStore tokenStore,
     IAzureIdentityService identityService,
+    IConfiguration configuration,
     ILogger<AzureResourceGraphClient> logger) : IAzureResourceGraphClient
 {
     private const string ResourceGraphEndpoint = "https://management.azure.com/providers/Microsoft.ResourceGraph/resources?api-version=2024-04-01";
+    private const string ManagementScope = "https://management.azure.com/.default";
 
     private const string ResourceQuery = "Resources | project id, type, name, properties, resourceGroup, tags | union (ResourceContainers | where type =~ 'microsoft.resources/subscriptions/resourcegroups' | project id, type, name, properties, resourceGroup=name, tags)";
 
@@ -68,19 +71,88 @@ public sealed class AzureResourceGraphClient(
         AzureTokenInfo? tokenInfo = await tokenStore.GetAsync(externalSubscriptionId, cancellationToken);
 
         if (tokenInfo is null)
+        {
+            var fallbackToken = await TryGetClientCredentialsAccessTokenAsync(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(fallbackToken))
+                return fallbackToken;
+
             throw new InvalidOperationException("No Azure credentials found. Please re-authenticate with Azure.");
+        }
 
         if (tokenInfo.ExpiresAtUtc > DateTime.UtcNow.AddMinutes(2))
             return tokenInfo.AccessToken;
 
         if (tokenInfo.RefreshToken is null)
-            throw new InvalidOperationException("Azure token expired and no refresh token available. Please re-authenticate.");
+        {
+            var fallbackToken = await TryGetClientCredentialsAccessTokenAsync(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(fallbackToken))
+                return fallbackToken;
 
-        logger.LogInformation("Azure access token expired for subscription {SubscriptionId}, refreshing", externalSubscriptionId);
-        AzureTokenResponse refreshed = await identityService.RefreshTokenAsync(tokenInfo.RefreshToken, cancellationToken);
-        AzureTokenInfo newTokenInfo = new(refreshed.AccessToken, refreshed.RefreshToken ?? tokenInfo.RefreshToken, DateTime.UtcNow.AddSeconds(refreshed.ExpiresIn));
-        await tokenStore.StoreAsync(externalSubscriptionId, newTokenInfo, cancellationToken);
-        return refreshed.AccessToken;
+            throw new InvalidOperationException("Azure token expired and no refresh token available. Please re-authenticate.");
+        }
+
+        try
+        {
+            logger.LogInformation("Azure access token expired for subscription {SubscriptionId}, refreshing", externalSubscriptionId);
+            AzureTokenResponse refreshed = await identityService.RefreshTokenAsync(tokenInfo.RefreshToken, cancellationToken);
+            AzureTokenInfo newTokenInfo = new(refreshed.AccessToken, refreshed.RefreshToken ?? tokenInfo.RefreshToken, DateTime.UtcNow.AddSeconds(refreshed.ExpiresIn));
+            await tokenStore.StoreAsync(externalSubscriptionId, newTokenInfo, cancellationToken);
+            return refreshed.AccessToken;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                ex,
+                "Azure delegated token refresh failed for subscription {SubscriptionId}; trying client-credentials fallback",
+                externalSubscriptionId);
+
+            var fallbackToken = await TryGetClientCredentialsAccessTokenAsync(cancellationToken);
+            if (!string.IsNullOrWhiteSpace(fallbackToken))
+                return fallbackToken;
+
+            throw;
+        }
+    }
+
+    private async Task<string?> TryGetClientCredentialsAccessTokenAsync(CancellationToken cancellationToken)
+    {
+        var tenantId = configuration["AzureAd:TenantId"] ?? string.Empty;
+        var clientId = configuration["AzureAd:ClientId"] ?? string.Empty;
+        var clientSecret = configuration["AzureAd:ClientSecret"] ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(tenantId)
+            || string.IsNullOrWhiteSpace(clientId)
+            || string.IsNullOrWhiteSpace(clientSecret))
+        {
+            return null;
+        }
+
+        using var client = httpClientFactory.CreateClient();
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"] = "client_credentials",
+            ["client_id"] = clientId,
+            ["client_secret"] = clientSecret,
+            ["scope"] = ManagementScope
+        });
+
+        var response = await client.PostAsync(
+            $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token",
+            content,
+            cancellationToken);
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning("Azure client-credentials token request failed ({StatusCode}): {Response}", response.StatusCode, json);
+            return null;
+        }
+
+        var token = JsonSerializer.Deserialize<ClientCredentialsTokenResponse>(json);
+        if (token is null || string.IsNullOrWhiteSpace(token.AccessToken))
+            return null;
+
+        return token.AccessToken;
     }
 
     private static ResourceGraphPage ParseResourceGraphPage(string responseJson)
@@ -287,4 +359,7 @@ public sealed class AzureResourceGraphClient(
     private sealed record ResourceGraphPage(
         IReadOnlyCollection<AzureResourceRecord> Records,
         string? SkipToken);
+
+    private sealed record ClientCredentialsTokenResponse(
+        [property: JsonPropertyName("access_token")] string AccessToken);
 }
