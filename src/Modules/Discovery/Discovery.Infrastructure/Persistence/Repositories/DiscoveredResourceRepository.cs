@@ -12,7 +12,8 @@ public sealed class DiscoveredResourceRepository(
     public async Task UpsertRangeAsync(Guid subscriptionId, IReadOnlyCollection<DiscoveredResource> resources, CancellationToken cancellationToken)
     {
         var dedupedResources = resources
-            .GroupBy(resource => resource.ResourceId, StringComparer.OrdinalIgnoreCase)
+            .Where(resource => !string.IsNullOrWhiteSpace(resource.ResourceId))
+            .GroupBy(resource => resource.ResourceId.Trim(), StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .ToArray();
 
@@ -25,11 +26,7 @@ public sealed class DiscoveredResourceRepository(
                 subscriptionId);
         }
 
-        var existing = await dbContext.Resources
-            .Where(r => EF.Property<Guid>(r, "SubscriptionId") == subscriptionId)
-            .ToListAsync(cancellationToken);
-
-        dbContext.Resources.RemoveRange(existing);
+        await DeleteExistingForSubscriptionAsync(subscriptionId, cancellationToken);
 
         foreach (var resource in dedupedResources)
         {
@@ -42,4 +39,21 @@ public sealed class DiscoveredResourceRepository(
         await dbContext.Resources
             .Where(r => EF.Property<Guid>(r, "SubscriptionId") == subscriptionId)
             .ToListAsync(cancellationToken);
+
+    private async Task DeleteExistingForSubscriptionAsync(Guid subscriptionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.Resources
+                .Where(r => EF.Property<Guid>(r, "SubscriptionId") == subscriptionId)
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            var existing = await dbContext.Resources
+                .Where(r => EF.Property<Guid>(r, "SubscriptionId") == subscriptionId)
+                .ToListAsync(cancellationToken);
+            dbContext.Resources.RemoveRange(existing);
+        }
+    }
 }
