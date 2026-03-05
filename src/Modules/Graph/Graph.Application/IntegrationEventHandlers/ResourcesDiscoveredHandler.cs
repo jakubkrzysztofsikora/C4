@@ -42,7 +42,7 @@ public sealed class ResourcesDiscoveredHandler(
         {
             var effectiveClassification = ResolveClassification(resource);
             var level = ParseC4Level(effectiveClassification.C4Level);
-            var displayName = resource.FriendlyName is not null
+            var displayName = !string.IsNullOrWhiteSpace(resource.FriendlyName)
                 ? $"{resource.Name} ({resource.FriendlyName})"
                 : resource.Name;
             var nodeExternalResourceId = NormalizeIdentifier(resource.StableResourceId ?? resource.ResourceId, ExternalResourceIdMaxLength);
