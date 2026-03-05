@@ -42,9 +42,11 @@ public sealed class ResourcesDiscoveredHandler(
         {
             var effectiveClassification = ResolveClassification(resource);
             var level = ParseC4Level(effectiveClassification.C4Level);
-            var displayName = !string.IsNullOrWhiteSpace(resource.FriendlyName)
-                ? $"{resource.Name} ({resource.FriendlyName})"
-                : resource.Name;
+            var resourceName = SanitizeDisplayName(resource.Name);
+            var friendlyName = SanitizeDisplayName(resource.FriendlyName);
+            var displayName = !string.IsNullOrWhiteSpace(friendlyName)
+                ? $"{resourceName} ({friendlyName})"
+                : resourceName;
             var nodeExternalResourceId = NormalizeIdentifier(resource.StableResourceId ?? resource.ResourceId, ExternalResourceIdMaxLength);
             graph.AddOrUpdateNode(
                 nodeExternalResourceId,
@@ -433,5 +435,13 @@ public sealed class ResourcesDiscoveredHandler(
         const string separator = "~";
         var prefixLength = Math.Max(1, maxLength - hash.Length - separator.Length);
         return $"{trimmed[..prefixLength]}{separator}{hash}";
+    }
+
+    private static string SanitizeDisplayName(string? value)
+    {
+        var trimmed = value?.Trim() ?? string.Empty;
+        if (trimmed.EndsWith(" ()", StringComparison.Ordinal))
+            return trimmed[..^3].TrimEnd();
+        return trimmed;
     }
 }

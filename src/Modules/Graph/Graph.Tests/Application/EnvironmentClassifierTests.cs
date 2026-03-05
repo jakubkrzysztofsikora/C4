@@ -10,6 +10,7 @@ public sealed class EnvironmentClassifierTests
     [InlineData("prod-gateway", "production")]
     [InlineData("api-prod", "production")]
     [InlineData("prod", "production")]
+    [InlineData("production-api", "production")]
     public void InferEnvironment_ResourceNameContainsProdSegment_ReturnsProduction(string resourceName, string expected)
     {
         var result = EnvironmentClassifier.InferEnvironment(resourceName);
@@ -40,6 +41,7 @@ public sealed class EnvironmentClassifierTests
     }
 
     [Theory]
+    [InlineData("development-api", "development")]
     [InlineData("my-dev-api", "development")]
     [InlineData("dev-gateway", "development")]
     [InlineData("api-dev", "development")]
@@ -84,7 +86,7 @@ public sealed class EnvironmentClassifierTests
     }
 
     [Theory]
-    [InlineData("production-api")]
+    [InlineData("myproduction-api")]
     [InlineData("developer-portal")]
     [InlineData("stagecoach")]
     [InlineData("tester-service")]
@@ -129,6 +131,16 @@ public sealed class EnvironmentClassifierTests
         var result = EnvironmentClassifier.InferEnvironment("svc-main", "rg-main", tags);
 
         result.Should().Be("qa");
+    }
+
+    [Fact]
+    public void InferEnvironment_TagContainsEqualsSeparator_ReturnsEnvironment()
+    {
+        var tags = new[] { "environment=production" };
+
+        var result = EnvironmentClassifier.InferEnvironment("svc-main", "rg-main", tags);
+
+        result.Should().Be("production");
     }
 
     [Theory]

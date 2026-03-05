@@ -12,14 +12,19 @@ public static class EnvironmentClassifier
 
     private static readonly (string Keyword, string Environment)[] EnvironmentPatterns =
     [
+        ("production", "production"),
         ("nonprod", "nonprod"),
+        ("non-production", "nonprod"),
         ("preprod", "nonprod"),
         ("prod", "production"),
         ("prd", "production"),
+        ("live", "production"),
         ("staging", "staging"),
         ("stage", "staging"),
         ("stg", "staging"),
         ("ppe", "staging"),
+        ("development", "development"),
+        ("develop", "development"),
         ("dev", "development"),
         ("qa", "qa"),
         ("uat", "qa"),
@@ -53,6 +58,9 @@ public static class EnvironmentClassifier
 
             var tag = rawTag.Trim();
             var separatorIndex = tag.IndexOf(':');
+            if (separatorIndex <= 0 || separatorIndex >= tag.Length - 1)
+                separatorIndex = tag.IndexOf('=');
+
             if (separatorIndex > 0 && separatorIndex < tag.Length - 1)
             {
                 var key = tag[..separatorIndex].Trim();
