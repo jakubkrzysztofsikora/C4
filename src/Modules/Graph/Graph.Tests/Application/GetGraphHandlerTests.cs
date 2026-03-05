@@ -138,6 +138,36 @@ public sealed class GetGraphHandlerTests
         result.Value.Quality.RawDeclarationLabelCount.Should().Be(1);
     }
 
+    [Fact]
+    public async Task Handle_DriftQueryThrows_ReturnsGraphWithoutFailing()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Web/sites/api", "api", Domain.C4Level.Container);
+        var repo = new FakeRepository(graph);
+        var handler = new GetGraphHandler(repo, new EmptyTelemetryQueryService(), new ThrowingDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, "Container"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Nodes.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Handle_DuplicateTelemetryServiceNames_DoesNotThrow()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Web/sites/api", "OrderApi", Domain.C4Level.Container, "api");
+        var repo = new FakeRepository(graph);
+        var telemetry = new DuplicateServiceNameTelemetryQueryService();
+        var handler = new GetGraphHandler(repo, telemetry, new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, "Container"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Nodes.Should().ContainSingle();
+        result.Value.Nodes.Single().Health.Should().NotBe("unknown");
+    }
+
     private sealed class FakeRepository(ArchitectureGraph graph) : IArchitectureGraphRepository
     {
         public Task<ArchitectureGraph?> GetByProjectIdAsync(Guid projectId, CancellationToken cancellationToken)
@@ -164,6 +194,25 @@ public sealed class GetGraphHandlerTests
     {
         public Task<IReadOnlyCollection<string>> GetDriftedResourceIdsAsync(IReadOnlyCollection<string> resourceIds, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyCollection<string>>([]);
+    }
+
+    private sealed class ThrowingDriftQueryService : IDriftQueryService
+    {
+        public Task<IReadOnlyCollection<string>> GetDriftedResourceIdsAsync(IReadOnlyCollection<string> resourceIds, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("Simulated drift query failure");
+    }
+
+    private sealed class DuplicateServiceNameTelemetryQueryService : ITelemetryQueryService
+    {
+        public Task<IReadOnlyCollection<ServiceHealthSummary>> GetServiceHealthSummariesAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<ServiceHealthSummary>>(
+            [
+                new ServiceHealthSummary("OrderApi", 0.9, "green"),
+                new ServiceHealthSummary("orderapi", 0.5, "yellow")
+            ]);
+
+        public Task<IReadOnlyCollection<ServiceDependencySummary>> GetDependencySummariesAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<ServiceDependencySummary>>([]);
     }
 
     private sealed class AlwaysAuthorizingService : IProjectAuthorizationService

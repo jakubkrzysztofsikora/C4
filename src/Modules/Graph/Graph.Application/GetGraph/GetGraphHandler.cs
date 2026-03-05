@@ -81,19 +81,26 @@ public sealed class GetGraphHandler(
 
         var resourceIds = filteredList.Select(n => n.Node.ExternalResourceId).ToArray();
 
-        var healthTask = telemetryQueryService.GetServiceHealthSummariesAsync(request.ProjectId, cancellationToken);
-        var dependencyTask = telemetryQueryService.GetDependencySummariesAsync(request.ProjectId, cancellationToken);
-        var driftTask = driftQueryService.GetDriftedResourceIdsAsync(resourceIds, cancellationToken);
+        var healthTask = QueryHealthSafelyAsync(request.ProjectId, cancellationToken);
+        var dependencyTask = QueryDependenciesSafelyAsync(request.ProjectId, cancellationToken);
+        var driftTask = QueryDriftedResourcesSafelyAsync(resourceIds, cancellationToken);
         await Task.WhenAll(healthTask, driftTask, dependencyTask);
 
-        var healthByService = healthTask.Result.ToDictionary(s => s.Service, s => s, StringComparer.OrdinalIgnoreCase);
-        var healthByNormalized = healthTask.Result
+        var healthSummaries = healthTask.Result;
+        var dependencySummaries = dependencyTask.Result;
+        var driftedResources = driftTask.Result;
+
+        var healthByService = healthSummaries
+            .Where(s => !string.IsNullOrWhiteSpace(s.Service))
+            .GroupBy(s => s.Service, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.RequestRate ?? 0).First(), StringComparer.OrdinalIgnoreCase);
+        var healthByNormalized = healthSummaries
             .GroupBy(s => NormalizeTelemetryIdentifier(s.Service))
             .Where(g => g.Key.Length > 0)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.RequestRate ?? 0).First(), StringComparer.Ordinal);
-        var dependencyHealthByNormalized = BuildDerivedHealthFromDependencies(dependencyTask.Result);
-        var edgeTelemetry = BuildEdgeTelemetryIndex(dependencyTask.Result);
-        var driftedSet = new HashSet<string>(driftTask.Result, StringComparer.OrdinalIgnoreCase);
+        var dependencyHealthByNormalized = BuildDerivedHealthFromDependencies(dependencySummaries);
+        var edgeTelemetry = BuildEdgeTelemetryIndex(dependencySummaries);
+        var driftedSet = new HashSet<string>(driftedResources, StringComparer.OrdinalIgnoreCase);
 
         var nodeDtos = filteredList.Select(entry =>
         {
@@ -179,7 +186,9 @@ public sealed class GetGraphHandler(
                 dataQualityFlags);
         }).ToArray();
 
-        var nodeById = nodeDtos.ToDictionary(n => n.Id, n => n);
+        var nodeById = nodeDtos
+            .GroupBy(n => n.Id)
+            .ToDictionary(g => g.Key, g => g.First());
 
         var edgeDtos = filteredEdges.Select(e =>
         {
@@ -227,6 +236,44 @@ public sealed class GetGraphHandler(
     private static C4Level ParseResolvedLevel(string level)
     {
         return Enum.TryParse<C4Level>(level, true, out var parsed) ? parsed : C4Level.Container;
+    }
+
+    private async Task<IReadOnlyCollection<ServiceHealthSummary>> QueryHealthSafelyAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await telemetryQueryService.GetServiceHealthSummariesAsync(projectId, cancellationToken);
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private async Task<IReadOnlyCollection<ServiceDependencySummary>> QueryDependenciesSafelyAsync(Guid projectId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await telemetryQueryService.GetDependencySummariesAsync(projectId, cancellationToken);
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private async Task<IReadOnlyCollection<string>> QueryDriftedResourcesSafelyAsync(
+        IReadOnlyCollection<string> resourceIds,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await driftQueryService.GetDriftedResourceIdsAsync(resourceIds, cancellationToken);
+        }
+        catch
+        {
+            return [];
+        }
     }
 
     private static string ResolveTrafficState(double? requestRate, double? errorRate, double? p95LatencyMs)
