@@ -15,7 +15,8 @@ public sealed class DiscoveryApplicationInsightsTokenProvider(
     ILogger<DiscoveryApplicationInsightsTokenProvider> logger)
     : IApplicationInsightsTokenProvider
 {
-    private const string AppInsightsScope = "https://api.applicationinsights.io/.default offline_access";
+    private const string AppInsightsRefreshScope = "https://api.applicationinsights.io/.default offline_access";
+    private const string AppInsightsClientCredentialsScope = "https://api.applicationinsights.io/.default";
 
     private string TenantId => configuration["AzureAd:TenantId"] ?? string.Empty;
     private string ClientId => configuration["AzureAd:ClientId"] ?? string.Empty;
@@ -32,6 +33,10 @@ public sealed class DiscoveryApplicationInsightsTokenProvider(
                 projectId);
             return null;
         }
+
+        var clientCredentialsToken = await AcquireClientCredentialsTokenAsync(cancellationToken);
+        if (!string.IsNullOrWhiteSpace(clientCredentialsToken))
+            return clientCredentialsToken;
 
         var externalSubscriptionId = await ResolveExternalSubscriptionIdAsync(projectId, cancellationToken);
         if (string.IsNullOrWhiteSpace(externalSubscriptionId))
@@ -96,7 +101,7 @@ public sealed class DiscoveryApplicationInsightsTokenProvider(
                 ["refresh_token"] = refreshToken,
                 ["client_id"] = ClientId,
                 ["client_secret"] = ClientSecret,
-                ["scope"] = AppInsightsScope
+                ["scope"] = AppInsightsRefreshScope
             });
 
             var response = await client.PostAsync(
@@ -126,6 +131,47 @@ public sealed class DiscoveryApplicationInsightsTokenProvider(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Application Insights delegated token refresh threw an unexpected error");
+            return null;
+        }
+    }
+
+    private async Task<string?> AcquireClientCredentialsTokenAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var client = httpClientFactory.CreateClient();
+            using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "client_credentials",
+                ["client_id"] = ClientId,
+                ["client_secret"] = ClientSecret,
+                ["scope"] = AppInsightsClientCredentialsScope
+            });
+
+            var response = await client.PostAsync(
+                $"https://login.microsoftonline.com/{TenantId}/oauth2/v2.0/token",
+                content,
+                cancellationToken);
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogDebug(
+                    "Application Insights client-credentials token request failed ({StatusCode}): {Response}",
+                    response.StatusCode,
+                    json);
+                return null;
+            }
+
+            var token = JsonSerializer.Deserialize<TokenEndpointResponse>(json);
+            if (token is null || string.IsNullOrWhiteSpace(token.AccessToken))
+                return null;
+
+            return token.AccessToken;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogDebug(ex, "Application Insights client-credentials token request failed with exception");
             return null;
         }
     }
