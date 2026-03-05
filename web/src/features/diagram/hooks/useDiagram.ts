@@ -443,9 +443,9 @@ export function useDiagram(projectId?: string) {
 
   useEffect(() => {
     if (projectId === undefined) return;
-    if (graphNotFound && !hasGraphData) return;
+    if (graphNotFound) return;
     void fetchGraph(projectId, selectedSnapshotId);
-  }, [projectId, selectedSnapshotId, fetchGraph, graphNotFound, hasGraphData]);
+  }, [projectId, selectedSnapshotId, fetchGraph, graphNotFound]);
 
   useEffect(() => {
     if (projectId === undefined || !diffEnabled) {
