@@ -110,4 +110,35 @@ public sealed class EnvironmentClassifierTests
 
         result.Should().Be("production");
     }
+
+    [Fact]
+    public void InferEnvironment_TagContainsEnvironmentValue_ReturnsEnvironmentFromTag()
+    {
+        var tags = new[] { "Environment:prod-eastus", "Owner:platform" };
+
+        var result = EnvironmentClassifier.InferEnvironment("svc-main", "rg-main", tags);
+
+        result.Should().Be("production");
+    }
+
+    [Fact]
+    public void InferEnvironment_TagContainsUatValue_ReturnsQa()
+    {
+        var tags = new[] { "env:uat" };
+
+        var result = EnvironmentClassifier.InferEnvironment("svc-main", "rg-main", tags);
+
+        result.Should().Be("qa");
+    }
+
+    [Theory]
+    [InlineData("my-ppe-api", "staging")]
+    [InlineData("my-preprod-api", "nonprod")]
+    [InlineData("my-prd-api", "production")]
+    public void InferEnvironment_AdditionalEnvironmentAliasesAreSupported(string resourceName, string expected)
+    {
+        var result = EnvironmentClassifier.InferEnvironment(resourceName);
+
+        result.Should().Be(expected);
+    }
 }

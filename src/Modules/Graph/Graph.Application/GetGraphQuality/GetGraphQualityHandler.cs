@@ -24,7 +24,7 @@ public sealed class GetGraphQualityHandler(
             {
                 var resourceGroup = ExtractResourceGroup(node.ExternalResourceId) ?? string.Empty;
                 var resolved = GraphClassificationResolver.Resolve(node, resourceGroup);
-                var environment = EnvironmentClassifier.InferEnvironment(node.Name, resourceGroup);
+                var environment = EnvironmentClassifier.InferEnvironment(node.Name, resourceGroup, node.Properties.Tags);
                 return new
                 {
                     Node = node,

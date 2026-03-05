@@ -42,7 +42,7 @@ public sealed class GetGraphHandler(
             .Select(node =>
             {
                 var resourceGroup = ExtractResourceGroup(node.ExternalResourceId) ?? "";
-                var environment = EnvironmentClassifier.InferEnvironment(node.Name, resourceGroup);
+                var environment = EnvironmentClassifier.InferEnvironment(node.Name, resourceGroup, node.Tags);
                 var domain = GraphDomainClassifier.InferDomain(node.Domain, node.Name, resourceGroup);
                 return new NodeProjection(node, resourceGroup, node.Level, environment, domain);
             })
