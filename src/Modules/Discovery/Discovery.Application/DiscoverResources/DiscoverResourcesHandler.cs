@@ -5,6 +5,8 @@ using C4.Shared.Kernel;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace C4.Modules.Discovery.Application.DiscoverResources;
 
@@ -22,6 +24,14 @@ public sealed class DiscoverResourcesHandler(
     IArchitectureQuestionGenerator? architectureQuestionGenerator = null) : IRequestHandler<DiscoverResourcesCommand, Result<DiscoverResourcesResponse>>
 {
     private const string DefaultUserIntent = "Discover Azure resources for connected subscription";
+    private const int ResourceIdMaxLength = 500;
+    private const int ResourceTypeMaxLength = 200;
+    private const int ResourceNameMaxLength = 250;
+    private const int FriendlyNameMaxLength = 250;
+    private const int ServiceTypeMaxLength = 100;
+    private const int C4LevelMaxLength = 50;
+    private const int ClassificationSourceMaxLength = 50;
+    private const int DomainMaxLength = 200;
 
     public async Task<Result<DiscoverResourcesResponse>> Handle(DiscoverResourcesCommand request, CancellationToken cancellationToken)
     {
@@ -86,7 +96,18 @@ public sealed class DiscoverResourcesHandler(
                 var canonicalResourceId = string.IsNullOrWhiteSpace(record.StableResourceId)
                     ? (record.RawResourceId ?? string.Empty)
                     : record.StableResourceId;
-                var resource = DiscoveredResource.Create(canonicalResourceId, record.ResourceType, record.Name, classification);
+                var normalizedResourceId = NormalizeIdentifier(canonicalResourceId, ResourceIdMaxLength);
+                var safeResourceType = Truncate(record.ResourceType, ResourceTypeMaxLength);
+                var safeName = Truncate(record.Name, ResourceNameMaxLength);
+                if (string.IsNullOrWhiteSpace(normalizedResourceId)
+                    || string.IsNullOrWhiteSpace(safeResourceType)
+                    || string.IsNullOrWhiteSpace(safeName))
+                {
+                    dataQualityFailures++;
+                    continue;
+                }
+
+                var resource = DiscoveredResource.Create(normalizedResourceId, safeResourceType, safeName, classification);
                 classifiedPairs.Add((record, resource));
             }
             catch
@@ -121,23 +142,26 @@ public sealed class DiscoverResourcesHandler(
                 IReadOnlyCollection<ResourceRelationship>? relationships = p.Record.Relationships.Count > 0
                     ? p.Record.Relationships.Select(r => new ResourceRelationship(r.RelationshipType, r.RelatedStableResourceId)).ToArray()
                     : null;
+                var parentResourceId = relationships?
+                    .FirstOrDefault(r => r.Type.Equals("parent", StringComparison.OrdinalIgnoreCase))
+                    ?.TargetResourceId;
                 var classification = p.Resource.Classification;
                 return new DiscoveredResourceEventItem(
                     p.Resource.ResourceId,
                     p.Resource.ResourceType,
                     p.Resource.Name,
-                    classification?.FriendlyName,
-                    classification?.ServiceType,
-                    classification?.C4Level,
+                    Truncate(classification?.FriendlyName, FriendlyNameMaxLength),
+                    Truncate(classification?.ServiceType, ServiceTypeMaxLength),
+                    Truncate(classification?.C4Level, C4LevelMaxLength),
                     classification?.IncludeInDiagram ?? true,
-                    p.Record.RawParentResourceId,
+                    parentResourceId,
                     p.Record.SourceProvenance,
                     p.Record.ConfidenceScore,
                     relationships,
-                    p.Record.StableResourceId,
-                    Domain: DeriveDomain(p.Record.Name, p.Record.ResourceGroup, p.Record.Tags),
+                    NormalizeIdentifier(p.Record.StableResourceId, ResourceIdMaxLength),
+                    Domain: Truncate(DeriveDomain(p.Record.Name, p.Record.ResourceGroup, p.Record.Tags), DomainMaxLength),
                     IsInfrastructure: classification?.IsInfrastructure ?? false,
-                    ClassificationSource: classification?.ClassificationSource ?? "fallback",
+                    ClassificationSource: Truncate(classification?.ClassificationSource, ClassificationSourceMaxLength, "fallback"),
                     ClassificationConfidence: classification?.Confidence ?? 0.6,
                     ResourceGroup: p.Record.ResourceGroup,
                     Tags: p.Record.Tags);
@@ -196,6 +220,27 @@ public sealed class DiscoverResourcesHandler(
         DiscoverySourceKind.RemoteMcp => "mcp",
         _ => source.ToString().ToLowerInvariant()
     };
+
+    private static string Truncate(string? value, int maxLength, string fallback = "")
+    {
+        var trimmed = value?.Trim() ?? fallback;
+        if (trimmed.Length <= maxLength)
+            return trimmed;
+
+        return trimmed[..maxLength];
+    }
+
+    private static string NormalizeIdentifier(string? value, int maxLength)
+    {
+        var trimmed = value?.Trim() ?? string.Empty;
+        if (trimmed.Length <= maxLength)
+            return trimmed;
+
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(trimmed)))[..16].ToLowerInvariant();
+        const string separator = "~";
+        var prefixLength = Math.Max(1, maxLength - hash.Length - separator.Length);
+        return $"{trimmed[..prefixLength]}{separator}{hash}";
+    }
 
     private async Task EnsureArchitectureContextQuestionsAsync(Guid projectId, int resourceCount, CancellationToken cancellationToken)
     {

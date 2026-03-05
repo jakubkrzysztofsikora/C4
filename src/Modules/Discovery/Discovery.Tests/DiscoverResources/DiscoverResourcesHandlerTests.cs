@@ -176,6 +176,39 @@ public sealed class DiscoverResourcesHandlerTests
         mediator.PublishedEvent!.Resources.Should().HaveCount(2);
     }
 
+    [Fact]
+    public async Task Handle_LongDiscoveryValues_TrimsPayloadToPersistenceSafeLengths()
+    {
+        var repo = new FakeDiscoveredResourceRepository();
+        var classifier = new FakeResourceClassifier();
+        var mediator = new CapturingMediator();
+        var handler = new DiscoverResourcesHandler(
+            new FakeDiscoveryInputPlanner(),
+            new LongValueDiscoveryInputProvider(),
+            repo,
+            classifier,
+            new DiscoveryDataPreparer(),
+            mediator,
+            new FakeUnitOfWork(),
+            NullLogger<DiscoverResourcesHandler>.Instance,
+            new AlwaysAuthorizingService());
+
+        var subscriptionId = Guid.NewGuid();
+        var result = await handler.Handle(new DiscoverResourcesCommand(subscriptionId, "sub-1", Guid.NewGuid()), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        var persisted = await repo.GetBySubscriptionAsync(subscriptionId, CancellationToken.None);
+        persisted.Should().ContainSingle();
+        persisted.Single().ResourceId.Length.Should().BeLessOrEqualTo(500);
+        persisted.Single().ResourceType.Length.Should().BeLessOrEqualTo(200);
+        persisted.Single().Name.Length.Should().BeLessOrEqualTo(250);
+
+        mediator.PublishedEvent.Should().NotBeNull();
+        mediator.PublishedEvent!.Resources.Should().ContainSingle();
+        mediator.PublishedEvent.Resources.Single().StableResourceId.Should().NotBeNull();
+        mediator.PublishedEvent.Resources.Single().StableResourceId!.Length.Should().BeLessOrEqualTo(500);
+    }
+
     private sealed class FakeDiscoveryInputProvider : IDiscoveryInputProvider
     {
         public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
@@ -287,6 +320,20 @@ public sealed class DiscoverResourcesHandlerTests
                 new("/subscriptions/s1/resourceGroups/rg/providers/Microsoft.Web/sites/api", "Microsoft.Web/sites", "api", null, DiscoverySourceKind.AzureSubscription),
                 new("/subscriptions/s1//resourceGroups/rg/providers/microsoft.web/sites/API", "Microsoft.Web/sites", "api-duplicate", null, DiscoverySourceKind.AzureSubscription),
                 new("/subscriptions/s1/resourceGroups/rg/providers/Microsoft.Sql/servers/sql-1", "Microsoft.Sql/servers", "sql-1", null, DiscoverySourceKind.AzureSubscription),
+            ]);
+    }
+
+    private sealed class LongValueDiscoveryInputProvider : IDiscoveryInputProvider
+    {
+        public Task<IReadOnlyCollection<DiscoveryResourceDescriptor>> GetResourcesAsync(NormalizedDiscoveryRequest request, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<DiscoveryResourceDescriptor>>(
+            [
+                new(
+                    "/subscriptions/s1/resourceGroups/rg/providers/Microsoft.Web/sites/" + new string('a', 700),
+                    "Custom/" + new string('t', 300),
+                    new string('n', 400),
+                    null,
+                    DiscoverySourceKind.AzureSubscription),
             ]);
     }
 

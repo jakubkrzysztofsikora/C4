@@ -34,4 +34,23 @@ public sealed class DiscoveryDataPreparerTests
         child.Relationships.Single().RelationshipType.Should().Be("parent");
         child.Relationships.Single().RelatedStableResourceId.Should().Be("/parent");
     }
+
+    [Fact]
+    public void Prepare_LongValues_AreTrimmedToPersistenceSafeLengths()
+    {
+        var preparer = new DiscoveryDataPreparer();
+        var veryLongResourceId = "/subscriptions/s1/resourcegroups/rg/providers/microsoft.web/sites/" + new string('a', 600);
+        var veryLongResourceType = "Custom/" + new string('t', 240);
+        var veryLongName = new string('n', 320);
+
+        var result = preparer.Prepare(
+        [
+            new RawDiscoveryRecord(veryLongResourceId, veryLongResourceType, veryLongName, "azure", null)
+        ]);
+
+        var prepared = result.Single();
+        prepared.StableResourceId.Length.Should().BeLessOrEqualTo(500);
+        prepared.ResourceType.Length.Should().BeLessOrEqualTo(200);
+        prepared.Name.Length.Should().BeLessOrEqualTo(250);
+    }
 }

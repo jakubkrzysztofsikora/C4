@@ -40,15 +40,15 @@ public static class DiscoveryEscalationMapper
     public static Error MapExternalFailure(Exception exception) =>
         exception switch
         {
-            UnauthorizedAccessException ex => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph", ex.Message),
-            InvalidOperationException ex when IsAuthRelated(ex.Message) => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph", ex.Message),
+            UnauthorizedAccessException ex => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph", BuildErrorMessage(ex)),
+            InvalidOperationException ex when IsAuthRelated(ex.Message) => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph", BuildErrorMessage(ex)),
             HttpRequestException ex when ex.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
-                => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph", ex.Message),
-            HttpRequestException ex => DiscoveryErrors.ConnectorUnavailable("azure-resource-graph", ex.Message),
+                => DiscoveryErrors.AuthPermissionFailure("azure-resource-graph", BuildErrorMessage(ex)),
+            HttpRequestException ex => DiscoveryErrors.ConnectorUnavailable("azure-resource-graph", BuildErrorMessage(ex)),
             System.Text.Json.JsonException => DiscoveryErrors.SchemaContractViolation("azure-resource-graph"),
             FormatException => DiscoveryErrors.SchemaContractViolation("azure-resource-graph"),
             InvalidDataException => DiscoveryErrors.SchemaContractViolation("azure-resource-graph"),
-            _ => DiscoveryErrors.ConnectorUnavailable("azure-resource-graph", exception.Message)
+            _ => DiscoveryErrors.ConnectorUnavailable("azure-resource-graph", BuildErrorMessage(exception))
         };
 
     private static bool IsAuthRelated(string message) =>
@@ -56,4 +56,14 @@ public static class DiscoveryEscalationMapper
         || message.Contains("re-authenticate", StringComparison.OrdinalIgnoreCase)
         || message.Contains("token expired", StringComparison.OrdinalIgnoreCase)
         || message.Contains("token refresh", StringComparison.OrdinalIgnoreCase);
+
+    private static string BuildErrorMessage(Exception exception)
+    {
+        var primary = exception.Message;
+        var inner = exception.InnerException?.Message;
+        if (string.IsNullOrWhiteSpace(inner))
+            return primary;
+
+        return $"{primary} (inner: {inner})";
+    }
 }

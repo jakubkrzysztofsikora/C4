@@ -5,6 +5,8 @@ using C4.Modules.Graph.Domain;
 using C4.Shared.Kernel;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace C4.Modules.Graph.Application.IntegrationEventHandlers;
 
@@ -15,6 +17,12 @@ public sealed class ResourcesDiscoveredHandler(
     IMediator? mediator = null)
     : INotificationHandler<ResourcesDiscoveredIntegrationEvent>
 {
+    private const int ExternalResourceIdMaxLength = 500;
+    private const int NameMaxLength = 250;
+    private const int ServiceTypeMaxLength = 200;
+    private const int DomainMaxLength = 200;
+    private const int ClassificationSourceMaxLength = 50;
+
     public async Task Handle(ResourcesDiscoveredIntegrationEvent notification, CancellationToken cancellationToken)
     {
         var graph = await repository.GetByProjectIdAsync(notification.ProjectId, cancellationToken)
@@ -35,23 +43,33 @@ public sealed class ResourcesDiscoveredHandler(
             var displayName = resource.FriendlyName is not null
                 ? $"{resource.Name} ({resource.FriendlyName})"
                 : resource.Name;
+            var nodeExternalResourceId = NormalizeIdentifier(resource.StableResourceId ?? resource.ResourceId, ExternalResourceIdMaxLength);
             graph.AddOrUpdateNode(
-                resource.StableResourceId ?? resource.ResourceId,
-                displayName,
+                nodeExternalResourceId,
+                Truncate(displayName, NameMaxLength),
                 level,
-                effectiveClassification.ServiceType,
-                domain: resource.Domain ?? "General",
+                Truncate(effectiveClassification.ServiceType, ServiceTypeMaxLength, "external"),
+                domain: Truncate(resource.Domain, DomainMaxLength, "General"),
                 isInfrastructure: effectiveClassification.IsInfrastructure,
-                classificationSource: effectiveClassification.ClassificationSource,
+                classificationSource: Truncate(effectiveClassification.ClassificationSource, ClassificationSourceMaxLength, "fallback"),
                 classificationConfidence: effectiveClassification.ClassificationConfidence,
                 tags: ExtractTags(resource.Tags));
         }
 
         var parentMappings = includedResources
             .Where(r => r.ParentResourceId is not null)
+            .Select(r => new
+            {
+                Child = NormalizeIdentifier(r.StableResourceId ?? r.ResourceId, ExternalResourceIdMaxLength),
+                Parent = NormalizeIdentifier(r.ParentResourceId!, ExternalResourceIdMaxLength),
+                Score = r.ConfidenceScore
+            })
+            .GroupBy(item => item.Child, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.OrderByDescending(item => item.Score).First())
             .ToDictionary(
-                r => r.StableResourceId ?? r.ResourceId,
-                r => r.ParentResourceId!);
+                item => item.Child,
+                item => item.Parent,
+                StringComparer.OrdinalIgnoreCase);
 
         graph.ResolveNodeParents(parentMappings);
 
@@ -164,9 +182,9 @@ public sealed class ResourcesDiscoveredHandler(
         foreach (var relationship in inferred.Where(r => r.Confidence >= 0.6))
         {
             var sourceNode = graph.Nodes.FirstOrDefault(n =>
-                n.ExternalResourceId.Equals(relationship.SourceResourceId, StringComparison.OrdinalIgnoreCase));
+                n.ExternalResourceId.Equals(NormalizeIdentifier(relationship.SourceResourceId, ExternalResourceIdMaxLength), StringComparison.OrdinalIgnoreCase));
             var targetNode = graph.Nodes.FirstOrDefault(n =>
-                n.ExternalResourceId.Equals(relationship.TargetResourceId, StringComparison.OrdinalIgnoreCase));
+                n.ExternalResourceId.Equals(NormalizeIdentifier(relationship.TargetResourceId, ExternalResourceIdMaxLength), StringComparison.OrdinalIgnoreCase));
 
             if (sourceNode is not null && targetNode is not null)
                 graph.AddEdge(sourceNode, targetNode);
@@ -233,13 +251,14 @@ public sealed class ResourcesDiscoveredHandler(
         foreach (var resource in includedResources.Where(r => r.Relationships is { Count: > 0 }))
         {
             var sourceId = resource.StableResourceId ?? resource.ResourceId;
-            var sourceNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == sourceId);
+            var sourceNode = graph.Nodes.FirstOrDefault(n =>
+                n.ExternalResourceId.Equals(NormalizeIdentifier(sourceId, ExternalResourceIdMaxLength), StringComparison.OrdinalIgnoreCase));
             if (sourceNode is null) continue;
 
             foreach (var rel in resource.Relationships!)
             {
                 var targetNode = graph.Nodes.FirstOrDefault(n =>
-                    n.ExternalResourceId.Equals(rel.TargetResourceId, StringComparison.OrdinalIgnoreCase));
+                    n.ExternalResourceId.Equals(NormalizeIdentifier(rel.TargetResourceId, ExternalResourceIdMaxLength), StringComparison.OrdinalIgnoreCase));
                 if (targetNode is not null)
                     graph.AddEdge(sourceNode, targetNode);
             }
@@ -253,8 +272,10 @@ public sealed class ResourcesDiscoveredHandler(
         foreach (var resource in includedResources.Where(r => r.ParentResourceId is not null))
         {
             var childId = resource.StableResourceId ?? resource.ResourceId;
-            var childNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == childId);
-            var parentNode = graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == resource.ParentResourceId);
+            var childNode = graph.Nodes.FirstOrDefault(n =>
+                n.ExternalResourceId.Equals(NormalizeIdentifier(childId, ExternalResourceIdMaxLength), StringComparison.OrdinalIgnoreCase));
+            var parentNode = graph.Nodes.FirstOrDefault(n =>
+                n.ExternalResourceId.Equals(NormalizeIdentifier(resource.ParentResourceId!, ExternalResourceIdMaxLength), StringComparison.OrdinalIgnoreCase));
             if (childNode is not null && parentNode is not null)
                 graph.AddEdge(parentNode, childNode);
         }
@@ -353,7 +374,8 @@ public sealed class ResourcesDiscoveredHandler(
         DiscoveredResourceEventItem resource)
     {
         var id = resource.StableResourceId ?? resource.ResourceId;
-        return graph.Nodes.FirstOrDefault(n => n.ExternalResourceId == id);
+        var normalizedId = NormalizeIdentifier(id, ExternalResourceIdMaxLength);
+        return graph.Nodes.FirstOrDefault(n => n.ExternalResourceId.Equals(normalizedId, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string? ExtractNamePrefix(string name)
@@ -382,4 +404,25 @@ public sealed class ResourcesDiscoveredHandler(
         bool IsInfrastructure,
         string ClassificationSource,
         double ClassificationConfidence);
+
+    private static string Truncate(string? value, int maxLength, string fallback = "")
+    {
+        var trimmed = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+        if (trimmed.Length <= maxLength)
+            return trimmed;
+
+        return trimmed[..maxLength];
+    }
+
+    private static string NormalizeIdentifier(string value, int maxLength)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.Length <= maxLength)
+            return trimmed;
+
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(trimmed)))[..16].ToLowerInvariant();
+        const string separator = "~";
+        var prefixLength = Math.Max(1, maxLength - hash.Length - separator.Length);
+        return $"{trimmed[..prefixLength]}{separator}{hash}";
+    }
 }

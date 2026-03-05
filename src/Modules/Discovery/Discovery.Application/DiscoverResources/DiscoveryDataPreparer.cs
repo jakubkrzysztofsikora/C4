@@ -1,9 +1,14 @@
 using System.Text;
+using System.Security.Cryptography;
 
 namespace C4.Modules.Discovery.Application.DiscoverResources;
 
 public sealed class DiscoveryDataPreparer : IDiscoveryDataPreparer
 {
+    private const int ResourceIdMaxLength = 500;
+    private const int ResourceTypeMaxLength = 200;
+    private const int ResourceNameMaxLength = 250;
+
     public IReadOnlyCollection<PreparedDiscoveryRecord> Prepare(IReadOnlyCollection<RawDiscoveryRecord> rawRecords)
     {
         var stableIdMap = rawRecords.ToDictionary(r => r, CreateStableResourceId);
@@ -46,8 +51,8 @@ public sealed class DiscoveryDataPreparer : IDiscoveryDataPreparer
                     stableIdMap[raw],
                     raw.ResourceId,
                     raw.ParentResourceId,
-                    raw.ResourceType,
-                    raw.Name,
+                    Truncate(raw.ResourceType, ResourceTypeMaxLength),
+                    Truncate(raw.Name, ResourceNameMaxLength),
                     NormalizeSource(raw.SourceProvenance, raw.SourceServer),
                     NormalizeConfidence(raw.SourceProvenance, raw.ConfidenceScore),
                     relationships,
@@ -92,7 +97,7 @@ public sealed class DiscoveryDataPreparer : IDiscoveryDataPreparer
             normalized.Append(ch);
         }
 
-        return normalized.ToString();
+        return NormalizeIdentifier(normalized.ToString(), ResourceIdMaxLength);
     }
 
     private static string NormalizeSource(string source, string? server)
@@ -120,5 +125,25 @@ public sealed class DiscoveryDataPreparer : IDiscoveryDataPreparer
             return 0.7;
 
         return 0.6;
+    }
+
+    private static string Truncate(string? value, int maxLength)
+    {
+        var trimmed = value?.Trim() ?? string.Empty;
+        if (trimmed.Length <= maxLength)
+            return trimmed;
+
+        return trimmed[..maxLength];
+    }
+
+    private static string NormalizeIdentifier(string value, int maxLength)
+    {
+        if (value.Length <= maxLength)
+            return value;
+
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)))[..16].ToLowerInvariant();
+        var separator = "~";
+        var prefixLength = Math.Max(1, maxLength - hash.Length - separator.Length);
+        return $"{value[..prefixLength]}{separator}{hash}";
     }
 }
