@@ -52,16 +52,21 @@ public sealed class ApplicationInsightsClient(
         return $"""
             requests
             | where timestamp > ago({minutes}m)
+            | extend serviceName = tostring(column_ifexists("cloud_RoleName", ""))
+            | extend serviceName = iff(isempty(serviceName), tostring(column_ifexists("appName", "")), serviceName)
+            | extend serviceName = iff(isempty(serviceName), tostring(column_ifexists("operation_Name", "")), serviceName)
+            | extend serviceName = iff(isempty(serviceName), tostring(column_ifexists("name", "")), serviceName)
+            | where isnotempty(serviceName)
             | summarize
                 totalRequests = count(),
                 failedRequests = countif(success == false),
                 p95LatencyMs = percentile(duration / 1ms, 95)
-              by cloud_RoleName
+              by serviceName
             | where totalRequests > 0
             | extend requestRate = todouble(totalRequests) / todouble({minutes})
             | extend errorRate = todouble(failedRequests) / todouble(totalRequests)
             | extend score = round(1.0 - errorRate, 2)
-            | project cloud_RoleName, score, requestRate, errorRate, p95LatencyMs
+            | project cloud_RoleName = serviceName, score, requestRate, errorRate, p95LatencyMs
             """;
     }
 
@@ -71,15 +76,23 @@ public sealed class ApplicationInsightsClient(
         return $"""
             dependencies
             | where timestamp > ago({minutes}m)
+            | extend sourceService = tostring(column_ifexists("cloud_RoleName", ""))
+            | extend sourceService = iff(isempty(sourceService), tostring(column_ifexists("appName", "")), sourceService)
+            | extend sourceService = iff(isempty(sourceService), tostring(column_ifexists("operation_Name", "")), sourceService)
+            | extend targetService = tostring(column_ifexists("target", ""))
+            | extend targetService = iff(isempty(targetService), tostring(column_ifexists("name", "")), targetService)
+            | extend targetService = iff(isempty(targetService), tostring(column_ifexists("operation_Name", "")), targetService)
+            | extend dependencyType = tostring(column_ifexists("type", "unknown"))
+            | where isnotempty(sourceService) and isnotempty(targetService)
             | summarize
                 totalCalls = count(),
                 failedCalls = countif(success == false),
                 p95LatencyMs = percentile(duration / 1ms, 95)
-              by cloud_RoleName, target, type
+              by sourceService, targetService, dependencyType
             | where totalCalls > 0
             | extend requestRate = todouble(totalCalls) / todouble({minutes})
             | extend errorRate = todouble(failedCalls) / todouble(totalCalls)
-            | project cloud_RoleName, target, type, requestRate, errorRate, p95LatencyMs
+            | project cloud_RoleName = sourceService, target = targetService, type = dependencyType, requestRate, errorRate, p95LatencyMs
             """;
     }
 
