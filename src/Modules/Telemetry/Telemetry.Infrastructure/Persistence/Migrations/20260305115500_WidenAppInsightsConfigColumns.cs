@@ -9,7 +9,7 @@ namespace Telemetry.Infrastructure.Persistence.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AlterColumn<string>(
-                name: "instrumentation_key",
+                name: "InstrumentationKey",
                 table: "app_insights_configs",
                 type: "text",
                 nullable: false,
@@ -18,7 +18,7 @@ namespace Telemetry.Infrastructure.Persistence.Migrations
                 oldMaxLength: 200);
 
             migrationBuilder.AlterColumn<string>(
-                name: "app_id",
+                name: "AppId",
                 table: "app_insights_configs",
                 type: "text",
                 nullable: false,
@@ -30,7 +30,7 @@ namespace Telemetry.Infrastructure.Persistence.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AlterColumn<string>(
-                name: "instrumentation_key",
+                name: "InstrumentationKey",
                 table: "app_insights_configs",
                 type: "character varying(200)",
                 maxLength: 200,
@@ -39,7 +39,7 @@ namespace Telemetry.Infrastructure.Persistence.Migrations
                 oldType: "text");
 
             migrationBuilder.AlterColumn<string>(
-                name: "app_id",
+                name: "AppId",
                 table: "app_insights_configs",
                 type: "character varying(200)",
                 maxLength: 200,
