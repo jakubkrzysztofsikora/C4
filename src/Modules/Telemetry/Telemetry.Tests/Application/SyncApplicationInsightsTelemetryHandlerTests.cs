@@ -4,6 +4,7 @@ using C4.Modules.Telemetry.Application.SyncApplicationInsightsTelemetry;
 using C4.Modules.Telemetry.Domain.Metrics;
 using C4.Shared.Kernel;
 using MediatR;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace C4.Modules.Telemetry.Tests.Application;
 
@@ -16,7 +17,13 @@ public sealed class SyncApplicationInsightsTelemetryHandlerTests
         var repo = new FakeTelemetryRepository();
         var mediator = new FakeMediator();
         var unitOfWork = new FakeUnitOfWork();
-        var handler = new SyncApplicationInsightsTelemetryHandler(client, repo, mediator, unitOfWork, new AlwaysAuthorizingService());
+        var handler = new SyncApplicationInsightsTelemetryHandler(
+            client,
+            repo,
+            mediator,
+            unitOfWork,
+            new AlwaysAuthorizingService(),
+            NullLogger<SyncApplicationInsightsTelemetryHandler>.Instance);
 
         var result = await handler.Handle(new SyncApplicationInsightsTelemetryCommand(Guid.NewGuid(), 15), CancellationToken.None);
 
@@ -37,7 +44,8 @@ public sealed class SyncApplicationInsightsTelemetryHandlerTests
             new FakeTelemetryRepository(),
             new FakeMediator(),
             new FakeUnitOfWork(),
-            new DenyingAuthorizationService());
+            new DenyingAuthorizationService(),
+            NullLogger<SyncApplicationInsightsTelemetryHandler>.Instance);
 
         var result = await handler.Handle(new SyncApplicationInsightsTelemetryCommand(Guid.NewGuid(), 15), CancellationToken.None);
 

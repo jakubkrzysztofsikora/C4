@@ -4,6 +4,7 @@ using C4.Modules.Telemetry.Domain.Metrics;
 using C4.Shared.Kernel;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace C4.Modules.Telemetry.Application.SyncApplicationInsightsTelemetry;
 
@@ -12,7 +13,8 @@ public sealed class SyncApplicationInsightsTelemetryHandler(
     ITelemetryRepository telemetryRepository,
     IMediator mediator,
     [FromKeyedServices("Telemetry")] IUnitOfWork unitOfWork,
-    IProjectAuthorizationService authorizationService)
+    IProjectAuthorizationService authorizationService,
+    ILogger<SyncApplicationInsightsTelemetryHandler> logger)
     : IRequestHandler<SyncApplicationInsightsTelemetryCommand, Result<SyncApplicationInsightsTelemetryResponse>>
 {
     public async Task<Result<SyncApplicationInsightsTelemetryResponse>> Handle(SyncApplicationInsightsTelemetryCommand request, CancellationToken cancellationToken)
@@ -21,12 +23,28 @@ public sealed class SyncApplicationInsightsTelemetryHandler(
         if (!authCheck.IsSuccess) return Result<SyncApplicationInsightsTelemetryResponse>.Failure(authCheck.Error);
 
         var lookback = TimeSpan.FromMinutes(request.LookbackMinutes);
-        var healthTask = applicationInsightsClient.QueryServiceHealthAsync(request.ProjectId, lookback, cancellationToken);
-        var dependencyTask = applicationInsightsClient.QueryDependencyHealthAsync(request.ProjectId, lookback, cancellationToken);
-        await Task.WhenAll(healthTask, dependencyTask);
 
-        var healthRecords = healthTask.Result;
-        var dependencyRecords = dependencyTask.Result;
+        IReadOnlyCollection<ApplicationInsightsHealthRecord> healthRecords;
+        try
+        {
+            healthRecords = await applicationInsightsClient.QueryServiceHealthAsync(request.ProjectId, lookback, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "App Insights health telemetry sync failed for project {ProjectId}", request.ProjectId);
+            healthRecords = [];
+        }
+
+        IReadOnlyCollection<ApplicationInsightsDependencyRecord> dependencyRecords;
+        try
+        {
+            dependencyRecords = await applicationInsightsClient.QueryDependencyHealthAsync(request.ProjectId, lookback, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "App Insights dependency telemetry sync failed for project {ProjectId}", request.ProjectId);
+            dependencyRecords = [];
+        }
 
         foreach (var record in healthRecords)
         {
