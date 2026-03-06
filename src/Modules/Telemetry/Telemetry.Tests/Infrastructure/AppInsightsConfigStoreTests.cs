@@ -17,15 +17,16 @@ public sealed class AppInsightsConfigStoreTests
         var store = new AppInsightsConfigStore(dbContext);
         var projectId = Guid.NewGuid();
 
-        await store.StoreAsync(projectId, "app-a", "query-key-1", CancellationToken.None);
-        await store.StoreAsync(projectId, "app-b", string.Empty, CancellationToken.None);
+        await store.StoreAsync(projectId, "app-a", "ikey-1", "api-key-1", CancellationToken.None);
+        await store.StoreAsync(projectId, "app-b", string.Empty, string.Empty, CancellationToken.None);
 
         var config = await store.GetAsync(projectId, CancellationToken.None);
 
         config.Should().NotBeNull();
         config!.AppId.Should().Contain("app-a");
         config.AppId.Should().Contain("app-b");
-        config.InstrumentationKey.Should().Be("query-key-1");
+        config.InstrumentationKey.Should().Be("ikey-1");
+        config.ApiKey.Should().Be("api-key-1");
     }
 
     [Fact]
@@ -39,12 +40,13 @@ public sealed class AppInsightsConfigStoreTests
         var store = new AppInsightsConfigStore(dbContext);
         var projectId = Guid.NewGuid();
 
-        await store.StoreAsync(projectId, "app-a", "query-key-1", CancellationToken.None);
-        await store.StoreAsync(projectId, "app-a", "query-key-2", CancellationToken.None);
+        await store.StoreAsync(projectId, "app-a", "ikey-1", "api-key-1", CancellationToken.None);
+        await store.StoreAsync(projectId, "app-a", "ikey-2", "api-key-2", CancellationToken.None);
 
         var config = await store.GetAsync(projectId, CancellationToken.None);
 
         config.Should().NotBeNull();
-        config!.InstrumentationKey.Should().Be("query-key-2");
+        config!.InstrumentationKey.Should().Be("ikey-2");
+        config.ApiKey.Should().Be("api-key-2");
     }
 }

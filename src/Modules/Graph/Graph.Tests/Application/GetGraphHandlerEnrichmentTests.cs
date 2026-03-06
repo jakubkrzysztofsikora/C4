@@ -112,6 +112,9 @@ public sealed class GetGraphHandlerEnrichmentTests
     {
         public Task<IReadOnlyCollection<string>> GetDriftedResourceIdsAsync(IReadOnlyCollection<string> resourceIds, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyCollection<string>>([]);
+
+        public Task<DriftRunRecord?> GetLatestRunAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult<DriftRunRecord?>(null);
     }
 
     private sealed class AlwaysAuthorizingService : IProjectAuthorizationService

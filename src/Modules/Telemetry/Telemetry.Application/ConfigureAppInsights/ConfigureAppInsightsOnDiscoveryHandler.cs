@@ -16,6 +16,7 @@ public sealed class ConfigureAppInsightsOnDiscoveryHandler(
             notification.ProjectId,
             notification.AppId,
             notification.InstrumentationKey,
+            string.Empty,
             cancellationToken);
 
         logger.LogInformation(

@@ -22,8 +22,6 @@ public sealed class PdfDiagramExporter : IDiagramExporter
         content.AppendLine($"0 0 {pageWidth} {pageHeight} re");
         content.AppendLine("f");
 
-        // Edges
-        content.AppendLine("0.290 0.490 0.760 RG");
         content.AppendLine("1.4 w");
         foreach (var edge in model.Edges)
         {
@@ -37,6 +35,12 @@ public sealed class PdfDiagramExporter : IDiagramExporter
             var cx1 = x1 + 36;
             var cx2 = x2 - 36;
 
+            var (er, eg, eb) = HexToRgb(ExportColorResolver.ResolveEdgeStroke(edge, model.OverlayMode));
+            content.AppendLine($"{er:0.###} {eg:0.###} {eb:0.###} RG");
+            if (edge.IsDerived)
+                content.AppendLine("[5 3] 0 d");
+            else
+                content.AppendLine("[] 0 d");
             content.AppendLine($"{x1:0.##} {y1:0.##} m");
             content.AppendLine($"{cx1:0.##} {y1:0.##} {cx2:0.##} {y2:0.##} {x2:0.##} {y2:0.##} c");
             content.AppendLine("S");
@@ -56,8 +60,8 @@ public sealed class PdfDiagramExporter : IDiagramExporter
             content.AppendLine($"{x:0.##} {y:0.##} {layout.NodeWidth} {layout.NodeHeight} re");
             content.AppendLine("f");
 
-            // Border
-            content.AppendLine("0.235 0.435 0.702 RG");
+            var (br, bg, bb) = HexToRgb(ExportColorResolver.ResolveNodeStroke(node, model.OverlayMode));
+            content.AppendLine($"{br:0.###} {bg:0.###} {bb:0.###} RG");
             content.AppendLine("1 w");
             content.AppendLine($"{x:0.##} {y:0.##} {layout.NodeWidth} {layout.NodeHeight} re");
             content.AppendLine("S");
@@ -123,6 +127,16 @@ public sealed class PdfDiagramExporter : IDiagramExporter
         pdf.Append("\n%%EOF");
 
         return Encoding.ASCII.GetBytes(pdf.ToString());
+    }
+
+    private static (double R, double G, double B) HexToRgb(string hex)
+    {
+        var h = hex.TrimStart('#');
+        if (h.Length != 6) return (0.290, 0.490, 0.760);
+        var r = Convert.ToInt32(h[..2], 16) / 255.0;
+        var g = Convert.ToInt32(h[2..4], 16) / 255.0;
+        var b = Convert.ToInt32(h[4..6], 16) / 255.0;
+        return (r, g, b);
     }
 
     private static string EscapePdfText(string value)

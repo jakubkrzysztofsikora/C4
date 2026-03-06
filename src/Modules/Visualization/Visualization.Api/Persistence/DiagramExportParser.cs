@@ -2,9 +2,29 @@ using System.Text.Json;
 
 namespace C4.Modules.Visualization.Api.Persistence;
 
-internal sealed record DiagramExportNode(string Id, string Name, string Level, float? X = null, float? Y = null);
-internal sealed record DiagramExportEdge(string Id, string SourceNodeId, string TargetNodeId);
-internal sealed record DiagramExportModel(IReadOnlyCollection<DiagramExportNode> Nodes, IReadOnlyCollection<DiagramExportEdge> Edges);
+internal sealed record DiagramExportNode(
+    string Id,
+    string Name,
+    string Level,
+    float? X = null,
+    float? Y = null,
+    string? RiskLevel = null,
+    double? HourlyCostUsd = null,
+    string? SecuritySeverity = null,
+    string? TrafficState = null,
+    string? ServiceType = null);
+
+internal sealed record DiagramExportEdge(
+    string Id,
+    string SourceNodeId,
+    string TargetNodeId,
+    string? TrafficState = null,
+    bool IsDerived = false);
+
+internal sealed record DiagramExportModel(
+    IReadOnlyCollection<DiagramExportNode> Nodes,
+    IReadOnlyCollection<DiagramExportEdge> Edges,
+    string? OverlayMode = null);
 internal readonly record struct DiagramPosition(float X, float Y);
 internal sealed record DiagramExportLayout(
     int Width,
@@ -40,12 +60,24 @@ internal static class DiagramExportParser
                 if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(name))
                     continue;
 
+                var riskLevel = node.TryGetProperty("riskLevel", out var riskEl) ? riskEl.GetString() : null;
+                var hourlyCost = node.TryGetProperty("hourlyCostUsd", out var costEl) && costEl.ValueKind == JsonValueKind.Number
+                    ? costEl.GetDouble() : (double?)null;
+                var secSeverity = node.TryGetProperty("securitySeverity", out var secEl) ? secEl.GetString() : null;
+                var trafficState = node.TryGetProperty("trafficState", out var tsEl) ? tsEl.GetString() : null;
+                var svcType = node.TryGetProperty("serviceType", out var stEl) ? stEl.GetString() : null;
+
                 nodes.Add(new DiagramExportNode(
                     id,
                     name,
                     string.IsNullOrWhiteSpace(level) ? "Container" : level!,
                     x,
-                    y));
+                    y,
+                    riskLevel,
+                    hourlyCost,
+                    secSeverity,
+                    trafficState,
+                    svcType));
             }
         }
 
@@ -69,11 +101,16 @@ internal static class DiagramExportParser
                 if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(target))
                     continue;
 
-                edges.Add(new DiagramExportEdge(id, source, target));
+                var edgeTrafficState = edge.TryGetProperty("trafficState", out var etsEl) ? etsEl.GetString() : null;
+                var isDerived = edge.TryGetProperty("isDerived", out var idEl) && idEl.ValueKind == JsonValueKind.True;
+
+                edges.Add(new DiagramExportEdge(id, source, target, edgeTrafficState, isDerived));
             }
         }
 
-        return new DiagramExportModel(nodes, edges);
+        var overlayMode = doc.RootElement.TryGetProperty("overlay", out var overlayEl) ? overlayEl.GetString() : null;
+
+        return new DiagramExportModel(nodes, edges, overlayMode);
     }
 
     public static DiagramExportLayout CreateLayout(DiagramExportModel model)

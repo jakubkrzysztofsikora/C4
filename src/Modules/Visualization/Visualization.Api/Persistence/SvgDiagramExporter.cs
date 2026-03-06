@@ -18,6 +18,10 @@ public sealed class SvgDiagramExporter : IDiagramExporter
         var width = layout.Width;
         var height = layout.Height;
 
+        var legend = ExportColorResolver.BuildLegend(model.OverlayMode);
+        if (legend.Length > 0)
+            height += 60;
+
         StringBuilder edgeBuilder = new();
         foreach (var edge in model.Edges)
         {
@@ -28,8 +32,10 @@ public sealed class SvgDiagramExporter : IDiagramExporter
             var y1 = source.Y + (nodeHeight / 2f);
             var x2 = target.X;
             var y2 = target.Y + (nodeHeight / 2f);
+            var stroke = ExportColorResolver.ResolveEdgeStroke(edge, model.OverlayMode);
+            var dashAttr = edge.IsDerived ? " stroke-dasharray='5,3'" : "";
 
-            edgeBuilder.AppendLine($"<path d='M{x1},{y1} C{x1 + 36},{y1} {x2 - 36},{y2} {x2},{y2}' stroke='#4a7dc2' fill='none' stroke-width='1.6' marker-end='url(#arrow)' />");
+            edgeBuilder.AppendLine($"<path d='M{x1},{y1} C{x1 + 36},{y1} {x2 - 36},{y2} {x2},{y2}' stroke='{stroke}' fill='none' stroke-width='1.6'{dashAttr} marker-end='url(#arrow)' />");
         }
 
         StringBuilder nodeBuilder = new();
@@ -44,11 +50,27 @@ public sealed class SvgDiagramExporter : IDiagramExporter
             var escapedLevel = SecurityElement.Escape(node.Level) ?? node.Level;
             if (escapedName.Length > 42)
                 escapedName = $"{escapedName[..39]}...";
+            var strokeColor = ExportColorResolver.ResolveNodeStroke(node, model.OverlayMode);
             nodeBuilder.AppendLine($"<g transform='translate({x},{y})'>");
-            nodeBuilder.AppendLine($"<rect width='{nodeWidth}' height='{nodeHeight}' rx='10' ry='10' fill='#14213d' stroke='#3c6fb3' stroke-width='1.4' />");
+            nodeBuilder.AppendLine($"<rect width='{nodeWidth}' height='{nodeHeight}' rx='10' ry='10' fill='#14213d' stroke='{strokeColor}' stroke-width='1.4' />");
             nodeBuilder.AppendLine($"<text x='14' y='30' font-family='Inter,Arial,sans-serif' font-size='13' fill='#f1f5ff'>{escapedName}</text>");
             nodeBuilder.AppendLine($"<text x='14' y='52' font-family='Inter,Arial,sans-serif' font-size='11' fill='#9fb4df'>{escapedLevel}</text>");
             nodeBuilder.AppendLine("</g>");
+        }
+
+        StringBuilder legendBuilder = new();
+        if (legend.Length > 0)
+        {
+            var legendY = height - 50;
+            var legendX = width - (legend.Length * 120) - 20;
+            legendBuilder.AppendLine($"<g transform='translate({Math.Max(20, legendX)},{legendY})'>");
+            for (var i = 0; i < legend.Length; i++)
+            {
+                var lx = i * 120;
+                legendBuilder.AppendLine($"<rect x='{lx}' y='0' width='14' height='14' rx='3' fill='{legend[i].Color}' />");
+                legendBuilder.AppendLine($"<text x='{lx + 20}' y='12' font-family='Inter,Arial,sans-serif' font-size='11' fill='#9fb4df'>{SecurityElement.Escape(legend[i].Label)}</text>");
+            }
+            legendBuilder.AppendLine("</g>");
         }
 
         string svg = $"""
@@ -62,6 +84,7 @@ public sealed class SvgDiagramExporter : IDiagramExporter
   <rect width='{width}' height='{height}' fill='#0b1020' />
   {edgeBuilder}
   {nodeBuilder}
+  {legendBuilder}
 </svg>
 """;
 

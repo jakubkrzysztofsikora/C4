@@ -50,5 +50,6 @@ export type DiagramEdge = {
   sourceExternalResourceId?: string;
   targetExternalResourceId?: string;
   diffStatus?: DiffStatus;
+  telemetrySource?: string;
 };
 export type DiagramData = { nodes: DiagramNode[]; edges: DiagramEdge[] };

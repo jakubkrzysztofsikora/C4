@@ -43,6 +43,7 @@ public sealed class GetThreatAssessmentHandler(
         }));
 
         ThreatDetectionResult result;
+        string provenance;
         try
         {
             var detectorTask = threatDetector.DetectThreatsAsync(
@@ -54,13 +55,21 @@ public sealed class GetThreatAssessmentHandler(
             var timeoutTask = Task.Delay(DetectorTimeout, cancellationToken);
             var completed = await Task.WhenAny(detectorTask, timeoutTask);
 
-            result = completed == detectorTask
-                ? await detectorTask
-                : BuildDeterministicThreats(classifiedNodes, graph.Edges, request.View);
+            if (completed == detectorTask)
+            {
+                result = await detectorTask;
+                provenance = "ai";
+            }
+            else
+            {
+                result = BuildDeterministicThreats(classifiedNodes, graph.Edges, request.View);
+                provenance = "rule-based";
+            }
         }
         catch
         {
             result = BuildDeterministicThreats(classifiedNodes, graph.Edges, request.View);
+            provenance = "rule-based";
         }
 
         return Result<ThreatAssessmentResponse>.Success(
@@ -68,9 +77,9 @@ public sealed class GetThreatAssessmentHandler(
                 request.ProjectId,
                 result.RiskLevel,
                 result.Threats,
-                DataProvenance: "heuristic",
+                DataProvenance: provenance,
                 GeneratedAtUtc: DateTime.UtcNow,
-                IsHeuristic: true));
+                IsHeuristic: provenance != "ai"));
     }
 
     private static ThreatDetectionResult BuildDeterministicThreats(

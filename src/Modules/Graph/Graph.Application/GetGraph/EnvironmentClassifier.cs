@@ -7,7 +7,16 @@ public static class EnvironmentClassifier
         "environment",
         "env",
         "stage",
-        "slot"
+        "slot",
+        "deployment-environment",
+        "deploymentEnvironment",
+        "aspnetcore_environment",
+        "ASPNETCORE_ENVIRONMENT",
+        "DOTNET_ENVIRONMENT",
+        "NODE_ENV",
+        "Environment_Name",
+        "env-type",
+        "target-environment"
     };
 
     private static readonly (string Keyword, string Environment)[] EnvironmentPatterns =
@@ -33,6 +42,18 @@ public static class EnvironmentClassifier
         ("e2e", "e2e"),
         ("trial", "trial"),
         ("sandbox", "sandbox"),
+        ("sbx", "sandbox"),
+        ("perf", "test"),
+        ("load", "test"),
+        ("sit", "test"),
+        ("dr", "production"),
+        ("hotfix", "production"),
+        ("canary", "production"),
+        ("preview", "staging"),
+        ("integration", "test"),
+        ("int", "test"),
+        ("acc", "qa"),
+        ("acceptance", "qa"),
     ];
 
     public static string InferEnvironment(string resourceName, string? resourceGroup = null, IReadOnlyCollection<string>? tags = null)

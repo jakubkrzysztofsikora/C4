@@ -106,7 +106,7 @@ public sealed class ApplicationInsightsClient(
         if (configuredAppIds.Count == 0)
             configuredAppIds = ParseAppIds(configuration["ApplicationInsights:AppId"]);
 
-        var apiKey = ResolveApiKey(config?.InstrumentationKey);
+        var apiKey = ResolveApiKey(config?.ApiKey, config?.InstrumentationKey);
         string? bearerToken = null;
 
         if (string.IsNullOrWhiteSpace(apiKey) && tokenProvider is not null)
@@ -114,13 +114,29 @@ public sealed class ApplicationInsightsClient(
             bearerToken = await tokenProvider.GetAccessTokenAsync(projectId, cancellationToken);
         }
 
-        if (configuredAppIds.Count == 0 || (string.IsNullOrWhiteSpace(apiKey) && string.IsNullOrWhiteSpace(bearerToken)))
+        if (configuredAppIds.Count == 0)
         {
             logger.LogWarning(
-                "Application Insights not configured for project {ProjectId} (missing AppId(s) and auth material); returning empty results",
+                "Application Insights not configured for project {ProjectId}: no AppId(s) found in project config or global settings",
                 projectId);
             return [];
         }
+
+        if (string.IsNullOrWhiteSpace(apiKey) && string.IsNullOrWhiteSpace(bearerToken))
+        {
+            logger.LogWarning(
+                "Application Insights query skipped for project {ProjectId}: {AppIdCount} AppId(s) configured but no auth material available (no API key, no bearer token, tokenProvider={TokenProviderAvailable})",
+                projectId,
+                configuredAppIds.Count,
+                tokenProvider is not null ? "registered" : "null");
+            return [];
+        }
+
+        logger.LogDebug(
+            "Querying Application Insights for project {ProjectId}: {AppIdCount} AppId(s), authMethod={AuthMethod}",
+            projectId,
+            configuredAppIds.Count,
+            !string.IsNullOrWhiteSpace(apiKey) ? "api-key" : "bearer-token");
 
         var encodedQuery = Uri.EscapeDataString(kql);
         using var client = httpClientFactory.CreateClient();
@@ -393,20 +409,27 @@ public sealed class ApplicationInsightsClient(
     private static string NormalizeKey(string? value)
         => string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().ToLowerInvariant();
 
-    private string ResolveApiKey(string? configuredValue)
+    private string ResolveApiKey(string? projectApiKey, string? legacyInstrumentationKey)
     {
-        var configuredKey = configuredValue?.Trim() ?? string.Empty;
-        if (IsLikelyInstrumentationKey(configuredKey))
+        var key = projectApiKey?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(key) && !IsLikelyInstrumentationKey(key))
+            return key;
+
+        var legacyKey = legacyInstrumentationKey?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(legacyKey) && !IsLikelyInstrumentationKey(legacyKey))
+            return legacyKey;
+
+        if (!string.IsNullOrWhiteSpace(legacyKey) && IsLikelyInstrumentationKey(legacyKey))
         {
-            logger.LogWarning(
-                "Ignoring likely Application Insights instrumentation key configured for query auth; configure an API key instead.");
-            configuredKey = string.Empty;
+            logger.LogDebug(
+                "Ignoring likely instrumentation key stored in legacy field; will attempt token-based auth instead");
         }
 
-        if (!string.IsNullOrWhiteSpace(configuredKey))
-            return configuredKey;
+        var globalKey = GlobalApiKey.Trim();
+        if (!string.IsNullOrWhiteSpace(globalKey))
+            return globalKey;
 
-        return GlobalApiKey.Trim();
+        return string.Empty;
     }
 
     private static bool IsLikelyInstrumentationKey(string value)

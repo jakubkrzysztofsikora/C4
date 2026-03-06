@@ -38,7 +38,7 @@ function securityColor(severity: DiagramNode['securitySeverity']): string {
   if (severity === 'high') return '#b91c1c';
   if (severity === 'medium') return '#b45309';
   if (severity === 'low') return '#2e8f5e';
-  return '#2e8f5e';
+  return '#6b7280';
 }
 
 function resolveBorderColor(node: DiagramNode, overlayMode: OverlayMode, telemetryKnown: boolean): string {
@@ -154,7 +154,7 @@ export function DiagramCanvas({
       style: {
         strokeWidth: edge.diffStatus === 'added' || edge.diffStatus === 'removed' ? 3 : 2,
         stroke,
-        strokeDasharray: edge.diffStatus === 'removed' ? '6 4' : undefined,
+        strokeDasharray: edge.diffStatus === 'removed' ? '6 4' : edge.telemetrySource === 'service-health.derived' ? '5 3' : undefined,
       },
       label: trafficLabel,
       data: { title },

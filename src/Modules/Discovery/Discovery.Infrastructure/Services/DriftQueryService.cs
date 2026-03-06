@@ -29,4 +29,7 @@ public sealed class DriftQueryService(
             return [];
         }
     }
+
+    public Task<DriftRunRecord?> GetLatestRunAsync(Guid projectId, CancellationToken cancellationToken)
+        => Task.FromResult<DriftRunRecord?>(null);
 }

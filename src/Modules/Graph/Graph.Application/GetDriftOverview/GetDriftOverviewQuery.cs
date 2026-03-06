@@ -10,4 +10,7 @@ public sealed record DriftedNodeDto(Guid NodeId, string Name, string ExternalRes
 public sealed record GetDriftOverviewResponse(
     Guid ProjectId,
     int DriftedCount,
-    IReadOnlyCollection<DriftedNodeDto> DriftedNodes);
+    IReadOnlyCollection<DriftedNodeDto> DriftedNodes,
+    DateTime? LastRunAtUtc = null,
+    string Status = "not-run",
+    string? Error = null);

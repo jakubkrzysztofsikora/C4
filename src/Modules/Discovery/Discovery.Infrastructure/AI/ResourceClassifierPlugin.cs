@@ -36,7 +36,7 @@ public sealed class ResourceClassifierPlugin(
             Respond in this exact format:
             FRIENDLY_NAME: <short friendly name>
             SERVICE_TYPE: <one of: app, api, database, queue, cache, storage, monitoring, external, boundary>
-            C4_LEVEL: <one of: Context, Container, Component>
+            C4_LEVEL: <one of: Context, Container, Component, Code>
             INCLUDE: <true or false - true for workload resources, false for infrastructure plumbing>
             """;
 
@@ -151,7 +151,7 @@ public sealed class ResourceClassifierPlugin(
             return null;
 
         var validServiceTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "app", "api", "database", "queue", "cache", "storage", "monitoring", "external", "boundary" };
-        var validC4Levels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Context", "Container", "Component" };
+        var validC4Levels = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Context", "Container", "Component", "Code" };
 
         if (!validServiceTypes.Contains(serviceType) || !validC4Levels.Contains(c4Level))
             return null;

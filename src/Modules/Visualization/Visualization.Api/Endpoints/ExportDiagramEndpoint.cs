@@ -100,13 +100,20 @@ public sealed class ExportDiagramEndpoint : IEndpoint
                 {
                     id = node.Id,
                     name = node.Name,
-                    level = node.Level
+                    level = node.Level,
+                    riskLevel = node.RiskLevel,
+                    hourlyCostUsd = node.HourlyCostUsd,
+                    securitySeverity = node.RiskLevel,
+                    trafficState = node.Health,
+                    serviceType = node.ServiceType
                 }),
                 edges = filteredEdges.Select(edge => new
                 {
                     id = edge.Id,
                     sourceNodeId = edge.SourceNodeId,
-                    targetNodeId = edge.TargetNodeId
+                    targetNodeId = edge.TargetNodeId,
+                    trafficState = edge.TrafficState,
+                    isDerived = edge.IsDerived
                 })
             });
 

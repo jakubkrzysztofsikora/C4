@@ -30,6 +30,7 @@ public sealed class AppInsightsConfigEntity
     public Guid ProjectId { get; init; }
     public string AppId { get; set; } = string.Empty;
     public string InstrumentationKey { get; set; } = string.Empty;
+    public string ApiKey { get; set; } = string.Empty;
     public DateTime UpdatedAtUtc { get; set; }
 }
 
@@ -54,6 +55,7 @@ file sealed class AppInsightsConfigEntityConfiguration : IEntityTypeConfiguratio
         builder.HasKey(x => x.ProjectId);
         builder.Property(x => x.AppId).HasColumnType("text").IsRequired();
         builder.Property(x => x.InstrumentationKey).HasColumnType("text");
+        builder.Property(x => x.ApiKey).HasColumnType("text").HasDefaultValue(string.Empty);
         builder.Property(x => x.UpdatedAtUtc).IsRequired();
     }
 }

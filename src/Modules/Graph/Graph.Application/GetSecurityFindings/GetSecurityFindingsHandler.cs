@@ -36,8 +36,8 @@ public sealed class GetSecurityFindingsHandler(
                     "exposure",
                     "Externally exposed boundary component detected.",
                     "Validate network ACLs, WAF/rate limits, and authentication controls.",
-                    "heuristic",
-                    true));
+                    "rule-based",
+                    false));
             }
 
             if (resolved.ServiceType.Equals("storage", StringComparison.OrdinalIgnoreCase)
@@ -50,8 +50,8 @@ public sealed class GetSecurityFindingsHandler(
                     "data",
                     "Data-bearing service requires encryption and access review.",
                     "Enforce least privilege, key rotation, and audit logging for data access.",
-                    "heuristic",
-                    true));
+                    "rule-based",
+                    false));
             }
 
             if (resolved.ClassificationSource.Equals("fallback", StringComparison.OrdinalIgnoreCase))
@@ -63,8 +63,8 @@ public sealed class GetSecurityFindingsHandler(
                     "visibility",
                     "Resource classification confidence is low.",
                     "Improve tagging and architecture metadata for more accurate security analysis.",
-                    "heuristic",
-                    true));
+                    "rule-based",
+                    false));
             }
         }
 
@@ -79,9 +79,9 @@ public sealed class GetSecurityFindingsHandler(
                 request.ProjectId,
                 deduped.Length,
                 deduped,
-                DataProvenance: "heuristic",
+                DataProvenance: "rule-based",
                 GeneratedAtUtc: DateTime.UtcNow,
-                IsHeuristic: true));
+                IsHeuristic: false));
     }
 
     private static string? ExtractResourceGroup(string resourceId)

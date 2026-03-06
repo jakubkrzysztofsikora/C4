@@ -196,9 +196,11 @@ public sealed class GetGraphHandler(
             var targetNode = nodeById.GetValueOrDefault(e.TargetNodeId);
 
             var dependencySummary = TryResolveEdgeTelemetry(sourceNode, targetNode, edgeTelemetry);
-            var requestRate = dependencySummary?.RequestRate ?? AverageNullable(sourceNode?.RequestRate, targetNode?.RequestRate);
-            var errorRate = dependencySummary?.ErrorRate ?? AverageNullable(sourceNode?.ErrorRate, targetNode?.ErrorRate);
-            var p95LatencyMs = dependencySummary?.P95LatencyMs ?? AverageNullable(sourceNode?.P95LatencyMs, targetNode?.P95LatencyMs);
+            var isDerived = dependencySummary is null
+                            && (sourceNode?.TelemetryStatus == "known" || targetNode?.TelemetryStatus == "known");
+            var requestRate = dependencySummary?.RequestRate ?? (isDerived ? AverageNullable(sourceNode?.RequestRate, targetNode?.RequestRate) : null);
+            var errorRate = dependencySummary?.ErrorRate ?? (isDerived ? AverageNullable(sourceNode?.ErrorRate, targetNode?.ErrorRate) : null);
+            var p95LatencyMs = dependencySummary?.P95LatencyMs ?? (isDerived ? AverageNullable(sourceNode?.P95LatencyMs, targetNode?.P95LatencyMs) : null);
             var traffic = ResolveTrafficScore(requestRate, errorRate, p95LatencyMs);
             var trafficState = ResolveTrafficState(requestRate, errorRate, p95LatencyMs);
             var protocol = dependencySummary?.Protocol ?? e.Protocol;
@@ -220,10 +222,23 @@ public sealed class GetGraphHandler(
                 telemetrySource,
                 telemetryWindow,
                 sourceNode?.ExternalResourceId,
-                targetNode?.ExternalResourceId);
+                targetNode?.ExternalResourceId,
+                isDerived);
         }).ToArray();
 
-        return Result<GraphDto>.Success(new GraphDto(request.ProjectId, nodeDtos, edgeDtos, quality));
+        var knownNodes = nodeDtos.Count(n => n.TelemetryStatus == "known");
+        var knownEdges = edgeDtos.Count(e => e.TelemetrySource == "app-insights.dependencies");
+
+        var enrichedQuality = new GraphQualityDto(
+            quality.TotalNodes,
+            quality.FallbackClassificationCount,
+            quality.UnknownEnvironmentCount,
+            quality.NonRuntimeNodeCount,
+            quality.RawDeclarationLabelCount,
+            knownNodes,
+            knownEdges);
+
+        return Result<GraphDto>.Success(new GraphDto(request.ProjectId, nodeDtos, edgeDtos, enrichedQuality));
     }
 
     private static C4Level? ParseLevel(string? level)

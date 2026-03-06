@@ -6,11 +6,12 @@ namespace C4.Modules.Telemetry.Infrastructure.Repositories;
 
 public sealed class AppInsightsConfigStore(TelemetryDbContext dbContext) : IAppInsightsConfigStore
 {
-    public async Task StoreAsync(Guid projectId, string appId, string instrumentationKey, CancellationToken cancellationToken)
+    public async Task StoreAsync(Guid projectId, string appId, string instrumentationKey, string apiKey, CancellationToken cancellationToken)
     {
         var incomingTargets = ParseTargets(appId);
         var serializedIncoming = SerializeTargets(incomingTargets);
         var normalizedInstrumentationKey = instrumentationKey.Trim();
+        var normalizedApiKey = apiKey.Trim();
 
         var existing = await dbContext.AppInsightsConfigs.FirstOrDefaultAsync(c => c.ProjectId == projectId, cancellationToken);
 
@@ -25,6 +26,8 @@ public sealed class AppInsightsConfigStore(TelemetryDbContext dbContext) : IAppI
             existing.AppId = SerializeTargets(merged);
             if (!string.IsNullOrWhiteSpace(normalizedInstrumentationKey))
                 existing.InstrumentationKey = normalizedInstrumentationKey;
+            if (!string.IsNullOrWhiteSpace(normalizedApiKey))
+                existing.ApiKey = normalizedApiKey;
             existing.UpdatedAtUtc = DateTime.UtcNow;
         }
         else
@@ -34,6 +37,7 @@ public sealed class AppInsightsConfigStore(TelemetryDbContext dbContext) : IAppI
                 ProjectId = projectId,
                 AppId = serializedIncoming,
                 InstrumentationKey = normalizedInstrumentationKey,
+                ApiKey = normalizedApiKey,
                 UpdatedAtUtc = DateTime.UtcNow
             }, cancellationToken);
         }
@@ -87,7 +91,7 @@ public sealed class AppInsightsConfigStore(TelemetryDbContext dbContext) : IAppI
         if (entity is null)
             return null;
 
-        return new AppInsightsConfig(entity.ProjectId, entity.AppId, entity.InstrumentationKey);
+        return new AppInsightsConfig(entity.ProjectId, entity.AppId, entity.InstrumentationKey, entity.ApiKey);
     }
 
     private static HashSet<string> ParseTargets(string? value)

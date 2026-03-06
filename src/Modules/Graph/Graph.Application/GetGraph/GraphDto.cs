@@ -11,7 +11,9 @@ public sealed record GraphQualityDto(
     int FallbackClassificationCount,
     int UnknownEnvironmentCount,
     int NonRuntimeNodeCount,
-    int RawDeclarationLabelCount);
+    int RawDeclarationLabelCount,
+    int KnownNodes = 0,
+    int KnownEdges = 0);
 
 public sealed record GraphNodeDto(
     Guid Id,
@@ -56,4 +58,5 @@ public sealed record GraphEdgeDto(
     string? TelemetrySource = null,
     string? TelemetryWindow = null,
     string? SourceExternalResourceId = null,
-    string? TargetExternalResourceId = null);
+    string? TargetExternalResourceId = null,
+    bool IsDerived = false);

@@ -1,5 +1,6 @@
 using C4.Modules.Telemetry.Application.Ports;
 using C4.Modules.Telemetry.Infrastructure.Adapters;
+using C4.Modules.Telemetry.Infrastructure.Repositories;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,6 +13,12 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.AddScoped<IApplicationInsightsClient, ApplicationInsightsClient>();
+        return services;
+    }
+
+    public static IServiceCollection AddTelemetryTargetStore(this IServiceCollection services)
+    {
+        services.AddScoped<ITelemetryTargetStore, TelemetryTargetStore>();
         return services;
     }
 }

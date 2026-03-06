@@ -50,6 +50,14 @@ public static class AzureResourceTypeCatalog
             // Container-level: AI / Cognitive services
             ["Microsoft.CognitiveServices/accounts"] = new("Cognitive Services", "api", "Container", true),
             ["Microsoft.MachineLearningServices/workspaces"] = new("ML Workspace", "api", "Container", true),
+            ["Microsoft.OpenAI/accounts"] = new("Azure OpenAI", "api", "Container", true),
+
+            // Container-level: Data / Analytics services
+            ["Microsoft.Databricks/workspaces"] = new("Databricks", "app", "Container", true),
+            ["Microsoft.DataFactory/factories"] = new("Data Factory", "app", "Container", true),
+            ["Microsoft.Synapse/workspaces"] = new("Synapse Analytics", "app", "Container", true),
+            ["Microsoft.StreamAnalytics/streamingjobs"] = new("Stream Analytics", "app", "Container", true),
+            ["Microsoft.Kusto/clusters"] = new("Data Explorer", "database", "Container", true),
 
             // Container-level: CDN / Networking (user-facing)
             ["Microsoft.Cdn/profiles"] = new("CDN Profile", "external", "Container", true),
@@ -67,6 +75,11 @@ public static class AzureResourceTypeCatalog
             // Container-level: Logic / Workflow
             ["Microsoft.Logic/workflows"] = new("Logic App", "app", "Container", true),
             ["Microsoft.Automation/automationAccounts"] = new("Automation Account", "app", "Container", true),
+
+            // Container-level: Security / Identity
+            ["Microsoft.KeyVault/managedHSMs"] = new("Managed HSM", "storage", "Container", true),
+            ["Microsoft.Network/firewallPolicies"] = new("Firewall Policy", "external", "Container", false),
+            ["Microsoft.Network/azureFirewalls"] = new("Azure Firewall", "external", "Container", true),
 
             // Component-level: Sub-resources within containers
             ["Microsoft.Web/sites/functions"] = new("Function App", "app", "Component", true),
