@@ -8,10 +8,18 @@ public sealed class DetectDriftCommandValidator : AbstractValidator<DetectDriftC
 
     public DetectDriftCommandValidator()
     {
-        RuleFor(command => command.IacContent).NotEmpty();
-        RuleFor(command => command.Format)
-            .NotEmpty()
-            .Must(format => SupportedFormats.Contains(format, StringComparer.OrdinalIgnoreCase))
-            .WithMessage(command => $"Unsupported IaC format '{command.Format}'. Supported formats: {string.Join(", ", SupportedFormats)}.");
+        RuleFor(command => command)
+            .Must(command =>
+                command.UseRepositories
+                || !string.IsNullOrWhiteSpace(command.IacContent))
+            .WithMessage("Either enable repository mode or provide inline IaC content.");
+
+        When(command => !string.IsNullOrWhiteSpace(command.IacContent), () =>
+        {
+            RuleFor(command => command.Format)
+                .NotEmpty()
+                .Must(format => format is not null && SupportedFormats.Contains(format, StringComparer.OrdinalIgnoreCase))
+                .WithMessage(command => $"Unsupported IaC format '{command.Format}'. Supported formats: {string.Join(", ", SupportedFormats)}.");
+        });
     }
 }

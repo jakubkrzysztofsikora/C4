@@ -12,7 +12,7 @@ public sealed class DetectDriftHandlerTests
     public async Task Handle_MissingResource_ReportsDrift()
     {
         var subId = Guid.NewGuid();
-        var handler = new DetectDriftHandler(new FakeParser(), new FakeDiscoveredResourceRepo(), new FakeDriftRepo(), new FakeMediator(), new FakeUow());
+        var handler = new DetectDriftHandler(new FakeParser(), new FakeRepositoryStateProvider(), new FakeDiscoveredResourceRepo(), new FakeDriftRepo(), new FakeMediator(), new FakeUow());
 
         var result = await handler.Handle(new DetectDriftCommand(subId, "resource x", "bicep"), CancellationToken.None);
 
@@ -20,10 +20,50 @@ public sealed class DetectDriftHandlerTests
         result.Value.DriftedCount.Should().Be(1);
     }
 
+    [Fact]
+    public async Task Handle_RepositoryMode_UsesRepositoryState()
+    {
+        var subId = Guid.NewGuid();
+        var handler = new DetectDriftHandler(new FakeParser(), new FakeRepositoryStateProvider(), new FakeDiscoveredResourceRepo(), new FakeDriftRepo(), new FakeMediator(), new FakeUow());
+
+        var result = await handler.Handle(
+            new DetectDriftCommand(subId, IacContent: null, Format: null, UseRepositories: true, Environment: "prod"),
+            CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.DriftedCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Handle_RepositoryMode_WithoutResources_ReturnsFailure()
+    {
+        var subId = Guid.NewGuid();
+        var handler = new DetectDriftHandler(new FakeParser(), new FakeEmptyRepositoryStateProvider(), new FakeDiscoveredResourceRepo(), new FakeDriftRepo(), new FakeMediator(), new FakeUow());
+
+        var result = await handler.Handle(
+            new DetectDriftCommand(subId, IacContent: null, Format: null, UseRepositories: true, Environment: "prod"),
+            CancellationToken.None);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Code.Should().Be("discovery.connector.unavailable");
+    }
+
     private sealed class FakeParser : IIacStateParser
     {
         public Task<IReadOnlyCollection<IacResourceRecord>> ParseAsync(string iacContent, string format, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyCollection<IacResourceRecord>>([new("/r1", "t", "n")]);
+    }
+
+    private sealed class FakeRepositoryStateProvider : IIacRepositoryStateProvider
+    {
+        public Task<IReadOnlyCollection<IacResourceRecord>> CollectAsync(Guid subscriptionId, string? environment, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<IacResourceRecord>>([new("/r1", "t", "n")]);
+    }
+
+    private sealed class FakeEmptyRepositoryStateProvider : IIacRepositoryStateProvider
+    {
+        public Task<IReadOnlyCollection<IacResourceRecord>> CollectAsync(Guid subscriptionId, string? environment, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyCollection<IacResourceRecord>>([]);
     }
 
     private sealed class FakeDiscoveredResourceRepo : IDiscoveredResourceRepository

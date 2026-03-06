@@ -17,68 +17,73 @@ public sealed partial class RepositoryIacDiscoverySourceAdapter(
         NormalizedDiscoveryRequest request,
         CancellationToken cancellationToken)
     {
-        string? gitRepoUrl;
+        IReadOnlyCollection<RepositoryConfigEntry> repositoryEntries;
         string? gitPatToken;
-        string? gitBranch;
-        string? gitRootPath;
 
         using (IServiceScope scope = scopeFactory.CreateScope())
         {
             IAzureSubscriptionRepository repository = scope.ServiceProvider.GetRequiredService<IAzureSubscriptionRepository>();
             var subscription = await repository.GetFirstAsync(cancellationToken);
 
-            if (subscription is null || string.IsNullOrWhiteSpace(subscription.GitRepoUrl))
+            if (subscription is null)
             {
                 return Array.Empty<DiscoveryResourceDescriptor>();
             }
 
-            gitRepoUrl = subscription.GitRepoUrl;
+            repositoryEntries = RepositoryConfigParser.Parse(
+                subscription.GitRepoUrl,
+                subscription.GitBranch,
+                subscription.GitRootPath);
+            if (repositoryEntries.Count == 0)
+            {
+                return Array.Empty<DiscoveryResourceDescriptor>();
+            }
+
             gitPatToken = string.IsNullOrWhiteSpace(subscription.GitPatToken)
                 ? null
                 : dataProtectionService.Unprotect(subscription.GitPatToken);
-            gitBranch = subscription.GitBranch;
-            gitRootPath = subscription.GitRootPath;
         }
 
-        ValidateGitUrl(gitRepoUrl);
-
-        string tempDirectory = Path.Combine(Path.GetTempPath(), $"c4-iac-{Guid.NewGuid():N}");
-        try
+        Dictionary<string, DiscoveryResourceDescriptor> resources = new(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in repositoryEntries)
         {
-            string cloneUrl = BuildAuthenticatedCloneUrl(gitRepoUrl, gitPatToken);
-            await CloneRepositoryAsync(cloneUrl, tempDirectory, gitBranch, cancellationToken);
-
-            string searchRoot = ResolveSearchRoot(tempDirectory, gitRootPath);
-
-            IEnumerable<string> iacFiles = EnumerateIacFiles(searchRoot);
-            List<DiscoveryResourceDescriptor> descriptors = [];
-
-            foreach (string filePath in iacFiles)
+            ValidateGitUrl(entry.RepoUrl);
+            string tempDirectory = Path.Combine(Path.GetTempPath(), $"c4-iac-{Guid.NewGuid():N}");
+            try
             {
-                string format = ResolveFormat(filePath);
-                string content = await File.ReadAllTextAsync(filePath, cancellationToken);
-                IReadOnlyCollection<IacResourceRecord> records = await iacStateParser.ParseAsync(content, format, cancellationToken);
+                string cloneUrl = BuildAuthenticatedCloneUrl(entry.RepoUrl, gitPatToken);
+                await CloneRepositoryAsync(cloneUrl, tempDirectory, entry.Branch, cancellationToken);
 
-                foreach (IacResourceRecord record in records)
+                string searchRoot = ResolveSearchRoot(tempDirectory, entry.RootPath);
+                IEnumerable<string> iacFiles = EnumerateIacFiles(searchRoot);
+
+                foreach (string filePath in iacFiles)
                 {
-                    descriptors.Add(new DiscoveryResourceDescriptor(
-                        record.ResourceId,
-                        record.ResourceType,
-                        record.Name,
-                        null,
-                        Source));
+                    string format = ResolveFormat(filePath);
+                    string content = await File.ReadAllTextAsync(filePath, cancellationToken);
+                    IReadOnlyCollection<IacResourceRecord> records = await iacStateParser.ParseAsync(content, format, cancellationToken);
+
+                    foreach (IacResourceRecord record in records)
+                    {
+                        resources[record.ResourceId] = new DiscoveryResourceDescriptor(
+                            record.ResourceId,
+                            record.ResourceType,
+                            record.Name,
+                            null,
+                            Source);
+                    }
                 }
             }
-
-            return descriptors;
-        }
-        finally
-        {
-            if (Directory.Exists(tempDirectory))
+            finally
             {
-                Directory.Delete(tempDirectory, recursive: true);
+                if (Directory.Exists(tempDirectory))
+                {
+                    Directory.Delete(tempDirectory, recursive: true);
+                }
             }
         }
+
+        return resources.Values.ToArray();
     }
 
     private static void ValidateGitUrl(string repoUrl)
@@ -104,7 +109,8 @@ public sealed partial class RepositoryIacDiscoverySourceAdapter(
         }
 
         Uri uri = new(repoUrl);
-        return $"{uri.Scheme}://pat:{patToken}@{uri.Host}{uri.PathAndQuery}";
+        var encodedPat = Uri.EscapeDataString(patToken);
+        return $"{uri.Scheme}://pat:{encodedPat}@{uri.Host}{uri.PathAndQuery}";
     }
 
     private static async Task CloneRepositoryAsync(string cloneUrl, string targetDirectory, string? branch, CancellationToken cancellationToken)

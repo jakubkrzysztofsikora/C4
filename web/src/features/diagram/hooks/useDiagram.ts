@@ -264,6 +264,8 @@ const EMPTY_DIAGRAM_DATA: DiagramData = { nodes: [], edges: [] };
 
 export function useDiagram(projectId?: string) {
   const inFlightGraphRequestKey = useRef<string | undefined>(undefined);
+  const settledGraphRequestKey = useRef<string | undefined>(undefined);
+  const settledGraphRequestNotFound = useRef(false);
 
   const [level, setLevel] = useState<Exclude<DiagramLevel, 'Unknown'>>(() => {
     const initial = getInitialParam('level', 'Container');
@@ -323,6 +325,8 @@ export function useDiagram(projectId?: string) {
 
   useEffect(() => {
     inFlightGraphRequestKey.current = undefined;
+    settledGraphRequestKey.current = undefined;
+    settledGraphRequestNotFound.current = false;
     setApiData(undefined);
     setGraphQuality(undefined);
     setGraphNotFound(false);
@@ -351,7 +355,7 @@ export function useDiagram(projectId?: string) {
     setSelectedSnapshotId(snapshots[clampedIndex]?.snapshotId);
   }, [snapshots]);
 
-  const fetchGraph = useCallback(async (id: string, snapshotId?: string) => {
+  const fetchGraph = useCallback(async (id: string, snapshotId?: string, force = false) => {
     const requestKey = [
       id,
       level,
@@ -362,7 +366,14 @@ export function useDiagram(projectId?: string) {
       snapshotId ?? '',
     ].join('|');
 
-    if (inFlightGraphRequestKey.current === requestKey) {
+    if (!force && inFlightGraphRequestKey.current === requestKey) {
+      return;
+    }
+
+    if (!force
+      && settledGraphRequestKey.current === requestKey
+      && settledGraphRequestNotFound.current)
+    {
       return;
     }
 
@@ -389,12 +400,16 @@ export function useDiagram(projectId?: string) {
       setHasGraphData(true);
       setLoadedProjectId(id);
       setLastRefreshAt(Date.now());
+      settledGraphRequestKey.current = requestKey;
+      settledGraphRequestNotFound.current = false;
     } catch (err: unknown) {
       if (isApiError(err) && err.status === 404) {
         setGraphNotFound(true);
         setError(undefined);
         setHasGraphData(false);
         setLoadedProjectId(undefined);
+        settledGraphRequestKey.current = requestKey;
+        settledGraphRequestNotFound.current = true;
       } else {
         setError(extractErrorMessage(err));
         setHasGraphData(false);
@@ -487,7 +502,7 @@ export function useDiagram(projectId?: string) {
 
   const handleDiagramUpdated = useCallback(() => {
     if (projectId !== undefined) {
-      void fetchGraph(projectId, selectedSnapshotId);
+      void fetchGraph(projectId, selectedSnapshotId, true);
     }
   }, [projectId, selectedSnapshotId, fetchGraph]);
 
@@ -500,7 +515,7 @@ export function useDiagram(projectId?: string) {
     if (projectId === undefined) return;
     if (signalR.status !== 'connected') return;
     if (!hasGraphData || graphNotFound || loadedProjectId !== projectId) return;
-    void fetchGraph(projectId, selectedSnapshotId);
+    void fetchGraph(projectId, selectedSnapshotId, true);
   }, [projectId, signalR.status, signalR.lastConnectedAt, selectedSnapshotId, fetchGraph, hasGraphData, graphNotFound, loadedProjectId]);
 
   useEffect(() => {
@@ -509,7 +524,7 @@ export function useDiagram(projectId?: string) {
     if (graphNotFound) return;
 
     const id = window.setInterval(() => {
-      void fetchGraph(projectId, selectedSnapshotId);
+      void fetchGraph(projectId, selectedSnapshotId, true);
     }, 60_000);
 
     return () => {
@@ -862,6 +877,10 @@ export function useDiagram(projectId?: string) {
     return lastRefreshAt !== undefined;
   }, [signalR.status, lastRefreshAt]);
 
+  const refetch = useCallback(async (id: string, snapshotId?: string) => {
+    await fetchGraph(id, snapshotId, true);
+  }, [fetchGraph]);
+
   return {
     data: visibleDiagramData,
     level,
@@ -920,6 +939,6 @@ export function useDiagram(projectId?: string) {
     setThreatView,
     overlaySummary,
     captureSnapshot,
-    refetch: fetchGraph,
+    refetch,
   };
 }

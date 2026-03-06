@@ -123,8 +123,17 @@ export function SubscriptionWizardPage() {
             </p>
             <div style={{ display: 'grid', gap: 10 }}>
               <label>
-                Repository URL
-                <input className="input" value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} placeholder="https://dev.azure.com/org/project/_git/infra" />
+                Repository URLs
+                <textarea
+                  className="input"
+                  value={repoUrl}
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                  placeholder={`https://dev.azure.com/org/project/_git/infra\nhttps://github.com/org/infra-shared.git|main|infrastructure\nhttps://github.com/org/app-infra.git|main|environments/prod`}
+                  style={{ minHeight: 96, resize: 'vertical' }}
+                />
+                <div className="subtle" style={{ fontSize: 12, marginTop: 4 }}>
+                  One repository per line. Optional format: <code>url|branch|rootPath</code>.
+                </div>
               </label>
               <label>
                 Branch

@@ -41,6 +41,13 @@ type DetectDriftResponse = {
   inSyncCount: number;
 };
 
+type DetectDriftRequest = {
+  iacContent?: string | null;
+  format?: string | null;
+  useRepositories: boolean;
+  environment?: string | null;
+};
+
 type DriftOverviewResponse = {
   projectId: string;
   driftedCount: number;
@@ -124,6 +131,7 @@ export function DiagramPage() {
   const [discoveringFromEmptyState, setDiscoveringFromEmptyState] = useState(false);
   const [driftIacContent, setDriftIacContent] = useState('');
   const [driftFormat, setDriftFormat] = useState<'bicep' | 'terraform'>('bicep');
+  const [driftInputMode, setDriftInputMode] = useState<'repositories' | 'manual'>('repositories');
   const [runningDrift, setRunningDrift] = useState(false);
   const [runningTelemetrySync, setRunningTelemetrySync] = useState(false);
   const [latestDrift, setLatestDrift] = useState<DriftOverviewResponse | undefined>(undefined);
@@ -270,13 +278,13 @@ export function DiagramPage() {
   }, [projectId]);
 
   useEffect(() => {
-    if (projectId === undefined || graphNotFound) {
+    if (projectId === undefined || graphNotFound || metrics.totalNodes === 0) {
       setLatestDrift(undefined);
       return;
     }
 
     void refreshLatestDrift();
-  }, [projectId, graphNotFound, refreshLatestDrift]);
+  }, [projectId, graphNotFound, metrics.totalNodes, refreshLatestDrift]);
 
   async function handleSyncTelemetry() {
     if (projectId === undefined) return;
@@ -301,7 +309,7 @@ export function DiagramPage() {
 
   async function handleRunDriftDetection() {
     if (projectId === undefined) return;
-    if (driftIacContent.trim().length === 0) {
+    if (driftInputMode === 'manual' && driftIacContent.trim().length === 0) {
       addToast('Paste IaC content before running drift detection.', 'error');
       return;
     }
@@ -315,12 +323,23 @@ export function DiagramPage() {
         return;
       }
 
-      const result = await postJson<{ iacContent: string; format: string }, DetectDriftResponse>(
+      const request: DetectDriftRequest = driftInputMode === 'manual'
+        ? {
+            iacContent: driftIacContent,
+            format: driftFormat,
+            useRepositories: false,
+            environment: environment !== 'all' ? environment : null,
+          }
+        : {
+            iacContent: null,
+            format: null,
+            useRepositories: true,
+            environment: environment !== 'all' ? environment : null,
+          };
+
+      const result = await postJson<DetectDriftRequest, DetectDriftResponse>(
         `/api/discovery/subscriptions/${subscription.subscriptionId}/drift/run`,
-        {
-          iacContent: driftIacContent,
-          format: driftFormat,
-        },
+        request,
       );
       addToast(`Drift detection complete (${result.driftedCount} drifted, ${result.inSyncCount} in sync).`, 'success');
       await refetch(projectId);
@@ -664,7 +683,7 @@ export function DiagramPage() {
         <div className="card" style={{ marginTop: 10 }}>
           <strong>Run Drift Detection</strong>
           <p className="subtle" style={{ marginTop: 6, marginBottom: 10 }}>
-            Paste Bicep or Terraform desired state and run drift detection against discovered runtime resources.
+            Run drift detection from configured repositories (recommended) or from pasted IaC content.
           </p>
           <div className="subtle" style={{ fontSize: 13, marginBottom: 10 }}>
             {loadingLatestDrift
@@ -683,30 +702,51 @@ export function DiagramPage() {
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <select value={driftFormat} onChange={(e) => setDriftFormat(e.target.value as 'bicep' | 'terraform')}>
-              <option value="bicep">Bicep</option>
-              <option value="terraform">Terraform</option>
-            </select>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220 }}>
+              Source
+              <select value={driftInputMode} onChange={(e) => setDriftInputMode(e.target.value as 'repositories' | 'manual')}>
+                <option value="repositories">Configured repositories</option>
+                <option value="manual">Manual IaC paste</option>
+              </select>
+            </label>
+          </div>
+          {driftInputMode === 'repositories' && (
+            <p className="subtle" style={{ fontSize: 12, marginTop: 0, marginBottom: 10 }}>
+              Uses all configured repository entries. You can specify multiple repos in Subscription settings (one per line as
+              {' '}
+              <code>url|branch|rootPath</code>
+              ).
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            {driftInputMode === 'manual' && (
+              <select value={driftFormat} onChange={(e) => setDriftFormat(e.target.value as 'bicep' | 'terraform')}>
+                <option value="bicep">Bicep</option>
+                <option value="terraform">Terraform</option>
+              </select>
+            )}
             <button className="btn btn-sm" type="button" disabled={runningDrift} onClick={() => void handleRunDriftDetection()}>
               {runningDrift ? 'Running...' : 'Run Drift Detection'}
             </button>
           </div>
-          <textarea
-            value={driftIacContent}
-            onChange={(e) => setDriftIacContent(e.target.value)}
-            placeholder="Paste IaC content here"
-            style={{
-              width: '100%',
-              minHeight: 120,
-              background: 'var(--input-bg)',
-              color: 'var(--text)',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: 10,
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-              fontSize: 12,
-            }}
-          />
+          {driftInputMode === 'manual' && (
+            <textarea
+              value={driftIacContent}
+              onChange={(e) => setDriftIacContent(e.target.value)}
+              placeholder="Paste IaC content here"
+              style={{
+                width: '100%',
+                minHeight: 120,
+                background: 'var(--input-bg)',
+                color: 'var(--text)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                padding: 10,
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                fontSize: 12,
+              }}
+            />
+          )}
         </div>
 
         {level === 'Code' && !loading && !graphNotFound && data.nodes.length === 0 && (

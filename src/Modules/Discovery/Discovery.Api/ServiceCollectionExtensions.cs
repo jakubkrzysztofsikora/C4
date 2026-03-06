@@ -89,6 +89,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDiscoverySourceAdapter, RepositoryIacDiscoverySourceAdapter>();
         services.AddSingleton<IDiscoverySourceAdapter, RemoteMcpDiscoverySourceAdapter>();
         services.AddSingleton<IDiscoveryInputProvider, CompositeDiscoveryInputProvider>();
+        services.AddSingleton<IIacRepositoryStateProvider, RepositoryIacDriftStateProvider>();
 
         services.AddSingleton<BicepParser>();
         services.AddSingleton<TerraformParser>();

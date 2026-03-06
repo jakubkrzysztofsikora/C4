@@ -10,7 +10,14 @@ public sealed class DetectDriftEndpoint : IEndpoint
     {
         static async Task<IResult> HandleDetectDrift(Guid subscriptionId, DetectDriftRequest request, ISender sender, CancellationToken ct)
         {
-            var result = await sender.Send(new DetectDriftCommand(subscriptionId, request.IacContent, request.Format), ct);
+            var result = await sender.Send(
+                new DetectDriftCommand(
+                    subscriptionId,
+                    request.IacContent,
+                    request.Format,
+                    request.UseRepositories,
+                    request.Environment),
+                ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         }
 
@@ -20,5 +27,9 @@ public sealed class DetectDriftEndpoint : IEndpoint
             .RequireAuthorization();
     }
 
-    public sealed record DetectDriftRequest(string IacContent, string Format);
+    public sealed record DetectDriftRequest(
+        string? IacContent,
+        string? Format,
+        bool UseRepositories = true,
+        string? Environment = null);
 }

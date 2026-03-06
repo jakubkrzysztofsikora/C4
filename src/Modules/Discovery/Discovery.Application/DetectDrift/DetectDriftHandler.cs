@@ -1,6 +1,7 @@
 using C4.Modules.Discovery.Application.Ports;
 using C4.Shared.Kernel.IntegrationEvents;
 using C4.Shared.Kernel;
+using C4.Modules.Discovery.Domain.Errors;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -8,6 +9,7 @@ namespace C4.Modules.Discovery.Application.DetectDrift;
 
 public sealed class DetectDriftHandler(
     IIacStateParser parser,
+    IIacRepositoryStateProvider repositoryStateProvider,
     IDiscoveredResourceRepository discoveredResourceRepository,
     IDriftResultRepository driftResultRepository,
     IMediator mediator,
@@ -15,10 +17,34 @@ public sealed class DetectDriftHandler(
 {
     public async Task<Result<DetectDriftResponse>> Handle(DetectDriftCommand request, CancellationToken cancellationToken)
     {
-        var desired = await parser.ParseAsync(request.IacContent, request.Format, cancellationToken);
+        IReadOnlyCollection<IacResourceRecord> desired;
+        if (!string.IsNullOrWhiteSpace(request.IacContent))
+        {
+            desired = await parser.ParseAsync(request.IacContent, request.Format ?? string.Empty, cancellationToken);
+        }
+        else if (request.UseRepositories)
+        {
+            desired = await repositoryStateProvider.CollectAsync(request.SubscriptionId, request.Environment, cancellationToken);
+            if (desired.Count == 0)
+            {
+                return Result<DetectDriftResponse>.Failure(
+                    DiscoveryErrors.ConnectorUnavailable(
+                        "repository-iac",
+                        "No IaC resources were discovered from configured repositories. Configure repository URLs and retry."));
+            }
+        }
+        else
+        {
+            return Result<DetectDriftResponse>.Failure(
+                DiscoveryErrors.SchemaContractViolation("drift-detection"));
+        }
+
         var actual = await discoveredResourceRepository.GetBySubscriptionAsync(request.SubscriptionId, cancellationToken);
 
-        var desiredSet = desired.Select(d => d.ResourceId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var desiredSet = desired
+            .Where(d => !string.IsNullOrWhiteSpace(d.ResourceId))
+            .Select(d => d.ResourceId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         HashSet<string> desiredNameHints = desired
             .Select(d => ExtractTerminalResourceName(d.ResourceId))
             .Where(name => name is not null)

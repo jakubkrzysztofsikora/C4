@@ -187,17 +187,21 @@ export function AzureCallbackPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
               <label htmlFor="git-repo-url" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-                Repository URL
+                Repository URLs
               </label>
-              <input
+              <textarea
                 id="git-repo-url"
-                type="url"
                 className="input"
-                placeholder="https://dev.azure.com/org/project/_git/infra"
+                placeholder={`https://dev.azure.com/org/project/_git/infra
+https://github.com/org/infra-shared.git|main|infrastructure
+https://github.com/org/app-infra.git|main|environments/prod`}
                 value={gitRepoUrl}
                 onChange={e => setGitRepoUrl(e.target.value)}
-                style={{ width: '100%' }}
+                style={{ width: '100%', minHeight: 96, resize: 'vertical' }}
               />
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                One repository per line. Optional format: <code>url|branch|rootPath</code>.
+              </div>
             </div>
             <div>
               <label htmlFor="git-pat" style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
@@ -224,7 +228,7 @@ export function AzureCallbackPage() {
               onClick={() => void handleConnect()}
               style={{ flex: 1 }}
             >
-              {gitRepoUrl.trim().length > 0 ? 'Connect with Repo' : 'Skip & Connect'}
+              {gitRepoUrl.trim().length > 0 ? 'Connect with Repositories' : 'Skip & Connect'}
             </button>
           </div>
         </div>
