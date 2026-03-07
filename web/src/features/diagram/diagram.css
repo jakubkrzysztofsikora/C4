@@ -176,7 +176,7 @@
 
 .collapsible-badge {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-foreground, #fff);
   font-size: 10px;
   font-weight: 700;
   padding: 1px 6px;
