@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-type ThemeMode = 'light' | 'dark';
+type ThemeMode = 'light' | 'dark' | 'light-hc' | 'dark-hc';
 
 type ThemeContextValue = {
   mode: ThemeMode;
@@ -9,9 +9,14 @@ type ThemeContextValue = {
 
 const THEME_STORAGE_KEY = 'c4_theme';
 
+const THEME_CYCLE: ThemeMode[] = ['dark', 'light', 'dark-hc', 'light-hc'];
+
 function loadStoredTheme(): ThemeMode {
   const stored = localStorage.getItem(THEME_STORAGE_KEY);
-  return stored === 'light' ? 'light' : 'dark';
+  if (stored === 'light' || stored === 'dark' || stored === 'light-hc' || stored === 'dark-hc') {
+    return stored;
+  }
+  return 'dark';
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
@@ -27,7 +32,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       mode,
-      toggleMode: () => setMode(current => (current === 'dark' ? 'light' : 'dark'))
+      toggleMode: () =>
+        setMode(current => {
+          const index = THEME_CYCLE.indexOf(current);
+          return THEME_CYCLE[(index + 1) % THEME_CYCLE.length] ?? 'dark';
+        }),
     }),
     [mode]
   );

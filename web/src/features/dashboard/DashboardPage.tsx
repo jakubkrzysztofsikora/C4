@@ -305,10 +305,25 @@ export function DashboardPage() {
       {!setupComplete && (
         <div className="card" style={{ marginBottom: 16 }}>
           <h2 style={{ margin: '0 0 4px 0', fontSize: 17 }}>Get Started</h2>
-          <p className="subtle" style={{ margin: '0 0 16px 0', fontSize: 14 }}>
+          <p className="subtle" style={{ margin: '0 0 12px 0', fontSize: 14 }}>
             Set up your workspace in three steps.
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{
+            height: 4,
+            borderRadius: 999,
+            background: 'var(--panel-2)',
+            marginBottom: 16,
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              height: '100%',
+              borderRadius: 999,
+              background: 'linear-gradient(90deg, var(--accent), var(--accent-2))',
+              width: `${((setup.hasOrganization && hasProject ? 1 : 0) + (setup.hasSubscription ? 1 : 0)) / 3 * 100}%`,
+              transition: 'width 0.5s ease',
+            }} />
+          </div>
+          <div className="stagger-in" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <SetupStep
               step={1}
               title="Create Organization"
