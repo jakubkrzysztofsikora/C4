@@ -1,3 +1,4 @@
+import { MdCheckCircle, MdError, MdInfo } from 'react-icons/md';
 import type { Toast as ToastItem, ToastType } from '../hooks/useToast';
 
 interface ToastContainerProps {
@@ -16,10 +17,19 @@ function toastTypeClass(type: ToastType): string {
   return 'toast-info';
 }
 
+function ToastIcon({ type }: { type: ToastType }) {
+  if (type === 'success') return <MdCheckCircle size={18} />;
+  if (type === 'error') return <MdError size={18} />;
+  return <MdInfo size={18} />;
+}
+
 function SingleToast({ toast, onRemove }: SingleToastProps) {
   return (
     <div className={`toast ${toastTypeClass(toast.type)}`} role="alert">
-      <span>{toast.message}</span>
+      <span className="toast-icon">
+        <ToastIcon type={toast.type} />
+      </span>
+      <span className="toast-content">{toast.message}</span>
       <button
         className="toast-close btn btn-ghost"
         onClick={() => onRemove(toast.id)}
@@ -28,6 +38,7 @@ function SingleToast({ toast, onRemove }: SingleToastProps) {
       >
         &times;
       </button>
+      <div className="toast-progress" style={{ animationDuration: '4s' }} />
     </div>
   );
 }

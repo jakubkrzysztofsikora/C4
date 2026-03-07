@@ -73,7 +73,7 @@ export function AuthPage() {
           </button>
         </div>
 
-        <form className="auth-form" onSubmit={(e) => void handleSubmit(e)}>
+        <form className="auth-form" onSubmit={(e) => void handleSubmit(e)} aria-busy={isLoading} aria-describedby={errorMessage !== undefined ? 'auth-error' : undefined}>
           {activeTab === 'register' && (
             <div className="form-group">
               <label className="form-label" htmlFor="auth-display-name">Display Name</label>
@@ -130,7 +130,7 @@ export function AuthPage() {
           )}
 
           {errorMessage !== undefined && (
-            <p className="form-error" role="alert">{errorMessage}</p>
+            <p className="form-error" role="alert" id="auth-error">{errorMessage}</p>
           )}
 
           <button

@@ -10,6 +10,10 @@
   border-radius: 14px;
   background: linear-gradient(180deg, var(--panel-2), var(--panel));
   padding: 14px;
+  overflow-y: auto;
+  max-height: calc(100vh - 120px);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 .diagram-stage {
@@ -140,6 +144,199 @@
   gap: 8px;
 }
 
+.collapsible-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background var(--motion-fast, 0.12s) ease;
+}
+.collapsible-header:hover {
+  background: var(--panel);
+}
+
+.collapsible-title { flex: 1; text-align: left; }
+
+.collapsible-badge {
+  background: var(--accent);
+  color: var(--accent-foreground, #fff);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.collapsible-chevron {
+  font-size: 12px;
+  transition: transform var(--motion-fast, 0.12s) ease;
+  color: var(--muted);
+}
+.collapsible-chevron.open {
+  transform: rotate(180deg);
+}
+
+.collapsible-body {
+  padding: 10px 12px;
+  display: grid;
+  gap: 10px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.level-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.level-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.level-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--input-bg);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--motion-fast, 0.12s) ease;
+}
+.level-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.level-btn.active {
+  background: rgba(var(--accent-rgb), 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.level-btn kbd {
+  font-size: 9px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+}
+
+.graph-node-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  border: 2px solid var(--border);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--motion-fast, 0.12s) ease;
+}
+.graph-node-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,0.25));
+}
+.graph-node-btn.health-green { border-color: var(--success); }
+.graph-node-btn.health-yellow { border-color: var(--warning); }
+.graph-node-btn.health-red { border-color: var(--error); }
+.graph-node-btn.health-unknown { border-color: var(--border); }
+.graph-node-btn.drift { background: rgba(188, 224, 255, 0.08); }
+.graph-node-label { flex: 1; text-align: left; }
+
+.node-tooltip {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.3));
+  padding: 12px 14px;
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.node-tooltip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.node-tooltip-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.node-tooltip-type {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.node-tooltip-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.node-tooltip-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.node-tooltip-metric-label {
+  color: var(--muted);
+}
+
+.node-tooltip-metric-value {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.node-tooltip-no-telemetry {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
 .overlay-summary {
   margin-top: 10px;
   border: 1px solid var(--border);
@@ -262,4 +459,7 @@
   .diagram-stage {
     min-height: 50vh;
   }
+
+  .level-btn kbd { display: none; }
+  .collapsible-badge { font-size: 9px; }
 }

@@ -60,6 +60,34 @@ type SyncTelemetryResponse = {
   dependencyMetricsIngested: number;
 };
 
+type CollapsibleSectionProps = {
+  title: string;
+  badge?: number;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+};
+
+function CollapsibleSection({ title, badge, defaultOpen, children }: CollapsibleSectionProps) {
+  const [isOpen, setIsOpen] = useState(defaultOpen ?? false);
+  return (
+    <div className="collapsible-section">
+      <button
+        className="collapsible-header"
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        aria-expanded={isOpen}
+      >
+        <span className="collapsible-title">{title}</span>
+        {badge !== undefined && badge > 0 && (
+          <span className="collapsible-badge">{badge}</span>
+        )}
+        <span className={`collapsible-chevron ${isOpen ? 'open' : ''}`}>&#9662;</span>
+      </button>
+      {isOpen && <div className="collapsible-body">{children}</div>}
+    </div>
+  );
+}
+
 export function DiagramPage() {
   const navigate = useNavigate();
   const { activeProject, loading: projectLoading } = useProject();
@@ -168,6 +196,21 @@ export function DiagramPage() {
     driftOnly,
     search,
   ]);
+
+  const advancedFilterCount = useMemo(() => {
+    let count = 0;
+    if (scope !== DEFAULTS.scope) count++;
+    if (groupBy !== DEFAULTS.groupBy) count++;
+    if (includeInfrastructure !== DEFAULTS.includeInfrastructure) count++;
+    if (serviceTypeFilter !== DEFAULTS.serviceType) count++;
+    if (technologyFilter !== DEFAULTS.technology) count++;
+    if (domainFilter !== DEFAULTS.domain) count++;
+    if (riskFilter !== DEFAULTS.risk) count++;
+    if (hideOrphans !== DEFAULTS.hideOrphans) count++;
+    if (driftOnly !== DEFAULTS.driftOnly) count++;
+    if (tagFilter !== DEFAULTS.tag) count++;
+    return count;
+  }, [scope, groupBy, includeInfrastructure, serviceTypeFilter, technologyFilter, domainFilter, riskFilter, hideOrphans, driftOnly, tagFilter]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -454,20 +497,30 @@ export function DiagramPage() {
             {activeFilterChips.map((chip) => (
               <span key={chip} className="filter-chip">{chip}</span>
             ))}
-            <button className="btn btn-sm" type="button" onClick={resetToFullMap}>Reset to full map</button>
+            <button className="btn btn-sm" type="button" onClick={resetToFullMap}>
+              Reset to full map <kbd>R</kbd>
+            </button>
           </div>
         )}
 
         <div className="toolbox" role="group" aria-label="Diagram controls">
-          <label>
-            C4 Level
-            <select value={level} onChange={(e) => setLevel(e.target.value as 'Context' | 'Container' | 'Component' | 'Code')}>
-              <option>Context</option>
-              <option>Container</option>
-              <option>Component</option>
-              <option>Code</option>
-            </select>
-          </label>
+          <div className="level-selector">
+            <label>C4 Level</label>
+            <div className="level-options">
+              {(['Context', 'Container', 'Component', 'Code'] as const).map((lvl, i) => (
+                <button
+                  key={lvl}
+                  className={`level-btn ${level === lvl ? 'active' : ''}`}
+                  type="button"
+                  onClick={() => setLevel(lvl)}
+                >
+                  {lvl}
+                  <kbd>{i + 1}</kbd>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <label>
             Environment
             <select value={environment} onChange={(e) => setEnvironment(e.target.value)}>
@@ -477,185 +530,193 @@ export function DiagramPage() {
               ))}
             </select>
           </label>
-          <label>
-            Scope
-            <select value={scope} onChange={(e) => setScope(e.target.value as 'all' | 'coreHub')}>
-              <option value="all">All Nodes</option>
-              <option value="coreHub">Core Hub</option>
-            </select>
-          </label>
-          <label>
-            Group By
-            <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as 'domain' | 'resourceGroup' | 'none')}>
-              <option value="domain">Service Domain</option>
-              <option value="resourceGroup">Resource Group</option>
-              <option value="none">None</option>
-            </select>
-          </label>
-          <label>
-            Infrastructure
-            <select value={includeInfrastructure} onChange={(e) => setIncludeInfrastructure(e.target.value as 'auto' | 'true' | 'false')}>
-              <option value="false">Hide</option>
-              <option value="auto">Auto (Component only)</option>
-              <option value="true">Show</option>
-            </select>
-          </label>
-          <label>
-            Resource Type
-            <select value={serviceTypeFilter} onChange={(e) => setServiceTypeFilter(e.target.value)}>
-              <option value="all">All types</option>
-              {serviceTypes.map((serviceType) => (
-                <option key={serviceType} value={serviceType}>{serviceType}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Technology
-            <select value={technologyFilter} onChange={(e) => setTechnologyFilter(e.target.value)}>
-              <option value="all">All technologies</option>
-              {technologies.map((technology) => (
-                <option key={technology} value={technology}>{technology}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Team / Domain
-            <select value={domainFilter} onChange={(e) => setDomainFilter(e.target.value)}>
-              <option value="all">All domains</option>
-              {domains.map((domain) => (
-                <option key={domain} value={domain}>{domain}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Risk
-            <select value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)}>
-              <option value="all">All risk levels</option>
-              {riskLevels.map((riskLevel) => (
-                <option key={riskLevel} value={riskLevel}>{riskLevel}</option>
-              ))}
-            </select>
-          </label>
-          <label className="checkbox-label">
-            <input type="checkbox" checked={hideOrphans} onChange={(e) => setHideOrphans(e.target.checked)} />
-            Hide unconnected
-          </label>
-          <label className="checkbox-label">
-            <input type="checkbox" checked={driftOnly} onChange={(e) => setDriftOnly(e.target.checked)} />
-            Drift only
-          </label>
+
           <label>
             Search
             <input placeholder="Search service" value={search} onChange={(e) => setSearch(e.target.value)} />
           </label>
-          <label>
-            Tag / Metadata Filter
-            <input list="diagram-tag-options" placeholder="Filter by tag or metadata" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} />
-            <datalist id="diagram-tag-options">
-              {tags.map((tag) => (
-                <option key={tag} value={tag} />
-              ))}
-            </datalist>
-          </label>
 
-          <label>
-            Snapshot Timeline
-            <input
-              type="range"
-              min={-1}
-              max={Math.max(0, snapshots.length - 1)}
-              value={timelineIndex < 0 ? -1 : Math.min(timelineIndex, Math.max(0, snapshots.length - 1))}
-              onChange={(e) => setTimelineIndex(Number(e.target.value))}
-              disabled={snapshots.length === 0}
-            />
-            <small className="subtle">
-              {snapshots.length === 0
-                ? 'No snapshots available'
-                : selectedSnapshot !== undefined
-                  ? `${new Date(selectedSnapshot.createdAtUtc).toLocaleString()} (${selectedSnapshot.source})`
-                  : 'Live data (current graph)'}
-            </small>
-          </label>
-          <div>
-            <button className="btn btn-sm" type="button" onClick={() => void handleCaptureSnapshot()}>
-              Capture Snapshot
-            </button>
-          </div>
-
-          <label className="checkbox-label">
-            <input type="checkbox" checked={diffEnabled} onChange={(e) => setDiffEnabled(e.target.checked)} />
-            Diff mode
-          </label>
-          {diffEnabled && (
-            <>
-              <label>
-                Diff from
-                <select value={diffFromSnapshotId} onChange={(e) => setDiffFromSnapshotId(e.target.value)}>
-                  {snapshots.map((snapshot) => (
-                    <option key={snapshot.snapshotId} value={snapshot.snapshotId}>
-                      {new Date(snapshot.createdAtUtc).toLocaleString()}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Diff to
-                <select value={diffToSnapshotId} onChange={(e) => setDiffToSnapshotId(e.target.value)}>
-                  {snapshots.map((snapshot) => (
-                    <option key={snapshot.snapshotId} value={snapshot.snapshotId}>
-                      {new Date(snapshot.createdAtUtc).toLocaleString()}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="metrics-row" aria-live="polite">
-                <span>Added nodes: <strong>{diffMetrics.addedNodes}</strong></span>
-                <span>Removed nodes: <strong>{diffMetrics.removedNodes}</strong></span>
-                <span>Added edges: <strong>{diffMetrics.addedEdges}</strong></span>
-                <span>Removed edges: <strong>{diffMetrics.removedEdges}</strong></span>
-              </div>
-              {diffMetrics.addedNodes === 0 && diffMetrics.removedNodes === 0 && diffMetrics.addedEdges === 0 && diffMetrics.removedEdges === 0 && (
-                <small className="subtle">No structural change between selected snapshots.</small>
-              )}
-            </>
-          )}
-
-          <label>
-            Overlay
-            <select value={overlayMode} onChange={(e) => setOverlayMode(e.target.value as 'none' | 'threat' | 'cost' | 'security')}>
-              <option value="none">None</option>
-              <option value="threat">Threat</option>
-              <option value="security">Security</option>
-              <option value="cost">Cost</option>
-            </select>
-          </label>
-          {overlayMode === 'threat' && (
+          <CollapsibleSection title="Advanced Filters" badge={advancedFilterCount}>
             <label>
-              Threat View
-              <select
-                value={threatView}
-                onChange={(e) => setThreatView(e.target.value as 'general' | 'api-attack-surface' | 'exit-points' | 'data-exposure' | 'blast-radius')}
-              >
-                <option value="general">General</option>
-                <option value="api-attack-surface">API attack surface</option>
-                <option value="exit-points">Exit points</option>
-                <option value="data-exposure">Data exposure</option>
-                <option value="blast-radius">Blast radius</option>
+              Scope
+              <select value={scope} onChange={(e) => setScope(e.target.value as 'all' | 'coreHub')}>
+                <option value="all">All Nodes</option>
+                <option value="coreHub">Core Hub</option>
               </select>
             </label>
-          )}
+            <label>
+              Group By
+              <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as 'domain' | 'resourceGroup' | 'none')}>
+                <option value="domain">Service Domain</option>
+                <option value="resourceGroup">Resource Group</option>
+                <option value="none">None</option>
+              </select>
+            </label>
+            <label>
+              Infrastructure
+              <select value={includeInfrastructure} onChange={(e) => setIncludeInfrastructure(e.target.value as 'auto' | 'true' | 'false')}>
+                <option value="false">Hide</option>
+                <option value="auto">Auto (Component only)</option>
+                <option value="true">Show</option>
+              </select>
+            </label>
+            <label>
+              Resource Type
+              <select value={serviceTypeFilter} onChange={(e) => setServiceTypeFilter(e.target.value)}>
+                <option value="all">All types</option>
+                {serviceTypes.map((serviceType) => (
+                  <option key={serviceType} value={serviceType}>{serviceType}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Technology
+              <select value={technologyFilter} onChange={(e) => setTechnologyFilter(e.target.value)}>
+                <option value="all">All technologies</option>
+                {technologies.map((technology) => (
+                  <option key={technology} value={technology}>{technology}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Team / Domain
+              <select value={domainFilter} onChange={(e) => setDomainFilter(e.target.value)}>
+                <option value="all">All domains</option>
+                {domains.map((domain) => (
+                  <option key={domain} value={domain}>{domain}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Risk
+              <select value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)}>
+                <option value="all">All risk levels</option>
+                {riskLevels.map((riskLevel) => (
+                  <option key={riskLevel} value={riskLevel}>{riskLevel}</option>
+                ))}
+              </select>
+            </label>
+            <label className="checkbox-label">
+              <input type="checkbox" checked={hideOrphans} onChange={(e) => setHideOrphans(e.target.checked)} />
+              Hide unconnected
+            </label>
+            <label className="checkbox-label">
+              <input type="checkbox" checked={driftOnly} onChange={(e) => setDriftOnly(e.target.checked)} />
+              Drift only
+            </label>
+            <label>
+              Tag / Metadata Filter
+              <input list="diagram-tag-options" placeholder="Filter by tag or metadata" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} />
+              <datalist id="diagram-tag-options">
+                {tags.map((tag) => (
+                  <option key={tag} value={tag} />
+                ))}
+              </datalist>
+            </label>
+          </CollapsibleSection>
 
-          <label>
-            Zoom
-            <input type="range" min={50} max={150} value={zoom * 100} onChange={(e) => setZoom(Number(e.target.value) / 100)} />
-          </label>
+          <CollapsibleSection title="Timeline & Diff">
+            <label>
+              Snapshot Timeline
+              <input
+                type="range"
+                min={-1}
+                max={Math.max(0, snapshots.length - 1)}
+                value={timelineIndex < 0 ? -1 : Math.min(timelineIndex, Math.max(0, snapshots.length - 1))}
+                onChange={(e) => setTimelineIndex(Number(e.target.value))}
+                disabled={snapshots.length === 0}
+              />
+              <small className="subtle">
+                {snapshots.length === 0
+                  ? 'No snapshots available'
+                  : selectedSnapshot !== undefined
+                    ? `${new Date(selectedSnapshot.createdAtUtc).toLocaleString()} (${selectedSnapshot.source})`
+                    : 'Live data (current graph)'}
+              </small>
+            </label>
+            <div>
+              <button className="btn btn-sm" type="button" onClick={() => void handleCaptureSnapshot()}>
+                Capture Snapshot
+              </button>
+            </div>
+            <label className="checkbox-label">
+              <input type="checkbox" checked={diffEnabled} onChange={(e) => setDiffEnabled(e.target.checked)} />
+              Diff mode
+            </label>
+            {diffEnabled && (
+              <>
+                <label>
+                  Diff from
+                  <select value={diffFromSnapshotId} onChange={(e) => setDiffFromSnapshotId(e.target.value)}>
+                    {snapshots.map((snapshot) => (
+                      <option key={snapshot.snapshotId} value={snapshot.snapshotId}>
+                        {new Date(snapshot.createdAtUtc).toLocaleString()}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Diff to
+                  <select value={diffToSnapshotId} onChange={(e) => setDiffToSnapshotId(e.target.value)}>
+                    {snapshots.map((snapshot) => (
+                      <option key={snapshot.snapshotId} value={snapshot.snapshotId}>
+                        {new Date(snapshot.createdAtUtc).toLocaleString()}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="metrics-row" aria-live="polite">
+                  <span>Added nodes: <strong>{diffMetrics.addedNodes}</strong></span>
+                  <span>Removed nodes: <strong>{diffMetrics.removedNodes}</strong></span>
+                  <span>Added edges: <strong>{diffMetrics.addedEdges}</strong></span>
+                  <span>Removed edges: <strong>{diffMetrics.removedEdges}</strong></span>
+                </div>
+                {diffMetrics.addedNodes === 0 && diffMetrics.removedNodes === 0 && diffMetrics.addedEdges === 0 && diffMetrics.removedEdges === 0 && (
+                  <small className="subtle">No structural change between selected snapshots.</small>
+                )}
+              </>
+            )}
+          </CollapsibleSection>
 
-          <div className="export-row">
-            <button className="btn" onClick={() => void handleExport('svg')} type="button">Export SVG</button>
-            <button className="btn" onClick={() => void handleExport('png')} type="button">Export PNG</button>
-            <button className="btn" onClick={() => void handleExport('pdf')} type="button">Export PDF</button>
-            <button className="btn" onClick={() => void handleExport('graphml')} type="button">Export GraphML</button>
-          </div>
+          <CollapsibleSection title="Overlays">
+            <label>
+              Overlay
+              <select value={overlayMode} onChange={(e) => setOverlayMode(e.target.value as 'none' | 'threat' | 'cost' | 'security')}>
+                <option value="none">None</option>
+                <option value="threat">Threat</option>
+                <option value="security">Security</option>
+                <option value="cost">Cost</option>
+              </select>
+            </label>
+            {overlayMode === 'threat' && (
+              <label>
+                Threat View
+                <select
+                  value={threatView}
+                  onChange={(e) => setThreatView(e.target.value as 'general' | 'api-attack-surface' | 'exit-points' | 'data-exposure' | 'blast-radius')}
+                >
+                  <option value="general">General</option>
+                  <option value="api-attack-surface">API attack surface</option>
+                  <option value="exit-points">Exit points</option>
+                  <option value="data-exposure">Data exposure</option>
+                  <option value="blast-radius">Blast radius</option>
+                </select>
+              </label>
+            )}
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Export">
+            <label>
+              Zoom
+              <input type="range" min={50} max={150} value={zoom * 100} onChange={(e) => setZoom(Number(e.target.value) / 100)} />
+            </label>
+            <div className="export-row">
+              <button className="btn" onClick={() => void handleExport('svg')} type="button">Export SVG</button>
+              <button className="btn" onClick={() => void handleExport('png')} type="button">Export PNG</button>
+              <button className="btn" onClick={() => void handleExport('pdf')} type="button">Export PDF</button>
+              <button className="btn" onClick={() => void handleExport('graphml')} type="button">Export GraphML</button>
+            </div>
+          </CollapsibleSection>
         </div>
 
         {overlaySummary !== undefined && overlayMode !== 'none' && (
