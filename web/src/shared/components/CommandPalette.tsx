@@ -67,6 +67,9 @@ export function CommandPalette({ isOpen, onOpen, onClose }: CommandPaletteProps)
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
+        if (filteredItems.length === 0) {
+          return;
+        }
         setActiveIndex((prev) => Math.min(prev + 1, filteredItems.length - 1));
         return;
       }
