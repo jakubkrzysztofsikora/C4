@@ -12,11 +12,23 @@ const THEME_STORAGE_KEY = 'c4_theme';
 const THEME_CYCLE: ThemeMode[] = ['dark', 'light', 'dark-hc', 'light-hc'];
 
 function loadStoredTheme(): ThemeMode {
-  const stored = localStorage.getItem(THEME_STORAGE_KEY);
-  if (stored === 'light' || stored === 'dark' || stored === 'light-hc' || stored === 'dark-hc') {
-    return stored;
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === 'light' || stored === 'dark' || stored === 'light-hc' || stored === 'dark-hc') {
+      return stored;
+    }
+  } catch {
+    // localStorage unavailable (privacy mode, storage disabled)
   }
   return 'dark';
+}
+
+function saveTheme(mode: ThemeMode): void {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, mode);
+  } catch {
+    // localStorage unavailable
+  }
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
@@ -26,7 +38,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', mode);
-    localStorage.setItem(THEME_STORAGE_KEY, mode);
+    saveTheme(mode);
   }, [mode]);
 
   const value = useMemo(
