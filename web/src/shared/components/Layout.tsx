@@ -16,21 +16,20 @@ export function Layout() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       const isMac = navigator.platform.toUpperCase().includes('MAC');
       const modKey = isMac ? e.metaKey : e.ctrlKey;
+      const key = e.key.toLowerCase();
 
-      if (modKey && e.key === 'k') {
+      if (modKey && key === 'k' && !isTyping) {
         e.preventDefault();
         setCommandPaletteOpen((prev) => !prev);
         return;
       }
 
-      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const target = e.target as HTMLElement;
-        const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-        if (!isTyping) {
-          setShortcutsOpen((prev) => !prev);
-        }
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey && !isTyping) {
+        setShortcutsOpen((prev) => !prev);
       }
     };
 

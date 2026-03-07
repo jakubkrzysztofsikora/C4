@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MdDashboard, MdBusiness, MdCloud, MdHub, MdSearch } from 'react-icons/md';
-import { useSearch } from '../search/SearchContext';
 
 type CommandItem = {
   label: string;
@@ -23,7 +22,7 @@ type CommandPaletteProps = {
 };
 
 export function CommandPalette({ isOpen, onOpen, onClose }: CommandPaletteProps) {
-  const { query, setQuery } = useSearch();
+  const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,7 +35,7 @@ export function CommandPalette({ isOpen, onOpen, onClose }: CommandPaletteProps)
     setQuery('');
     setActiveIndex(0);
     onClose();
-  }, [onClose, setQuery]);
+  }, [onClose]);
 
   const activateItem = useCallback(
     (item: CommandItem) => {
