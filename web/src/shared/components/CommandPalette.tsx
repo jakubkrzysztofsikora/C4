@@ -100,7 +100,7 @@ export function CommandPalette({ isOpen, onOpen, onClose }: CommandPaletteProps)
       </button>
       {isOpen && (
         <div className="command-palette-overlay" onClick={close}>
-          <div className="command-palette-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="command-palette-modal" role="dialog" aria-modal="true" aria-label="Command palette" onClick={(e) => e.stopPropagation()}>
             <div className="command-palette-input-wrapper">
               <MdSearch size={20} />
               <input

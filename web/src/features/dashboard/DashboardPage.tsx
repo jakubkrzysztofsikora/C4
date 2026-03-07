@@ -306,7 +306,7 @@ export function DashboardPage() {
         <div className="card" style={{ marginBottom: 16 }}>
           <h2 style={{ margin: '0 0 4px 0', fontSize: 17 }}>Get Started</h2>
           <p className="subtle" style={{ margin: '0 0 12px 0', fontSize: 14 }}>
-            Set up your workspace in three steps.
+            Complete these steps to start discovering your architecture.
           </p>
           <div style={{
             height: 4,
@@ -319,7 +319,7 @@ export function DashboardPage() {
               height: '100%',
               borderRadius: 999,
               background: 'linear-gradient(90deg, var(--accent), var(--accent-2))',
-              width: `${((setup.hasOrganization && hasProject ? 1 : 0) + (setup.hasSubscription ? 1 : 0)) / 3 * 100}%`,
+              width: `${((setup.hasOrganization && hasProject ? 1 : 0) + (setup.hasSubscription ? 1 : 0)) / 2 * 100}%`,
               transition: 'width 0.5s ease',
             }} />
           </div>
