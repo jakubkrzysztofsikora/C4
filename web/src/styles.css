@@ -10,7 +10,9 @@
   --accent-2: #7ce0c3;
   --border: #253556;
   --error: #e74c3c;
+  --error-rgb: 231, 76, 60;
   --success: #2e8f5e;
+  --success-rgb: 46, 143, 94;
   --warning: #f39c12;
   --input-bg: #0d1526;
   --shadow: rgba(0, 0, 0, 0.3);
@@ -47,7 +49,9 @@
   --accent-2: #10b981;
   --border: #e2e8f0;
   --error: #dc2626;
+  --error-rgb: 220, 38, 38;
   --success: #16a34a;
+  --success-rgb: 22, 163, 74;
   --warning: #d97706;
   --input-bg: #ffffff;
   --shadow: rgba(0, 0, 0, 0.1);
@@ -68,7 +72,9 @@
   --accent-2: #8cf0d0;
   --border: #334466;
   --error: #ff6b6b;
+  --error-rgb: 255, 107, 107;
   --success: #4ade80;
+  --success-rgb: 74, 222, 128;
   --warning: #fbbf24;
   --input-bg: #060b14;
   --shadow: rgba(0,0,0,0.5);
@@ -105,7 +111,9 @@
   --accent-2: #047857;
   --border: #9ca3af;
   --error: #b91c1c;
+  --error-rgb: 185, 28, 28;
   --success: #15803d;
+  --success-rgb: 21, 128, 61;
   --warning: #b45309;
   --input-bg: #ffffff;
   --shadow: rgba(0,0,0,0.15);
@@ -371,12 +379,12 @@ button.card {
 
 .input.input-error {
   border-color: var(--error);
-  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.15);
+  box-shadow: 0 0 0 3px rgba(var(--error-rgb), 0.15);
 }
 
 .input.input-success {
   border-color: var(--success);
-  box-shadow: 0 0 0 3px rgba(46, 143, 94, 0.15);
+  box-shadow: 0 0 0 3px rgba(var(--success-rgb), 0.15);
 }
 
 .input::placeholder {
