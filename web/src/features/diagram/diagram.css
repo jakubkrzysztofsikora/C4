@@ -234,7 +234,7 @@
   color: var(--text);
 }
 .level-btn.active {
-  background: rgba(110, 168, 254, 0.15);
+  background: rgba(var(--accent-rgb), 0.15);
   border-color: var(--accent);
   color: var(--accent);
 }

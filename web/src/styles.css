@@ -6,6 +6,7 @@
   --text: #e8edf7;
   --muted: #9eb0cf;
   --accent: #6ea8fe;
+  --accent-rgb: 110, 168, 254;
   --accent-2: #7ce0c3;
   --border: #253556;
   --error: #e74c3c;
@@ -42,6 +43,7 @@
   --text: #1a202c;
   --muted: #64748b;
   --accent: #3b82f6;
+  --accent-rgb: 59, 130, 246;
   --accent-2: #10b981;
   --border: #e2e8f0;
   --error: #dc2626;
@@ -62,6 +64,7 @@
   --text: #ffffff;
   --muted: #c4d0e4;
   --accent: #7cb8ff;
+  --accent-rgb: 124, 184, 255;
   --accent-2: #8cf0d0;
   --border: #334466;
   --error: #ff6b6b;
@@ -98,6 +101,7 @@
   --text: #000000;
   --muted: #374151;
   --accent: #1d4ed8;
+  --accent-rgb: 29, 78, 216;
   --accent-2: #047857;
   --border: #9ca3af;
   --error: #b91c1c;
@@ -205,7 +209,7 @@ a:hover { text-decoration: underline; }
 
 .nav-link.active {
   color: var(--accent);
-  background: rgba(110, 168, 254, 0.1);
+  background: rgba(var(--accent-rgb), 0.1);
 }
 
 .header-right {
@@ -278,7 +282,7 @@ select option {
 
 .btn-primary:hover:not(:disabled) {
   background: linear-gradient(180deg, #7fb8ff, var(--accent));
-  box-shadow: 0 0 16px rgba(110, 168, 254, 0.35), 0 0 0 1px rgba(110, 168, 254, 0.2);
+  box-shadow: 0 0 16px rgba(var(--accent-rgb), 0.35), 0 0 0 1px rgba(var(--accent-rgb), 0.2);
 }
 
 .btn-ghost {
@@ -360,7 +364,7 @@ button.card {
 
 .input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(110, 168, 254, 0.15);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15);
   outline: none;
   transition: border-color var(--motion-normal) ease, box-shadow var(--motion-normal) ease;
 }
@@ -521,7 +525,7 @@ button.card {
 
 .toast-info {
   border-color: var(--accent);
-  background: linear-gradient(135deg, var(--panel), rgba(110, 168, 254, 0.1));
+  background: linear-gradient(135deg, var(--panel), rgba(var(--accent-rgb), 0.1));
   color: var(--text);
 }
 
