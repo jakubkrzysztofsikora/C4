@@ -81,6 +81,20 @@ public sealed class GetThreatAssessmentHandlerTests
         result.Error.Code.Should().Be("authorization.denied");
     }
 
+    [Fact]
+    public async Task Handle_ExistingGraph_ResponseIncludesDataProvenance()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        graph.AddOrUpdateNode("/r/1", "PublicApi", Domain.C4Level.Container);
+        var repository = new FakeRepository(graph);
+        var detector = new FakeThreatDetector(new ThreatDetectionResult("Low", []));
+        var handler = new GetThreatAssessmentHandler(repository, detector, new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetThreatAssessmentQuery(graph.ProjectId), CancellationToken.None);
+
+        result.Value.DataProvenance.Should().Be("ai");
+    }
+
     private sealed class FakeRepository(ArchitectureGraph? graph) : IArchitectureGraphRepository
     {
         public Task<ArchitectureGraph?> GetByProjectIdAsync(Guid projectId, CancellationToken cancellationToken)

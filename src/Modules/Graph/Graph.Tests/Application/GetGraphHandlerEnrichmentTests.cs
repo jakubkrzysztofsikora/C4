@@ -86,6 +86,43 @@ public sealed class GetGraphHandlerEnrichmentTests
         result.Error.Code.Should().Be("authorization.denied");
     }
 
+    [Fact]
+    public async Task Handle_WithDependencyTelemetry_EdgeIsDerivedFalse()
+    {
+        var projectId = Guid.NewGuid();
+        var graph = ArchitectureGraph.Create(projectId);
+        var sourceNode = graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Web/sites/api", "OrderApi", Domain.C4Level.Container);
+        var targetNode = graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Sql/servers/sql", "OrderDb", Domain.C4Level.Container);
+        graph.AddEdge(sourceNode, targetNode);
+        var repository = new FakeRepository(graph);
+        var telemetry = new FakeTelemetryQueryServiceWithDependencies(
+            [],
+            [new ServiceDependencySummary("OrderApi", "OrderDb", 50.0, 0.01, 200.0, "https", "known")]);
+        var handler = new GetGraphHandler(repository, telemetry, new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(projectId, "Container"), CancellationToken.None);
+
+        result.Value.Edges.Single().IsDerived.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_WithTelemetry_KnownNodesGreaterThanZero()
+    {
+        var projectId = Guid.NewGuid();
+        var graph = ArchitectureGraph.Create(projectId);
+        graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Web/sites/api", "OrderApi", Domain.C4Level.Container);
+        var repository = new FakeRepository(graph);
+        var telemetry = new FakeTelemetryQueryService(
+        [
+            new ServiceHealthSummary("OrderApi", 0.9, "green", TelemetryStatus: "known")
+        ]);
+        var handler = new GetGraphHandler(repository, telemetry, new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(projectId, "Container"), CancellationToken.None);
+
+        result.Value.Quality!.KnownNodes.Should().BeGreaterThan(0);
+    }
+
     private sealed class FakeRepository(ArchitectureGraph graph) : IArchitectureGraphRepository
     {
         public Task<ArchitectureGraph?> GetByProjectIdAsync(Guid projectId, CancellationToken cancellationToken)
@@ -133,5 +170,16 @@ public sealed class GetGraphHandlerEnrichmentTests
 
         public Task<Result<bool>> AuthorizeOwnerAsync(Guid projectId, CancellationToken cancellationToken)
             => Task.FromResult(Result<bool>.Failure(new Error("authorization.denied", "Access denied.")));
+    }
+
+    private sealed class FakeTelemetryQueryServiceWithDependencies(
+        IReadOnlyCollection<ServiceHealthSummary> summaries,
+        IReadOnlyCollection<ServiceDependencySummary> dependencies) : ITelemetryQueryService
+    {
+        public Task<IReadOnlyCollection<ServiceHealthSummary>> GetServiceHealthSummariesAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(summaries);
+
+        public Task<IReadOnlyCollection<ServiceDependencySummary>> GetDependencySummariesAsync(Guid projectId, CancellationToken cancellationToken)
+            => Task.FromResult(dependencies);
     }
 }

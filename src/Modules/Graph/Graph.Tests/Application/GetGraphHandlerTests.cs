@@ -3,6 +3,7 @@ using C4.Modules.Graph.Application.Ports;
 using C4.Modules.Graph.Domain.ArchitectureGraph;
 using C4.Shared.Kernel;
 using C4.Shared.Kernel.Contracts;
+using FluentAssertions.Execution;
 
 namespace C4.Modules.Graph.Tests.Application;
 
@@ -166,6 +167,50 @@ public sealed class GetGraphHandlerTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Nodes.Should().ContainSingle();
         result.Value.Nodes.Single().Health.Should().NotBe("unknown");
+    }
+
+    [Fact]
+    public async Task Handle_EdgeWithoutTelemetry_IsDerivedIsFalse()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        var source = graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Web/sites/api", "api", Domain.C4Level.Container);
+        var target = graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Sql/servers/sql", "sql", Domain.C4Level.Container);
+        graph.AddEdge(source, target);
+        var handler = new GetGraphHandler(new FakeRepository(graph), new EmptyTelemetryQueryService(), new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, "Container"), CancellationToken.None);
+
+        result.Value.Edges.Single().IsDerived.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_EdgeWithoutTelemetry_TelemetrySourceIsNull()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        var source = graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Web/sites/api", "api", Domain.C4Level.Container);
+        var target = graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Sql/servers/sql", "sql", Domain.C4Level.Container);
+        graph.AddEdge(source, target);
+        var handler = new GetGraphHandler(new FakeRepository(graph), new EmptyTelemetryQueryService(), new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, "Container"), CancellationToken.None);
+
+        result.Value.Edges.Single().TelemetrySource.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_QualityMetrics_IncludesKnownNodesAndKnownEdges()
+    {
+        var graph = ArchitectureGraph.Create(Guid.NewGuid());
+        var source = graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Web/sites/api", "api", Domain.C4Level.Container);
+        var target = graph.AddOrUpdateNode("/subscriptions/1/resourceGroups/rg/providers/Microsoft.Sql/servers/sql", "sql", Domain.C4Level.Container);
+        graph.AddEdge(source, target);
+        var handler = new GetGraphHandler(new FakeRepository(graph), new EmptyTelemetryQueryService(), new EmptyDriftQueryService(), new AlwaysAuthorizingService());
+
+        var result = await handler.Handle(new GetGraphQuery(graph.ProjectId, "Container"), CancellationToken.None);
+
+        using var scope = new AssertionScope();
+        result.Value.Quality!.KnownNodes.Should().Be(0);
+        result.Value.Quality.KnownEdges.Should().Be(0);
     }
 
     private sealed class FakeRepository(ArchitectureGraph graph) : IArchitectureGraphRepository

@@ -153,4 +153,55 @@ public sealed class EnvironmentClassifierTests
 
         result.Should().Be(expected);
     }
+
+    [Theory]
+    [InlineData("my-sbx-api", "sandbox")]
+    [InlineData("my-perf-api", "test")]
+    [InlineData("my-load-api", "test")]
+    [InlineData("my-sit-api", "test")]
+    public void InferEnvironment_NewPatternsFromEpic9_ReturnsExpectedEnvironment(string name, string expected)
+    {
+        var result = EnvironmentClassifier.InferEnvironment(name);
+
+        result.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("my-dr-api", "production")]
+    [InlineData("hotfix-gateway", "production")]
+    [InlineData("api-canary", "production")]
+    public void InferEnvironment_DrHotfixCanary_ReturnsProduction(string resourceName, string expected)
+    {
+        var result = EnvironmentClassifier.InferEnvironment(resourceName);
+
+        result.Should().Be(expected);
+    }
+
+    [Fact]
+    public void InferEnvironment_PreviewPattern_ReturnsStaging()
+    {
+        var result = EnvironmentClassifier.InferEnvironment("api-preview");
+
+        result.Should().Be("staging");
+    }
+
+    [Fact]
+    public void InferEnvironment_AcceptancePattern_ReturnsQa()
+    {
+        var result = EnvironmentClassifier.InferEnvironment("api-acceptance");
+
+        result.Should().Be("qa");
+    }
+
+    [Theory]
+    [InlineData("DOTNET_ENVIRONMENT:production", "production")]
+    [InlineData("NODE_ENV:staging", "staging")]
+    public void InferEnvironment_TagWithNewKeys_ReturnsEnvironment(string tag, string expected)
+    {
+        var tags = new[] { tag };
+
+        var result = EnvironmentClassifier.InferEnvironment("svc-main", "rg-main", tags);
+
+        result.Should().Be(expected);
+    }
 }

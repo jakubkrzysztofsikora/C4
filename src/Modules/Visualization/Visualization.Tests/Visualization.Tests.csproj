@@ -3,6 +3,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../Visualization.Api/Visualization.Api.csproj" />
     <ProjectReference Include="../Visualization.Application/Visualization.Application.csproj" />
     <ProjectReference Include="../Visualization.Domain/Visualization.Domain.csproj" />
     <ProjectReference Include="../../../Shared/Testing/Testing.csproj" />
