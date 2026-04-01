@@ -15,6 +15,119 @@ Optimize the C4 diagram rendering pipeline to maintain 60fps interactive perform
 - [ ] Backend supports paginated/chunked graph responses for 2000+ node graphs
 - [ ] No regressions in existing diagram functionality (filters, overlays, diff, export)
 - [ ] All changes verified with performance profiling (Chrome DevTools / Lighthouse)
+- [ ] Agent Teams experimental feature enabled and used for parallel cross-layer implementation
+
+### Agent Teams Execution Strategy
+
+This plan leverages the **Claude Code Agent Teams** experimental feature (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`) to parallelize cross-layer implementation work. Agent teams coordinate multiple independent Claude Code sessions working simultaneously, with shared task lists, peer-to-peer messaging, and file locking to prevent conflicts.
+
+**Configuration**: Enabled via `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` in `.claude/settings.json`.
+
+#### Team Compositions
+
+**Team 1: Quick Wins Blitz** (Epics 1 + 2 — independent, no file conflicts)
+```
+Lead: Orchestrator
+├── Teammate A (react-writer): Tasks 1.1, 1.2, 1.3, 1.4, 1.5 — DiagramCanvas.tsx + GroupNode.tsx memoization
+├── Teammate B (react-writer): Task 2.1 — useElkLayout.ts web worker switch
+└── Teammate C (test-generator): Task 1.6 — Performance test suite (can start once A finishes 1.1)
+```
+- **Why teams over subagents**: Teammates A and B work on different files simultaneously (DiagramCanvas vs useElkLayout), then Teammate C writes tests informed by the changes both made — peer messaging lets C ask A/B what changed.
+- **File safety**: No overlapping file edits — A owns DiagramCanvas.tsx + GroupNode.tsx, B owns useElkLayout.ts, C owns __tests__/.
+
+**Team 2: Full-Stack LOD + Backend** (Epics 3 + 4 — frontend and backend in parallel)
+```
+Lead: Orchestrator
+├── Teammate A (react-writer): Tasks 3.1, 3.2 — LOD rendering + CSS in DiagramCanvas.tsx
+├── Teammate B (csharp-writer): Tasks 4.1, 4.3, 4.4 — Backend summary endpoint + handler optimization
+├── Teammate C (csharp-writer): Task 4.2 — Response compression in Host
+└── Teammate D (test-generator): Tasks 3.3, 4.5 — LOD tests + backend performance tests
+```
+- **Why teams over subagents**: Frontend LOD (Teammate A) and backend optimization (Teammates B/C) are fully independent layers. Teammate D writes tests for both layers, querying A and B via peer messaging for implementation details.
+- **File safety**: A owns web/src/features/diagram/components/ + diagram.css, B owns Graph.Application/, C owns Host/, D owns test files only.
+
+**Team 3: Data Layer + Edge Optimization** (Epics 5 + 6 — frontend data and rendering)
+```
+Lead: Orchestrator
+├── Teammate A (react-writer): Tasks 5.1, 5.2 — useDiagram optimization + progressive rendering hook
+├── Teammate B (react-writer): Tasks 6.1, 6.2, 5.3 — Edge optimization + rendering strategy hook
+└── Teammate C (test-generator): Tasks 5.4, 6.3 — Data layer + edge rendering tests
+```
+- **Why teams over subagents**: A works on hooks (useDiagram.ts, useProgressiveRender.ts) while B works on DiagramCanvas edge rendering + useRenderingStrategy.ts. The rendering strategy (B) depends on knowing about progressive rendering (A) — peer messaging enables this coordination without blocking.
+- **File safety**: A owns useDiagram.ts + new hooks, B owns edge sections of DiagramCanvas.tsx + useRenderingStrategy.ts, C owns test files.
+
+**Team 4: Collapsible Groups** (Epic 7 — tightly coupled, sequential with verification)
+```
+Lead: Orchestrator
+├── Teammate A (react-writer): Tasks 7.1, 7.2 — GroupNode interaction + collapsed state management
+├── Teammate B (react-writer): Task 7.3 — ELK layout filtering for collapsed groups (depends on 7.2)
+└── Teammate C (test-generator + change-verifier): Task 7.4 — Collapsible group tests + full verification
+```
+- **Why teams over subagents**: Task 7.3 depends on the collapsed state interface from 7.2. With peer messaging, B can ask A for the exact `Set<string>` interface shape as soon as A finishes 7.2, without waiting for A to complete 7.1 too.
+- **Task dependency**: B waits for A to finish 7.2 before starting 7.3.
+
+#### Sequential Quality Gates Between Teams
+
+After each team completes, run a **verification pipeline** before starting the next team:
+
+```
+Team 1 completes
+  → build-runner: "Build solution and run all tests"
+  → change-verifier: "Verify Epic 1 + 2 changes"
+Team 2 completes
+  → build-runner: "Build solution and run all tests"
+  → arch-validator: "Validate Graph module boundaries after 4.1/4.4 changes"
+Team 3 completes
+  → build-runner: "Build solution and run all tests"
+  → code-quality-reviewer: "Review data layer changes for standards compliance"
+Team 4 completes
+  → build-runner: "Build solution and run all tests"
+  → pr-reviewer: "Full PR review of all optimization changes"
+```
+
+#### When NOT to Use Agent Teams
+
+- Tasks within the same file (e.g., multiple edits to DiagramCanvas.tsx) — use a single teammate
+- Simple one-line changes (e.g., 2.1 ELK import swap) — subagent or direct edit is faster
+- Sequential verification tasks (build-runner, change-verifier) — these are single-agent operations
+
+#### Estimated Speedup
+
+| Approach | Estimated Wall Clock |
+|----------|---------------------|
+| Sequential (no teams) | ~38 hours |
+| With Agent Teams (4 teams) | ~18 hours (~2x speedup) |
+
+The speedup comes from parallelizing frontend/backend work (Team 2), parallelizing data/rendering layers (Team 3), and running tests alongside implementation (all teams).
+
+### Epic 0: Infrastructure & Agent Teams Setup
+Goal: Enable the Agent Teams experimental feature and verify the development environment is ready
+
+| # | Task | Type | Module | Complexity | Depends On | Status |
+|---|------|------|--------|------------|------------|--------|
+| 0.1 | Enable CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS in settings.json | Infrastructure | .claude | S | – | ⬚ |
+| 0.2 | Verify agent team orchestration with a dry-run test | Spike | .claude | S | 0.1 | ⬚ |
+
+#### 0.1 – Enable Agent Teams Feature Flag
+- **Files to modify**: `.claude/settings.json`
+- **Test plan (TDD)**:
+  - Verify the `env` block contains `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"`
+  - Verify existing permissions are not affected
+- **Acceptance criteria**:
+  - `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` set to `"1"` in `.claude/settings.json`
+  - Existing `permissions.allow` and `permissions.deny` arrays unchanged
+  - Claude Code recognizes the feature flag on next session start
+
+#### 0.2 – Verify Agent Teams Dry-Run
+- **Files to modify**: none (verification only)
+- **Test plan (TDD)**:
+  - Spawn a 2-teammate team with a trivial task (e.g., "read DiagramCanvas.tsx and report line count")
+  - Verify teammates can communicate via peer messaging
+  - Verify file locking prevents simultaneous edits to the same file
+- **Acceptance criteria**:
+  - Agent team spawns successfully
+  - Teammates report back with results
+  - No errors in team coordination
 
 ### Epic 1: React Rendering Optimizations (Quick Wins)
 Goal: Eliminate unnecessary re-renders and DOM operations in the existing React Flow setup
@@ -374,13 +487,17 @@ Goal: Leverage the C4 model hierarchy to collapse/expand groups, reducing visibl
 | R5 | React.memo on ServiceNode may break if data object identity changes unexpectedly | Low | High | Ensure useMemo on node data objects; add referential equality tests |
 | R6 | Backend response compression may break existing clients/SignalR | Low | Medium | Test all API consumers; SignalR uses its own transport negotiation |
 | R7 | Collapsible groups may break edge routing for edges crossing group boundaries | Medium | High | Spike task: prototype with 5-group test case before full implementation |
+| R8 | Agent Teams feature is experimental with known limitations around session resumption | Medium | Medium | Run verification gate after each team; fall back to sequential subagents if team coordination fails |
+| R9 | Agent Teams teammates may attempt same-file edits despite file safety plan | Low | High | Assign explicit file ownership per teammate; use verification pipeline after each team completes |
+| R10 | Agent Teams token cost scales linearly with team size | Low | Medium | Limit teams to 3-4 teammates; use subagents for trivial tasks (one-line changes) |
 
 ### Critical Path
-1.1 → 1.6 → 3.1 → 3.3 → 5.3 → 7.1 → 7.3 → 7.4
+0.1 → 0.2 → Team 1 (1.1-1.5 ∥ 2.1) → verification → Team 2 (3.1-3.2 ∥ 4.1-4.4) → verification → Team 3 (5.1-5.2 ∥ 6.1-6.2 ∥ 5.3) → verification → Team 4 (7.1-7.2 → 7.3) → final verification
 
 ### Estimated Total Effort
-- S tasks: 9 × ~30 min = ~4.5 h
+- S tasks: 11 × ~30 min = ~5.5 h
 - M tasks: 11 × ~2.5 h = ~27.5 h
 - L tasks: 1 × ~6 h = ~6 h
 - XL tasks: 0
-- **Total: ~38 hours**
+- **Total sequential: ~39 hours**
+- **Total with Agent Teams (~2x parallelization): ~19 hours wall clock**
