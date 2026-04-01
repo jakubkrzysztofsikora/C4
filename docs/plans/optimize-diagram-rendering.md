@@ -25,54 +25,52 @@ This plan leverages the **Claude Code Agent Teams** experimental feature (`CLAUD
 
 #### Team Compositions
 
-**Team 1: Quick Wins Blitz** (Epics 1 + 2 — independent, no file conflicts)
+**DiagramCanvas.tsx Ownership Rule**: This file is touched by tasks across Epics 1, 2, 3, 5, and 6. To prevent merge conflicts, **all DiagramCanvas.tsx edits are assigned to a single named teammate per team**, and teams are serialized (Team 1 finishes all DiagramCanvas changes before Team 2 starts its own).
+
+**Team 1: Quick Wins Blitz** (Epics 1 + 2 — independent file owners)
 ```
 Lead: Orchestrator
-├── Teammate A (react-writer): Tasks 1.1, 1.2, 1.3, 1.4, 1.5 — DiagramCanvas.tsx + GroupNode.tsx memoization
-├── Teammate B (react-writer): Tasks 2.1, 2.2 — useElkLayout.ts web worker switch + loading indicator
-├── Teammate C (test-generator): Task 1.6 — Performance test suite (can start once A finishes 1.1)
-└── Teammate D (visual-qa): Task 1.7 — Browser-based QA: measure DOM node counts, FPS during pan/zoom, verify no console errors after memoization changes
+├── Teammate A (react-writer): Tasks 1.1, 1.2, 1.3, 1.4, 1.5, 2.2 — ALL DiagramCanvas.tsx + GroupNode.tsx + diagram.css changes
+├── Teammate B (react-writer): Task 2.1 — useElkLayout.ts web worker switch + Vite config
+├── Teammate C (test-generator): Task 1.6 — Performance test suite (can start once A finishes 1.2)
+└── Teammate D (visual-qa): Task 1.7 — Browser-based QA: measure DOM node counts, FPS, MiniMap culling interaction
 ```
-- **Why teams over subagents**: Teammates A and B work on different files simultaneously (DiagramCanvas vs useElkLayout), Teammate C writes tests informed by the changes both made via peer messaging, and Teammate D validates visual correctness and measures real rendering performance in the browser using Playwright.
-- **File safety**: A owns DiagramCanvas.tsx + GroupNode.tsx, B owns useElkLayout.ts, C owns __tests__/, D is read-only (screenshots + metrics).
-- **QA teammate role**: D launches the dev server, navigates to a diagram page, takes baseline screenshots, measures FPS and DOM node counts before/after the memoization changes, and reports any visual regressions or console errors.
+- **Why teams over subagents**: A and B work on different files simultaneously (DiagramCanvas vs useElkLayout), C writes tests informed by both via peer messaging, D validates in real browser.
+- **File safety**: A owns DiagramCanvas.tsx + GroupNode.tsx + diagram.css, B owns useElkLayout.ts + vite.config.ts, C owns __tests__/, D is read-only.
+- **Note**: Task 2.2 (loading indicator) moved to Teammate A since it modifies DiagramCanvas.tsx.
 
 **Team 2: Full-Stack LOD + Backend** (Epics 3 + 4 — frontend and backend in parallel)
 ```
 Lead: Orchestrator
-├── Teammate A (react-writer): Tasks 3.1, 3.2 — LOD rendering + CSS in DiagramCanvas.tsx
-├── Teammate B (csharp-writer): Tasks 4.1, 4.3, 4.4 — Backend summary endpoint + handler optimization
-├── Teammate C (csharp-writer): Task 4.2 — Response compression in Host
-├── Teammate D (test-generator): Tasks 3.3, 4.5 — LOD tests + backend performance tests
-└── Teammate E (visual-qa): Task 3.4 — Browser-based QA: verify LOD tiers render correctly at each zoom level, measure API response sizes with compression, validate network performance
+├── Teammate A (react-writer): Tasks 3.1, 3.2, 4.7 — LOD rendering in DiagramCanvas.tsx + CSS + ELK routing switch
+├── Teammate B (csharp-writer): Tasks 4.1, 4.2, 4.4, 4.5, 4.6 — EF Core projection + summary endpoint + ETag + node count + handler optimization
+├── Teammate C (csharp-writer): Task 4.3 — Response compression in Host
+├── Teammate D (test-generator): Tasks 3.3, 4.9 — LOD tests + backend performance tests
+└── Teammate E (visual-qa): Task 3.4 — Browser-based QA: verify LOD tiers, API compression, network perf
 ```
-- **Why teams over subagents**: Frontend LOD (Teammate A) and backend optimization (Teammates B/C) are fully independent layers. Teammate D writes tests for both layers via peer messaging, and Teammate E validates visually that LOD tiers switch correctly at zoom thresholds and that compressed API responses are smaller.
-- **File safety**: A owns web/src/features/diagram/components/ + diagram.css, B owns Graph.Application/, C owns Host/, D owns test files, E is read-only.
-- **QA teammate role**: E zooms to each LOD threshold (< 0.2, 0.2-0.5, > 0.5) and screenshots each tier, verifies the correct CSS classes are present (`.service-node-dot`, `.service-node-compact`, `.service-node`), and checks network requests for `Content-Encoding` headers and response sizes.
+- **Why teams over subagents**: Frontend LOD (A) and backend optimization (B/C) are fully independent layers. D writes tests for both via peer messaging, E validates visually.
+- **File safety**: A owns DiagramCanvas.tsx + diagram.css + useElkLayout.ts (routing only), B owns Graph.Application/ + Graph.Infrastructure/ + Graph.Api/, C owns Host/, D owns test files, E is read-only.
 
-**Team 3: Data Layer + Edge Optimization** (Epics 5 + 6 — frontend data and rendering)
+**Team 3: Data Layer + Edge Optimization** (Epics 5 + 6)
 ```
 Lead: Orchestrator
-├── Teammate A (react-writer): Tasks 5.1, 5.2 — useDiagram optimization + progressive rendering hook
-├── Teammate B (react-writer): Tasks 6.1, 6.2, 5.3 — Edge optimization + rendering strategy hook
+├── Teammate A (react-writer): Tasks 5.1, 5.2, 6.1, 6.2, 5.3 — ALL frontend changes: useDiagram.ts + DiagramCanvas.tsx edges + new hooks
+├── Teammate B (csharp-writer): Task 4.8 — SignalR differential updates (backend + useDiagram.ts SignalR handler)
 ├── Teammate C (test-generator): Tasks 5.4, 6.3 — Data layer + edge rendering tests
-└── Teammate D (visual-qa): Task 6.4 — Browser-based QA: verify edge labels hidden at density threshold, progressive rendering shows nodes appearing in batches, measure frame rate during filter changes
+└── Teammate D (visual-qa): Task 6.4 — Browser-based QA: edge simplification, progressive rendering, filter FPS
 ```
-- **Why teams over subagents**: A works on hooks (useDiagram.ts, useProgressiveRender.ts) while B works on DiagramCanvas edge rendering + useRenderingStrategy.ts. Teammate D validates that edge simplification and progressive rendering work visually in a real browser.
-- **File safety**: A owns useDiagram.ts + new hooks, B owns edge sections of DiagramCanvas.tsx + useRenderingStrategy.ts, C owns test files, D is read-only.
-- **QA teammate role**: D verifies edge labels disappear when edge count > 500, watches progressive rendering batches appear visually, and measures FPS during rapid filter changes using Playwright performance APIs.
+- **Why teams over subagents**: A consolidates ALL frontend file edits (resolving the DiagramCanvas.tsx ownership conflict between old Teams 3's A and B). B works independently on backend SignalR delta support.
+- **File safety**: A owns all web/ files (useDiagram.ts, DiagramCanvas.tsx, new hooks), B owns Visualization.Api/Hubs/ + SignalRDiagramNotifier.cs + useSignalR.ts, C owns test files, D is read-only.
 
-**Team 4: Collapsible Groups** (Epic 7 — tightly coupled, sequential with verification)
+**Team 4: Collapsible Groups** (Epic 7 — simplified to 3 teammates since tasks are sequential)
 ```
 Lead: Orchestrator
-├── Teammate A (react-writer): Tasks 7.1, 7.2 — GroupNode interaction + collapsed state management
-├── Teammate B (react-writer): Task 7.3 — ELK layout filtering for collapsed groups (depends on 7.2)
-├── Teammate C (test-generator + change-verifier): Task 7.4 — Collapsible group tests + full verification
-└── Teammate D (visual-qa): Task 7.5 — Browser-based QA: verify collapse/expand interaction, measure node count reduction, validate edge rerouting visually, screenshot collapsed vs expanded states
+├── Teammate A (react-writer): Tasks 7.1, 7.2, 7.3 — All GroupNode + collapsed state + ELK filtering (sequential)
+├── Teammate B (test-generator + change-verifier): Task 7.4 — Tests + full verification (starts after 7.2)
+└── Teammate C (visual-qa): Task 7.5 — Browser-based QA: collapse/expand UX, node count reduction, edge rerouting
 ```
-- **Why teams over subagents**: Task 7.3 depends on the collapsed state interface from 7.2. With peer messaging, B can ask A for the exact `Set<string>` interface shape as soon as A finishes 7.2. Teammate D validates the full collapse/expand UX in a real browser.
-- **Task dependency**: B waits for A to finish 7.2 before starting 7.3. D starts after A completes 7.1.
-- **QA teammate role**: D clicks group headers to toggle collapse/expand, screenshots both states, verifies DOM node count drops when groups are collapsed, and checks that edges reroute correctly to group nodes without visual artifacts.
+- **Why 3 instead of 4**: Tasks 7.1→7.2→7.3 are tightly sequential (each depends on the previous). A second react-writer waiting for 7.2 adds cost without speedup. Single-owner A does all three sequentially; B writes tests in parallel starting after 7.2; C validates in browser after 7.1.
+- **File safety**: A owns GroupNode.tsx + useDiagram.ts (collapsed state) + useElkLayout.ts, B owns test files, C is read-only.
 
 #### Sequential Quality Gates Between Teams
 
@@ -157,15 +155,16 @@ Goal: Eliminate unnecessary re-renders and DOM operations in the existing React 
 
 | # | Task | Type | Module | Complexity | Depends On | Status |
 |---|------|------|--------|------------|------------|--------|
-| 1.1 | Memoize ServiceNode and GroupNode components with React.memo | Refactor | web | S | – | ⬚ |
+| 1.1 | Memoize ServiceNode/GroupNode with React.memo + memoize title tooltip string | Refactor | web | S | 1.2 | ⬚ |
 | 1.2 | Memoize node/edge array transformations in DiagramCanvas with useMemo | Refactor | web | S | – | ⬚ |
 | 1.3 | Enable onlyRenderVisibleElements for large graphs (500+ nodes) | Feature | web | S | – | ⬚ |
-| 1.4 | Add snapToGrid to reduce drag-induced re-renders | Feature | web | S | – | ⬚ |
+| 1.4 | Add CSS containment (`contain: layout style paint`) to node classes | Refactor | web | S | – | ⬚ |
 | 1.5 | Stabilize MiniMap nodeColor callback with useCallback | Refactor | web | S | – | ⬚ |
-| 1.6 | Write rendering performance tests with large mock datasets | Test | web | M | 1.1 | ⬚ |
+| 1.6 | Write rendering performance tests (data transform timing only, not jsdom render) | Test | web | M | 1.1 | ⬚ |
 | 1.7 | Visual QA: validate memoization, measure DOM counts and FPS via Playwright | Test | web | M | 1.1, 1.2, 1.3 | ⬚ |
 
 #### 1.1 – Memoize ServiceNode and GroupNode
+- **Depends on**: 1.2 (React.memo is inert without useMemo stabilizing data object references)
 - **Files to modify**: `web/src/features/diagram/components/DiagramCanvas.tsx`, `web/src/features/diagram/components/GroupNode.tsx`
 - **Test plan (TDD)**:
   - Unit tests: `DiagramCanvasTests` – `ServiceNode_SameProps_DoesNotRerender`, `GroupNode_SameProps_DoesNotRerender`
@@ -173,6 +172,7 @@ Goal: Eliminate unnecessary re-renders and DOM operations in the existing React 
 - **Acceptance criteria**:
   - `ServiceNode` wrapped in `React.memo` with stable reference
   - `GroupNode` wrapped in `React.memo`
+  - `title` tooltip string (lines 56-74) memoized with `useMemo` inside ServiceNode to avoid 500+ string allocations per render
   - `nodeTypes` object remains defined at module level (already correct)
   - No visual or behavioral changes to existing rendering
 
@@ -196,13 +196,16 @@ Goal: Eliminate unnecessary re-renders and DOM operations in the existing React 
   - Performance improvement measurable via DOM node count reduction
   - No visual artifacts when panning across large diagrams
 
-#### 1.4 – Add Snap-to-Grid
-- **Files to modify**: `web/src/features/diagram/components/DiagramCanvas.tsx`
+#### 1.4 – CSS Containment on Node Classes
+- **Files to modify**: `web/src/features/diagram/diagram.css`
 - **Test plan (TDD)**:
-  - Manual verification: node drag updates less frequently
+  - Visual QA verification that nodes render correctly with containment
+  - Measure paint time reduction via Playwright performance API
 - **Acceptance criteria**:
-  - `snapToGrid={true}` and `snapGrid={[25, 25]}` added to ReactFlow
-  - Reduced state update frequency during node dragging
+  - `.service-node`, `.service-node-compact`, `.group-node` classes include `contain: layout style paint`
+  - Isolates paint/layout boundaries, reducing browser reflow cost during pan at 1000+ nodes
+  - No visual regressions (verify `box-shadow` and `backdrop-filter` still render correctly)
+  - Audit and remove any heavy CSS effects (`box-shadow`, `filter`) from node classes that trigger layer promotion
 
 #### 1.5 – Stabilize MiniMap Callback
 - **Files to modify**: `web/src/features/diagram/components/DiagramCanvas.tsx`
@@ -220,23 +223,28 @@ Goal: Eliminate unnecessary re-renders and DOM operations in the existing React 
   - Measure DOM node count (`.react-flow__node` elements) before and after memoization
   - Measure FPS during 3-second pan interaction via `requestAnimationFrame` timing
   - Check browser console for React warnings, errors, or performance deprecations
-  - Verify MiniMap renders correctly after callback stabilization
+  - Verify MiniMap renders correctly after callback stabilization — specifically check for blank areas when `onlyRenderVisibleElements` is active (known interaction issue)
+  - Verify MiniMap shows all nodes colored correctly even when viewport culling hides off-screen nodes
 - **Acceptance criteria**:
   - No visual regressions compared to pre-optimization screenshots
   - DOM node count reduced when `onlyRenderVisibleElements` is active (task 1.3)
+  - MiniMap shows full graph overview without blank areas despite culling
   - FPS >= 30 during pan/zoom at default zoom (0.3)
   - Zero console errors
 
-#### 1.6 – Performance Test Suite
+#### 1.6 – Performance Test Suite (Data Transform Timing)
 - **Files to create**: `web/src/features/diagram/__tests__/DiagramPerformance.test.tsx`
 - **Test plan (TDD)**:
   - Create mock datasets: 100, 500, 1000, 2000 nodes with proportional edges
-  - Measure: initial render time, re-render time on filter change, DOM node count
-  - Assert: render time < 3s for 1000 nodes, DOM nodes < 200 when zoomed out
+  - Measure: data transformation time (mapGraphDtoToDiagramData), filter pipeline time, node/edge array creation time
+  - Assert: data transform < 100ms for 1000 nodes, filter pipeline < 50ms for 1000 nodes
+  - **Note**: Do NOT assert render timing in jsdom — jsdom does not trigger real browser layout/paint. Real render performance baselines come from visual-qa task 1.7 via Playwright.
   - Fakes/Fixtures: `createMockDiagramData(nodeCount: number)` builder
 - **Acceptance criteria**:
-  - Performance baselines established and documented
+  - Data transform and filter baselines established and documented
+  - Tests scoped to JavaScript execution time, not browser rendering
   - Tests run in CI and fail on significant regressions
+  - Bundle size delta measured and documented after ELK worker switch (task 2.1)
 
 ### Epic 2: Layout Computation Offloading
 Goal: Move ELK layout computation off the main thread to prevent UI freezes
@@ -248,15 +256,23 @@ Goal: Move ELK layout computation off the main thread to prevent UI freezes
 | 2.3 | Verify web worker layout with large graphs | Test | web | M | 2.1 | ⬚ |
 
 #### 2.1 – Switch ELK to Web Worker Build
-- **Files to modify**: `web/src/features/diagram/hooks/useElkLayout.ts`
+- **Files to modify**: `web/src/features/diagram/hooks/useElkLayout.ts`, `web/vite.config.ts` (if needed)
 - **Test plan (TDD)**:
   - Unit tests: `UseElkLayoutTests` – `Layout_LargeGraph_DoesNotBlockMainThread`, `Layout_ProducesIdenticalResults`
   - Verify main thread stays responsive during 1000-node layout
+  - Verify worker teardown: no memory leaks on component unmount, no state updates after unmount
+  - Measure bundle size delta before/after worker switch
+- **Vite worker setup** (concrete steps, not "if needed"):
+  - `elkjs/lib/elk-worker.js` requires a `workerUrl` pointing to a bundled worker script
+  - In Vite, use `?worker` import syntax with a wrapper or configure `vite.config.ts` `optimizeDeps` to handle the worker bundle
+  - Test both `npm run dev` (Vite dev server) and `npm run build` (production build)
+  - If the official worker build fails with Vite, fall back to a custom `new Worker()` wrapper around `elk.bundled.js`
 - **Acceptance criteria**:
-  - Import changed from `elkjs/lib/elk.bundled.js` to `elkjs/lib/elk-worker.js`
+  - Import changed from `elkjs/lib/elk.bundled.js` to `elkjs/lib/elk-worker.js` (or custom worker wrapper)
   - Layout results identical to bundled version
   - Main thread frame budget maintained during layout (no jank)
-  - Vite config updated if needed for web worker bundling
+  - Both Vite dev and prod builds work correctly
+  - Bundle size delta documented
 
 #### 2.2 – Layout Loading Indicator
 - **Files to modify**: `web/src/features/diagram/components/DiagramCanvas.tsx`
@@ -292,12 +308,23 @@ Goal: Render simplified node representations at low zoom levels to reduce DOM co
 - **Files to modify**: `web/src/features/diagram/components/DiagramCanvas.tsx`
 - **Test plan (TDD)**:
   - Unit tests: `ServiceNodeTests` – `ZoomBelow02_RendersDot`, `ZoomBetween02And05_RendersCompact`, `ZoomAbove05_RendersFull`
-  - Fakes/Fixtures: mock `useViewport` hook
+  - Fakes/Fixtures: mock `useStore` selector
+- **CRITICAL IMPLEMENTATION NOTE**: Do NOT use `useViewport()` — it returns raw zoom float and triggers re-renders on every frame during pan/zoom, causing all 1000 nodes to re-render 60 times per second. Instead use `useStore` with a discretized LOD tier selector that only triggers re-renders when the tier actually changes:
+  ```typescript
+  type LodTier = 'dot' | 'compact' | 'full';
+  const lodTier = useStore((s) => {
+    const z = s.transform[2];
+    if (z < 0.2) return 'dot';
+    if (z < 0.5) return 'compact';
+    return 'full';
+  });
+  ```
 - **Acceptance criteria**:
+  - LOD uses `useStore` selector returning `'dot' | 'compact' | 'full'` enum, NOT `useViewport()`
+  - Re-renders only fire when the LOD tier changes (3 possible transitions), not on every zoom delta
   - zoom < 0.2: render colored dot (12x12px circle) with health color + Handles only
   - zoom 0.2-0.5: render compact node (icon + label + health badge) without metrics/tags
   - zoom > 0.5: render full detail node (current implementation)
-  - Smooth visual transitions between LOD levels
   - Handles always present at all LOD levels for edge connections
 
 #### 3.2 – LOD CSS Styles
@@ -340,13 +367,29 @@ Goal: Reduce payload size and processing time for large graph responses
 
 | # | Task | Type | Module | Complexity | Depends On | Status |
 |---|------|------|--------|------------|------------|--------|
-| 4.1 | Add server-side graph summary endpoint for initial overview | Feature | Graph.Api | M | – | ⬚ |
-| 4.2 | Implement response compression for graph payloads | Feature | Host | S | – | ⬚ |
-| 4.3 | Add node count metadata to graph response | Feature | Graph.Application | S | – | ⬚ |
-| 4.4 | Optimize GetGraphHandler projection to reduce allocations | Refactor | Graph.Application | M | – | ⬚ |
-| 4.5 | Write backend performance tests for large graphs | Test | Graph.Tests | M | 4.1, 4.4 | ⬚ |
+| 4.1 | Add EF Core projection query to avoid loading full aggregate + all snapshots | Refactor | Graph.Infrastructure | M | – | ⬚ |
+| 4.2 | Add server-side graph summary endpoint for initial overview | Feature | Graph.Api | M | – | ⬚ |
+| 4.3 | Implement response compression for graph payloads | Feature | Host | S | – | ⬚ |
+| 4.4 | Add ETag/conditional-GET for graph endpoint to eliminate redundant polling | Feature | Graph.Api | M | – | ⬚ |
+| 4.5 | Add node count metadata to graph response | Feature | Graph.Application | S | – | ⬚ |
+| 4.6 | Optimize GetGraphHandler projection to reduce allocations | Refactor | Graph.Application | M | 4.1 | ⬚ |
+| 4.7 | Switch ELK edge routing to POLYLINE for graphs over 500 nodes | Refactor | web | S | – | ⬚ |
+| 4.8 | Add SignalR differential updates instead of full graph re-fetch | Feature | Graph, Visualization | L | – | ⬚ |
+| 4.9 | Write backend performance tests for large graphs | Test | Graph.Tests | M | 4.1, 4.6 | ⬚ |
 
-#### 4.1 – Graph Summary Endpoint
+#### 4.1 – EF Core Projection Query
+- **Files to modify**: `src/Modules/Graph/Graph.Infrastructure/Persistence/Repositories/ArchitectureGraphRepository.cs`, `src/Modules/Graph/Graph.Application/Ports/IArchitectureGraphRepository.cs`
+- **Test plan (TDD)**:
+  - Unit tests: `ArchitectureGraphRepositoryTests` – `GetByProjectId_ProjectsOnlyRequiredColumns`, `GetByProjectId_ExcludesUnrequestedSnapshots`
+  - Fakes/Fixtures: In-memory EF Core DbContext
+- **Acceptance criteria**:
+  - New projection method `GetGraphForQueryAsync(projectId, snapshotId?)` that selects only required columns
+  - When `snapshotId` is specified, loads only that single snapshot instead of all snapshots
+  - When no `snapshotId`, does not load snapshots at all (they are only needed for snapshot queries)
+  - Eliminates eager loading of full navigation properties via `.Include(g => g.Snapshots)` when not needed
+  - Measured query time reduction documented for 5000-node graph with 20 snapshots
+
+#### 4.2 – Graph Summary Endpoint
 - **Files to create**: `src/Modules/Graph/Graph.Api/Endpoints/GetGraphSummaryEndpoint.cs`, `src/Modules/Graph/Graph.Application/GetGraphSummary/GetGraphSummaryQuery.cs`, `src/Modules/Graph/Graph.Application/GetGraphSummary/GetGraphSummaryHandler.cs`, `src/Modules/Graph/Graph.Application/GetGraphSummary/GraphSummaryDto.cs`
 - **Test plan (TDD)**:
   - Unit tests: `GetGraphSummaryHandlerTests` – `Handle_ValidProject_ReturnsSummary`, `Handle_LargeGraph_ReturnsQuickly`
@@ -357,7 +400,7 @@ Goal: Reduce payload size and processing time for large graph responses
   - Response time < 100ms for 5000-node graphs
   - Frontend can use this to decide rendering strategy before fetching full graph
 
-#### 4.2 – Response Compression
+#### 4.3 – Response Compression
 - **Files to modify**: `src/Host/Program.cs` (or startup configuration)
 - **Test plan (TDD)**:
   - Integration tests: verify `Content-Encoding: gzip` or `br` on graph API responses
@@ -366,7 +409,18 @@ Goal: Reduce payload size and processing time for large graph responses
   - Graph response for 1000 nodes reduced by ~70-80%
   - No impact on non-JSON endpoints
 
-#### 4.3 – Node Count Metadata in Graph Response
+#### 4.4 – ETag/Conditional-GET for Graph Endpoint
+- **Files to modify**: `src/Modules/Graph/Graph.Api/Endpoints/GetGraphEndpoint.cs`, `src/Modules/Graph/Graph.Application/GetGraph/GetGraphHandler.cs`
+- **Test plan (TDD)**:
+  - Unit tests: `GetGraphEndpointTests` – `Get_UnchangedGraph_Returns304`, `Get_ChangedGraph_Returns200WithNewETag`
+- **Acceptance criteria**:
+  - Graph response includes `ETag` header based on hash of graph version/timestamp
+  - Clients sending `If-None-Match` receive `304 Not Modified` when graph unchanged
+  - The 60-second polling loop in `useDiagram.ts` sends `If-None-Match` header
+  - Eliminates unnecessary deserialization and transfer for unchanged graphs
+  - Measured: 90%+ of polling requests return 304 during idle periods
+
+#### 4.5 – Node Count Metadata in Graph Response
 - **Files to modify**: `src/Modules/Graph/Graph.Application/GetGraph/GraphDto.cs`, `src/Modules/Graph/Graph.Application/GetGraph/GetGraphHandler.cs`
 - **Test plan (TDD)**:
   - Unit tests: `GetGraphHandlerTests` – `Handle_LargeGraph_IncludesNodeCount`
@@ -374,7 +428,7 @@ Goal: Reduce payload size and processing time for large graph responses
   - `GraphDto` includes `totalNodeCount` (pre-filter) and `filteredNodeCount` (post-filter)
   - Frontend uses this to enable/disable performance optimizations dynamically
 
-#### 4.4 – Optimize GetGraphHandler Projections
+#### 4.6 – Optimize GetGraphHandler Projections
 - **Files to modify**: `src/Modules/Graph/Graph.Application/GetGraph/GetGraphHandler.cs`
 - **Test plan (TDD)**:
   - Unit tests: `GetGraphHandlerTests` – `Handle_5000Nodes_CompletesUnder500ms`
@@ -385,7 +439,28 @@ Goal: Reduce payload size and processing time for large graph responses
   - Telemetry index built once and reused across all node projections
   - No behavioral changes to response content
 
-#### 4.5 – Backend Performance Tests
+#### 4.7 – Switch ELK Edge Routing to POLYLINE for Large Graphs
+- **Files to modify**: `web/src/features/diagram/hooks/useElkLayout.ts`
+- **Test plan (TDD)**:
+  - Unit tests: `UseElkLayoutTests` – `LargeGraph_UsesPolylineRouting`, `SmallGraph_UsesOrthogonalRouting`
+- **Acceptance criteria**:
+  - When node count > 500, ELK_OPTIONS uses `elk.edgeRouting: 'POLYLINE'` instead of `'ORTHOGONAL'`
+  - ORTHOGONAL routing has O(n^2) edge routing complexity; POLYLINE is significantly faster
+  - Layout time for 1000 nodes reduced by 30-50% with POLYLINE
+  - Visual quality of edges is acceptable at the scale where POLYLINE activates
+
+#### 4.8 – SignalR Differential Updates
+- **Files to modify**: `src/Modules/Visualization/Visualization.Api/Hubs/DiagramHub.cs`, `src/Modules/Visualization/Visualization.Api/Adapters/SignalRDiagramNotifier.cs`, `web/src/features/diagram/hooks/useSignalR.ts`, `web/src/features/diagram/hooks/useDiagram.ts`
+- **Test plan (TDD)**:
+  - Unit tests: `SignalRDiagramNotifierTests` – `Notify_SendsDeltaNotFullGraph`, `UseDiagramTests` – `OnDiagramUpdated_PatchesInsteadOfRefetching`
+- **Acceptance criteria**:
+  - SignalR `DiagramUpdated` message carries changed node IDs and their new state (delta), not just a trigger
+  - Client applies targeted patch to existing graph state instead of calling `fetchGraph(force=true)` which replaces `apiData` entirely
+  - Eliminates: full `mapGraphDtoToDiagramData` allocation storm + new ELK layout computation on every live update
+  - For topology changes (node added/removed), fall back to full refetch
+  - For property changes (health, cost, telemetry), apply in-place patch
+
+#### 4.9 – Backend Performance Tests
 - **Files to create**: `src/Modules/Graph/Graph.Tests/Performance/GetGraphPerformanceTests.cs`
 - **Test plan (TDD)**:
   - Create graphs with 100, 500, 1000, 5000 nodes
@@ -406,26 +481,35 @@ Goal: Optimize data flow from API to rendering to reduce processing overhead
 | 5.3 | Add graph size-aware rendering strategy selection | Feature | web | M | 4.3, 1.3, 3.1 | ⬚ |
 | 5.4 | Write data layer optimization tests | Test | web | M | 5.1, 5.2 | ⬚ |
 
-#### 5.1 – Optimize Filtering Pipeline
+#### 5.1 – Optimize Filtering Pipeline and DTO Mapping
 - **Files to modify**: `web/src/features/diagram/hooks/useDiagram.ts`
 - **Test plan (TDD)**:
-  - Unit tests: `UseDiagramTests` – `Filter_1000Nodes_CompletesUnder50ms`, `Filter_SameInput_ReturnsSameReference`
-  - Fakes/Fixtures: `createMockDiagramData(nodeCount)`
+  - Unit tests: `UseDiagramTests` – `Filter_1000Nodes_CompletesUnder50ms`, `Filter_SameInput_ReturnsSameReference`, `MapGraphDto_1000Nodes_CompletesUnder100ms`
+  - Fakes/Fixtures: `createMockDiagramData(nodeCount)`, `createMockGraphDto(nodeCount)`
 - **Acceptance criteria**:
   - Build `Set` / `Map` indexes for filter lookups instead of repeated `.filter()` / `.find()` chains
   - Memoize intermediate filter results to avoid recomputation
+  - **Optimize `mapGraphDtoToDiagramData`** (lines ~170-215): replace spread-heavy mapping loop with direct object construction — the current pattern uses `...(condition ? { key: val } : {})` on every node/edge, producing thousands of short-lived objects that dominate GC pauses at 2000 nodes
   - Filtering 1000 nodes completes in < 50ms
+  - DTO mapping for 1000 nodes completes in < 100ms
 
 #### 5.2 – Progressive Node Rendering
 - **Files to create**: `web/src/features/diagram/hooks/useProgressiveRender.ts`
 - **Files to modify**: `web/src/features/diagram/components/DiagramCanvas.tsx`
 - **Test plan (TDD)**:
   - Unit tests: `UseProgressiveRenderTests` – `LargeDataset_RendersInBatches`, `SmallDataset_RendersImmediately`, `DataChange_ResetsProgress`
+- **CRITICAL DESIGN NOTE**: ELK layout MUST run on the complete node set BEFORE progressive rendering begins. The progressive render hook only controls the React Flow `nodes` array slice size — it reveals already-positioned nodes in batches, it does NOT feed partial data to ELK. Add a guard in `useElkLayout` to ignore data changes from progressive reveal (only re-layout when the full dataset reference changes).
+- **Implementation**: Prefer React 19's `useDeferredValue` over manual `requestAnimationFrame` loop — it integrates with the React scheduler and avoids manual cleanup:
+  ```typescript
+  const deferredNodes = useDeferredValue(allPositionedNodes);
+  const visibleNodes = nodes.length > 500 ? deferredNodes.slice(0, visibleCount) : allPositionedNodes;
+  ```
 - **Acceptance criteria**:
-  - For graphs > 500 nodes, render in batches of 100 using `requestAnimationFrame` + `startTransition`
+  - For graphs > 500 nodes, nodes revealed progressively using `useDeferredValue` + batch slicing
   - For graphs <= 500 nodes, render immediately (no batching overhead)
+  - ELK layout runs once on full dataset; progressive render only slices the positioned array
+  - No re-triggering of ELK layout during progressive reveal
   - Visual progress: nodes appear progressively without layout jumping
-  - User can interact with already-rendered nodes while more load
 
 #### 5.3 – Size-Aware Rendering Strategy
 - **Files to create**: `web/src/features/diagram/hooks/useRenderingStrategy.ts`
@@ -570,25 +654,56 @@ Goal: Leverage the C4 model hierarchy to collapse/expand groups, reducing visibl
 ### Risks
 | # | Risk | Likelihood | Impact | Mitigation |
 |---|------|-----------|--------|------------|
-| R1 | ELK web worker build may have Vite bundling issues | Medium | Medium | Test with Vite dev and prod builds; fallback to bundled + manual Web Worker wrapper |
-| R2 | onlyRenderVisibleElements may cause visual flickering during fast panning | Medium | Low | Test at various pan speeds; add transition buffer zone around viewport |
-| R3 | LOD zoom threshold transitions may cause jarring visual jumps | Medium | Medium | Add CSS transitions; test threshold values with real users; make thresholds configurable |
-| R4 | Progressive rendering may interfere with ELK layout (partial node set) | Medium | High | Run layout on full dataset first, then progressively reveal already-positioned nodes |
-| R5 | React.memo on ServiceNode may break if data object identity changes unexpectedly | Low | High | Ensure useMemo on node data objects; add referential equality tests |
+| R1 | ELK web worker build requires Vite-specific configuration (`?worker` import or `optimizeDeps`) | High | Medium | Concrete Vite setup steps in task 2.1; spike first; fallback to custom `new Worker()` wrapper around bundled build |
+| R2 | `onlyRenderVisibleElements` may cause MiniMap blank areas for off-screen nodes | Medium | Medium | Explicit MiniMap test case in task 1.7; test at various pan speeds |
+| R3 | **CRITICAL**: `useViewport()` in LOD causes all nodes to re-render on every zoom frame | High | High | MANDATORY: use `useStore` with discretized LOD tier selector returning enum, not raw zoom float |
+| R4 | Progressive rendering re-triggers ELK layout when `nodes` array changes | High | High | Guard in `useElkLayout`: only re-layout when full dataset reference changes, not progressive slice |
+| R5 | React.memo on ServiceNode inert without useMemo on data objects | Medium | High | Task 1.1 explicitly depends on 1.2; both must be implemented together |
 | R6 | Backend response compression may break existing clients/SignalR | Low | Medium | Test all API consumers; SignalR uses its own transport negotiation |
-| R7 | Collapsible groups may break edge routing for edges crossing group boundaries | Medium | High | Spike task: prototype with 5-group test case before full implementation |
-| R8 | Agent Teams feature is experimental with known limitations around session resumption | Medium | Medium | Run verification gate after each team; fall back to sequential subagents if team coordination fails |
-| R9 | Agent Teams teammates may attempt same-file edits despite file safety plan | Low | High | Assign explicit file ownership per teammate; use verification pipeline after each team completes |
-| R10 | Agent Teams token cost scales linearly with team size | Low | Medium | Limit teams to 3-4 teammates; use subagents for trivial tasks (one-line changes) |
+| R7 | Collapsible groups may break edge routing for edges crossing group boundaries | Medium | High | Spike task: prototype with 5-group test case before committing full Epic 7 scope |
+| R8 | Agent Teams feature is experimental with known limitations around session resumption | Medium | Medium | Documented fallback execution order without teams; fall back to sequential subagents |
+| R9 | DiagramCanvas.tsx edited across multiple teams — merge conflict risk | High | High | Single named owner per team; all DiagramCanvas edits serialized across teams |
+| R10 | Agent Teams token cost scales linearly with team size | Low | Medium | Team 4 reduced to 3 teammates; use subagents for trivial tasks |
+| R11 | `mapGraphDtoToDiagramData` allocation storm (spread-heavy mapping) causes GC pauses at 2000 nodes | Medium | Medium | Task 5.1 explicitly targets this function; replace spreads with direct construction |
+| R12 | SignalR `onDiagramUpdated` triggers full graph re-fetch + re-layout on every live update | Medium | High | Task 4.8 adds differential SignalR updates with targeted patching |
+| R13 | Performance tests in jsdom give false confidence (no real layout/paint) | Medium | Medium | Unit tests scoped to data transform timing only; real render baselines from Playwright visual-qa |
+
+### Fallback Execution Order (Without Agent Teams)
+If the experimental Agent Teams feature fails (R8), execute all tasks sequentially:
+1. Epic 0 (setup) → Epic 1 (memoization) → Epic 2 (ELK worker) → Epic 3 (LOD) → Epic 4 (backend) → Epic 5 (data layer) → Epic 6 (edges) → Epic 7 (groups)
+2. Use standard subagents (react-writer, csharp-writer, test-generator) for each task
+3. Run visual-qa as a separate subagent after each epic completes
 
 ### Critical Path
-0.1 → 0.2 → Team 1 (1.1-1.5 ∥ 2.1) → verification → Team 2 (3.1-3.2 ∥ 4.1-4.4) → verification → Team 3 (5.1-5.2 ∥ 6.1-6.2 ∥ 5.3) → verification → Team 4 (7.1-7.2 → 7.3) → final verification
+0.1 → 0.3 → Team 1 (1.2→1.1+1.3+1.4+1.5+2.2 ∥ 2.1 ∥ 1.6 ∥ 1.7) → verification → Team 2 (3.1+3.2+4.7 ∥ 4.1→4.6+4.2+4.4+4.5 ∥ 4.3 ∥ 3.3+4.9 ∥ 3.4) → verification → Team 3 (5.1+5.2+6.1+6.2+5.3 ∥ 4.8 ∥ 5.4+6.3 ∥ 6.4) → verification → Team 4 (7.1→7.2→7.3 ∥ 7.4 ∥ 7.5) → final verification
 
 ### Estimated Total Effort
 - S tasks: 12 × ~30 min = ~6 h
-- M tasks: 15 × ~2.5 h = ~37.5 h
-- L tasks: 1 × ~6 h = ~6 h
+- M tasks: 17 × ~2.5 h = ~42.5 h
+- L tasks: 2 × ~6 h = ~12 h
 - XL tasks: 0
-- **Total sequential: ~49.5 hours**
-- **Total with Agent Teams (~2x parallelization): ~25 hours wall clock**
+- **Total sequential: ~60.5 hours**
+- **Total with Agent Teams (~2x parallelization): ~30 hours wall clock**
 - Note: Visual QA tasks run in parallel with implementation (same team), adding minimal wall-clock overhead
+
+### Expert Review Findings Incorporated
+This plan was reviewed by two specialized agents and updated to address their findings:
+
+**React Performance Expert** identified:
+- CRITICAL: `useViewport()` in LOD causes all nodes to re-render on every zoom frame → fixed with `useStore` discretized selector (task 3.1)
+- Task 1.1 (React.memo) is inert without 1.2 (useMemo) → dependency made explicit
+- MiniMap + `onlyRenderVisibleElements` interaction → test case added to 1.7
+- CSS `contain` property missing → task 1.4 replaced snapToGrid (zero-impact for ELK-managed layouts)
+- `useDeferredValue` preferred over manual RAF for progressive render → task 5.2 updated
+- Vite worker setup for ELK understated → task 2.1 expanded with concrete steps
+
+**Web Application Architect** identified:
+- `mapGraphDtoToDiagramData` allocation storm (spread-heavy mapping) → added to task 5.1
+- SignalR full graph re-fetch on every update → new task 4.8
+- ELK `ORTHOGONAL` O(n^2) routing → new task 4.7 with POLYLINE fallback
+- EF Core loading full aggregate with all snapshots → new task 4.1
+- No ETag/conditional-GET for 60s polling → new task 4.4
+- DiagramCanvas.tsx ownership conflict across teams → resolved with single-owner-per-team rule
+- Team 4 over-designed for sequential work → reduced to 3 teammates
+- jsdom performance tests give false confidence → task 1.6 scoped to data transforms only
+- snapToGrid (old 1.4) has zero impact since users don't drag ELK-positioned nodes → removed
