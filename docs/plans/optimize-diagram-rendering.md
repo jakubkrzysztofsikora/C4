@@ -29,11 +29,13 @@ This plan leverages the **Claude Code Agent Teams** experimental feature (`CLAUD
 ```
 Lead: Orchestrator
 ├── Teammate A (react-writer): Tasks 1.1, 1.2, 1.3, 1.4, 1.5 — DiagramCanvas.tsx + GroupNode.tsx memoization
-├── Teammate B (react-writer): Task 2.1 — useElkLayout.ts web worker switch
-└── Teammate C (test-generator): Task 1.6 — Performance test suite (can start once A finishes 1.1)
+├── Teammate B (react-writer): Tasks 2.1, 2.2 — useElkLayout.ts web worker switch + loading indicator
+├── Teammate C (test-generator): Task 1.6 — Performance test suite (can start once A finishes 1.1)
+└── Teammate D (visual-qa): Task 1.7 — Browser-based QA: measure DOM node counts, FPS during pan/zoom, verify no console errors after memoization changes
 ```
-- **Why teams over subagents**: Teammates A and B work on different files simultaneously (DiagramCanvas vs useElkLayout), then Teammate C writes tests informed by the changes both made — peer messaging lets C ask A/B what changed.
-- **File safety**: No overlapping file edits — A owns DiagramCanvas.tsx + GroupNode.tsx, B owns useElkLayout.ts, C owns __tests__/.
+- **Why teams over subagents**: Teammates A and B work on different files simultaneously (DiagramCanvas vs useElkLayout), Teammate C writes tests informed by the changes both made via peer messaging, and Teammate D validates visual correctness and measures real rendering performance in the browser using Playwright.
+- **File safety**: A owns DiagramCanvas.tsx + GroupNode.tsx, B owns useElkLayout.ts, C owns __tests__/, D is read-only (screenshots + metrics).
+- **QA teammate role**: D launches the dev server, navigates to a diagram page, takes baseline screenshots, measures FPS and DOM node counts before/after the memoization changes, and reports any visual regressions or console errors.
 
 **Team 2: Full-Stack LOD + Backend** (Epics 3 + 4 — frontend and backend in parallel)
 ```
@@ -41,46 +43,52 @@ Lead: Orchestrator
 ├── Teammate A (react-writer): Tasks 3.1, 3.2 — LOD rendering + CSS in DiagramCanvas.tsx
 ├── Teammate B (csharp-writer): Tasks 4.1, 4.3, 4.4 — Backend summary endpoint + handler optimization
 ├── Teammate C (csharp-writer): Task 4.2 — Response compression in Host
-└── Teammate D (test-generator): Tasks 3.3, 4.5 — LOD tests + backend performance tests
+├── Teammate D (test-generator): Tasks 3.3, 4.5 — LOD tests + backend performance tests
+└── Teammate E (visual-qa): Task 3.4 — Browser-based QA: verify LOD tiers render correctly at each zoom level, measure API response sizes with compression, validate network performance
 ```
-- **Why teams over subagents**: Frontend LOD (Teammate A) and backend optimization (Teammates B/C) are fully independent layers. Teammate D writes tests for both layers, querying A and B via peer messaging for implementation details.
-- **File safety**: A owns web/src/features/diagram/components/ + diagram.css, B owns Graph.Application/, C owns Host/, D owns test files only.
+- **Why teams over subagents**: Frontend LOD (Teammate A) and backend optimization (Teammates B/C) are fully independent layers. Teammate D writes tests for both layers via peer messaging, and Teammate E validates visually that LOD tiers switch correctly at zoom thresholds and that compressed API responses are smaller.
+- **File safety**: A owns web/src/features/diagram/components/ + diagram.css, B owns Graph.Application/, C owns Host/, D owns test files, E is read-only.
+- **QA teammate role**: E zooms to each LOD threshold (< 0.2, 0.2-0.5, > 0.5) and screenshots each tier, verifies the correct CSS classes are present (`.service-node-dot`, `.service-node-compact`, `.service-node`), and checks network requests for `Content-Encoding` headers and response sizes.
 
 **Team 3: Data Layer + Edge Optimization** (Epics 5 + 6 — frontend data and rendering)
 ```
 Lead: Orchestrator
 ├── Teammate A (react-writer): Tasks 5.1, 5.2 — useDiagram optimization + progressive rendering hook
 ├── Teammate B (react-writer): Tasks 6.1, 6.2, 5.3 — Edge optimization + rendering strategy hook
-└── Teammate C (test-generator): Tasks 5.4, 6.3 — Data layer + edge rendering tests
+├── Teammate C (test-generator): Tasks 5.4, 6.3 — Data layer + edge rendering tests
+└── Teammate D (visual-qa): Task 6.4 — Browser-based QA: verify edge labels hidden at density threshold, progressive rendering shows nodes appearing in batches, measure frame rate during filter changes
 ```
-- **Why teams over subagents**: A works on hooks (useDiagram.ts, useProgressiveRender.ts) while B works on DiagramCanvas edge rendering + useRenderingStrategy.ts. The rendering strategy (B) depends on knowing about progressive rendering (A) — peer messaging enables this coordination without blocking.
-- **File safety**: A owns useDiagram.ts + new hooks, B owns edge sections of DiagramCanvas.tsx + useRenderingStrategy.ts, C owns test files.
+- **Why teams over subagents**: A works on hooks (useDiagram.ts, useProgressiveRender.ts) while B works on DiagramCanvas edge rendering + useRenderingStrategy.ts. Teammate D validates that edge simplification and progressive rendering work visually in a real browser.
+- **File safety**: A owns useDiagram.ts + new hooks, B owns edge sections of DiagramCanvas.tsx + useRenderingStrategy.ts, C owns test files, D is read-only.
+- **QA teammate role**: D verifies edge labels disappear when edge count > 500, watches progressive rendering batches appear visually, and measures FPS during rapid filter changes using Playwright performance APIs.
 
 **Team 4: Collapsible Groups** (Epic 7 — tightly coupled, sequential with verification)
 ```
 Lead: Orchestrator
 ├── Teammate A (react-writer): Tasks 7.1, 7.2 — GroupNode interaction + collapsed state management
 ├── Teammate B (react-writer): Task 7.3 — ELK layout filtering for collapsed groups (depends on 7.2)
-└── Teammate C (test-generator + change-verifier): Task 7.4 — Collapsible group tests + full verification
+├── Teammate C (test-generator + change-verifier): Task 7.4 — Collapsible group tests + full verification
+└── Teammate D (visual-qa): Task 7.5 — Browser-based QA: verify collapse/expand interaction, measure node count reduction, validate edge rerouting visually, screenshot collapsed vs expanded states
 ```
-- **Why teams over subagents**: Task 7.3 depends on the collapsed state interface from 7.2. With peer messaging, B can ask A for the exact `Set<string>` interface shape as soon as A finishes 7.2, without waiting for A to complete 7.1 too.
-- **Task dependency**: B waits for A to finish 7.2 before starting 7.3.
+- **Why teams over subagents**: Task 7.3 depends on the collapsed state interface from 7.2. With peer messaging, B can ask A for the exact `Set<string>` interface shape as soon as A finishes 7.2. Teammate D validates the full collapse/expand UX in a real browser.
+- **Task dependency**: B waits for A to finish 7.2 before starting 7.3. D starts after A completes 7.1.
+- **QA teammate role**: D clicks group headers to toggle collapse/expand, screenshots both states, verifies DOM node count drops when groups are collapsed, and checks that edges reroute correctly to group nodes without visual artifacts.
 
 #### Sequential Quality Gates Between Teams
 
-After each team completes, run a **verification pipeline** before starting the next team:
+After each team completes, run a **verification pipeline** before starting the next team. The visual-qa teammate runs as part of the team (not the gate), providing real-time browser-based validation during implementation:
 
 ```
-Team 1 completes
+Team 1 completes (visual-qa teammate already validated during implementation)
   → build-runner: "Build solution and run all tests"
   → change-verifier: "Verify Epic 1 + 2 changes"
-Team 2 completes
+Team 2 completes (visual-qa teammate already validated LOD + compression)
   → build-runner: "Build solution and run all tests"
   → arch-validator: "Validate Graph module boundaries after 4.1/4.4 changes"
-Team 3 completes
+Team 3 completes (visual-qa teammate already validated edges + progressive render)
   → build-runner: "Build solution and run all tests"
   → code-quality-reviewer: "Review data layer changes for standards compliance"
-Team 4 completes
+Team 4 completes (visual-qa teammate already validated collapse/expand UX)
   → build-runner: "Build solution and run all tests"
   → pr-reviewer: "Full PR review of all optimization changes"
 ```
@@ -106,7 +114,8 @@ Goal: Enable the Agent Teams experimental feature and verify the development env
 | # | Task | Type | Module | Complexity | Depends On | Status |
 |---|------|------|--------|------------|------------|--------|
 | 0.1 | Enable CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS in settings.json | Infrastructure | .claude | S | – | ⬚ |
-| 0.2 | Verify agent team orchestration with a dry-run test | Spike | .claude | S | 0.1 | ⬚ |
+| 0.2 | Create visual-qa agent definition with Playwright MCP tools | Infrastructure | .claude | S | – | ⬚ |
+| 0.3 | Verify agent team orchestration with a dry-run test | Spike | .claude | S | 0.1, 0.2 | ⬚ |
 
 #### 0.1 – Enable Agent Teams Feature Flag
 - **Files to modify**: `.claude/settings.json`
@@ -118,14 +127,28 @@ Goal: Enable the Agent Teams experimental feature and verify the development env
   - Existing `permissions.allow` and `permissions.deny` arrays unchanged
   - Claude Code recognizes the feature flag on next session start
 
-#### 0.2 – Verify Agent Teams Dry-Run
+#### 0.2 – Create Visual QA Agent Definition
+- **Files to create**: `.claude/agents/visual-qa.md`
+- **Test plan (TDD)**:
+  - Verify agent definition has correct YAML frontmatter (name, description, tools, model, color)
+  - Verify all Playwright MCP tools are listed in the tools field
+  - Verify agent instructions include QA protocol for performance measurement
+- **Acceptance criteria**:
+  - `visual-qa` agent defined with Playwright MCP tools (browser_navigate, browser_snapshot, browser_take_screenshot, browser_evaluate, browser_console_messages, browser_network_requests, browser_click, browser_hover, browser_drag, browser_run_code, etc.)
+  - Agent instructions include protocols for: DOM node counting, FPS measurement, LOD verification, viewport culling validation, console error checking, network performance analysis
+  - Agent can be invoked as a teammate in Agent Teams
+
+#### 0.3 – Verify Agent Teams Dry-Run
 - **Files to modify**: none (verification only)
 - **Test plan (TDD)**:
-  - Spawn a 2-teammate team with a trivial task (e.g., "read DiagramCanvas.tsx and report line count")
+  - Spawn a 3-teammate team with a trivial task:
+    - Teammate A (react-writer): read DiagramCanvas.tsx and report line count
+    - Teammate B (visual-qa): launch browser, navigate to localhost, take screenshot
   - Verify teammates can communicate via peer messaging
   - Verify file locking prevents simultaneous edits to the same file
 - **Acceptance criteria**:
-  - Agent team spawns successfully
+  - Agent team spawns successfully with both implementation and QA teammates
+  - visual-qa teammate can access Playwright MCP tools
   - Teammates report back with results
   - No errors in team coordination
 
@@ -140,6 +163,7 @@ Goal: Eliminate unnecessary re-renders and DOM operations in the existing React 
 | 1.4 | Add snapToGrid to reduce drag-induced re-renders | Feature | web | S | – | ⬚ |
 | 1.5 | Stabilize MiniMap nodeColor callback with useCallback | Refactor | web | S | – | ⬚ |
 | 1.6 | Write rendering performance tests with large mock datasets | Test | web | M | 1.1 | ⬚ |
+| 1.7 | Visual QA: validate memoization, measure DOM counts and FPS via Playwright | Test | web | M | 1.1, 1.2, 1.3 | ⬚ |
 
 #### 1.1 – Memoize ServiceNode and GroupNode
 - **Files to modify**: `web/src/features/diagram/components/DiagramCanvas.tsx`, `web/src/features/diagram/components/GroupNode.tsx`
@@ -187,6 +211,21 @@ Goal: Eliminate unnecessary re-renders and DOM operations in the existing React 
 - **Acceptance criteria**:
   - `nodeColor` callback wrapped in `useCallback` with deps `[overlayMode]`
   - MiniMap does not re-render on unrelated state changes
+
+#### 1.7 – Visual QA: Memoization & Rendering Baseline
+- **Agent**: `visual-qa` (Playwright MCP)
+- **Test plan**:
+  - Launch dev server, navigate to diagram page with largest available project
+  - Take baseline screenshots at zoom levels 0.1, 0.3, 0.5, 1.0
+  - Measure DOM node count (`.react-flow__node` elements) before and after memoization
+  - Measure FPS during 3-second pan interaction via `requestAnimationFrame` timing
+  - Check browser console for React warnings, errors, or performance deprecations
+  - Verify MiniMap renders correctly after callback stabilization
+- **Acceptance criteria**:
+  - No visual regressions compared to pre-optimization screenshots
+  - DOM node count reduced when `onlyRenderVisibleElements` is active (task 1.3)
+  - FPS >= 30 during pan/zoom at default zoom (0.3)
+  - Zero console errors
 
 #### 1.6 – Performance Test Suite
 - **Files to create**: `web/src/features/diagram/__tests__/DiagramPerformance.test.tsx`
@@ -247,6 +286,7 @@ Goal: Render simplified node representations at low zoom levels to reduce DOM co
 | 3.1 | Implement zoom-aware adaptive ServiceNode rendering | Feature | web | M | 1.1 | ⬚ |
 | 3.2 | Create compact and dot node CSS styles | Feature | web | S | 3.1 | ⬚ |
 | 3.3 | Write LOD rendering tests | Test | web | S | 3.1 | ⬚ |
+| 3.4 | Visual QA: verify LOD tiers at each zoom level, validate API compression | Test | web | M | 3.1, 3.2, 4.2 | ⬚ |
 
 #### 3.1 – Adaptive ServiceNode with Zoom-Based LOD
 - **Files to modify**: `web/src/features/diagram/components/DiagramCanvas.tsx`
@@ -268,6 +308,22 @@ Goal: Render simplified node representations at low zoom levels to reduce DOM co
   - `.service-node-dot` class: 12x12px circle, border-radius 50%, health-colored background
   - `.service-node-compact` class: reduced padding, single-line layout, no metrics section
   - CSS transitions for smooth LOD changes
+
+#### 3.4 – Visual QA: LOD Tiers & API Compression
+- **Agent**: `visual-qa` (Playwright MCP)
+- **Test plan**:
+  - Navigate to diagram page, zoom to < 0.2 and screenshot — verify `.service-node-dot` elements present
+  - Zoom to 0.2-0.5 and screenshot — verify `.service-node-compact` elements present
+  - Zoom to > 0.5 and screenshot — verify full `.service-node` elements present
+  - Count DOM nodes at each zoom level to confirm LOD reduces element complexity
+  - Check network requests to `/api/*/graph` for `Content-Encoding: gzip` or `br` headers
+  - Compare response sizes before/after compression (if baseline available)
+  - Verify no CSS transition glitches when crossing zoom thresholds
+- **Acceptance criteria**:
+  - Each LOD tier renders the correct CSS class at its zoom range
+  - DOM node count at zoom < 0.2 is significantly lower than at zoom > 0.5
+  - API responses include compression headers
+  - No visual flickering or layout jumps during zoom transitions
 
 #### 3.3 – LOD Tests
 - **Files to create**: `web/src/features/diagram/__tests__/ServiceNodeLOD.test.tsx`
@@ -402,6 +458,7 @@ Goal: Optimize edge rendering for large graphs where edges outnumber nodes
 | 6.1 | Simplify edge rendering at low zoom levels | Feature | web | S | 3.1 | ⬚ |
 | 6.2 | Reduce edge label rendering for dense graphs | Feature | web | S | – | ⬚ |
 | 6.3 | Write edge rendering tests | Test | web | S | 6.1, 6.2 | ⬚ |
+| 6.4 | Visual QA: validate edge simplification, progressive rendering, filter FPS | Test | web | M | 6.1, 5.2 | ⬚ |
 
 #### 6.1 – Simplified Edge Rendering at Low Zoom
 - **Files to modify**: `web/src/features/diagram/components/DiagramCanvas.tsx`
@@ -421,6 +478,21 @@ Goal: Optimize edge rendering for large graphs where edges outnumber nodes
   - Labels shown on hover or when edge selected
   - Reduces text rendering overhead significantly
 
+#### 6.4 – Visual QA: Edge Simplification & Progressive Rendering
+- **Agent**: `visual-qa` (Playwright MCP)
+- **Test plan**:
+  - Navigate to a diagram with 500+ edges, zoom to < 0.3 — verify edge labels are hidden
+  - Zoom to >= 0.3 — verify edge labels reappear
+  - Hover over an edge at low zoom — verify label appears on hover (if implemented)
+  - Load a 1000+ node diagram — observe progressive rendering (nodes appearing in batches)
+  - Measure FPS during rapid filter toggling (e.g., toggle infrastructure, change C4 level)
+  - Check console for React batching warnings or performance issues
+- **Acceptance criteria**:
+  - Edge labels hidden at zoom < 0.3 for dense graphs
+  - Progressive rendering visually smooth (no layout jumping)
+  - FPS >= 30 during filter changes
+  - No console errors during rapid interactions
+
 #### 6.3 – Edge Rendering Tests
 - **Files to create**: `web/src/features/diagram/__tests__/EdgeRendering.test.tsx`
 - **Test plan (TDD)**:
@@ -438,6 +510,7 @@ Goal: Leverage the C4 model hierarchy to collapse/expand groups, reducing visibl
 | 7.2 | Track collapsed state in diagram state | Feature | web | M | 7.1 | ⬚ |
 | 7.3 | Filter collapsed children from layout computation | Feature | web | M | 7.2 | ⬚ |
 | 7.4 | Write collapsible group tests | Test | web | M | 7.1, 7.2, 7.3 | ⬚ |
+| 7.5 | Visual QA: validate collapse/expand UX, node count reduction, edge rerouting | Test | web | M | 7.1, 7.3 | ⬚ |
 
 #### 7.1 – Collapsible GroupNode Component
 - **Files to modify**: `web/src/features/diagram/components/GroupNode.tsx`
@@ -477,6 +550,23 @@ Goal: Leverage the C4 model hierarchy to collapse/expand groups, reducing visibl
   - Full collapse/expand lifecycle tested
   - Edge routing correctness verified
 
+#### 7.5 – Visual QA: Collapse/Expand UX
+- **Agent**: `visual-qa` (Playwright MCP)
+- **Test plan**:
+  - Navigate to diagram with multiple resource groups
+  - Screenshot expanded state, note DOM node count
+  - Click group header to collapse — screenshot, verify node count drops
+  - Click again to expand — screenshot, verify node count restores
+  - Verify edges reroute to group node when collapsed (no dangling edges)
+  - Test "Collapse All" / "Expand All" controls if available in sidebar
+  - Measure layout recomputation time during collapse/expand
+  - Check for visual artifacts: overlapping nodes, misaligned edges, flickering
+- **Acceptance criteria**:
+  - Collapse reduces DOM node count proportionally to collapsed group size
+  - Edges connect to group boundary when children are collapsed
+  - No visual artifacts during collapse/expand transitions
+  - Layout recomputation completes in < 1s for 1000-node graphs
+
 ### Risks
 | # | Risk | Likelihood | Impact | Mitigation |
 |---|------|-----------|--------|------------|
@@ -495,9 +585,10 @@ Goal: Leverage the C4 model hierarchy to collapse/expand groups, reducing visibl
 0.1 → 0.2 → Team 1 (1.1-1.5 ∥ 2.1) → verification → Team 2 (3.1-3.2 ∥ 4.1-4.4) → verification → Team 3 (5.1-5.2 ∥ 6.1-6.2 ∥ 5.3) → verification → Team 4 (7.1-7.2 → 7.3) → final verification
 
 ### Estimated Total Effort
-- S tasks: 11 × ~30 min = ~5.5 h
-- M tasks: 11 × ~2.5 h = ~27.5 h
+- S tasks: 12 × ~30 min = ~6 h
+- M tasks: 15 × ~2.5 h = ~37.5 h
 - L tasks: 1 × ~6 h = ~6 h
 - XL tasks: 0
-- **Total sequential: ~39 hours**
-- **Total with Agent Teams (~2x parallelization): ~19 hours wall clock**
+- **Total sequential: ~49.5 hours**
+- **Total with Agent Teams (~2x parallelization): ~25 hours wall clock**
+- Note: Visual QA tasks run in parallel with implementation (same team), adding minimal wall-clock overhead
