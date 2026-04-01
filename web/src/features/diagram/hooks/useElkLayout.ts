@@ -1,8 +1,10 @@
-import ELK, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js';
+import ELK, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk-api.js';
 import { useEffect, useRef, useState } from 'react';
 import { DiagramData, DiagramNode } from '../types';
 
-const elk = new ELK();
+const elk = new ELK({
+  workerUrl: new URL('elkjs/lib/elk-worker.js', import.meta.url).href,
+});
 
 const C4_DIMENSIONS: Record<DiagramNode['level'], { width: number; height: number }> = {
   Context: { width: 360, height: 140 },

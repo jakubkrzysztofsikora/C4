@@ -1,3 +1,4 @@
+import { memo, useMemo, useCallback } from 'react';
 import { Background, Controls, Edge, Handle, MarkerType, MiniMap, Node, Position, ReactFlow } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { SiPostgresql, SiRedis } from 'react-icons/si';
@@ -48,12 +49,12 @@ function resolveBorderColor(node: DiagramNode, overlayMode: OverlayMode, telemet
   return telemetryKnown ? healthColor(node.health) : '#64748b';
 }
 
-function ServiceNode({ data }: { data: { node: DiagramNode; overlayMode: OverlayMode } }) {
+const ServiceNode = memo(function ServiceNode({ data }: { data: { node: DiagramNode; overlayMode: OverlayMode } }) {
   const { node, overlayMode } = data;
   const telemetryKnown = node.telemetryStatus === 'known';
   const borderColor = resolveBorderColor(node, overlayMode, telemetryKnown);
 
-  const title = [
+  const title = useMemo(() => [
     `Name: ${node.label}`,
     `C4 level: ${node.level}`,
     `Service type: ${node.serviceType}`,
@@ -71,7 +72,7 @@ function ServiceNode({ data }: { data: { node: DiagramNode; overlayMode: Overlay
     typeof node.hourlyCostUsd === 'number' ? `Estimated cost: $${node.hourlyCostUsd.toFixed(2)}/hr` : undefined,
     node.riskLevel !== undefined ? `Risk: ${node.riskLevel}` : undefined,
     node.externalResourceId !== undefined ? `Resource: ${node.externalResourceId}` : undefined,
-  ].filter(Boolean).join('\n');
+  ].filter(Boolean).join('\n'), [node]);
 
   return (
     <div
@@ -104,7 +105,7 @@ function ServiceNode({ data }: { data: { node: DiagramNode; overlayMode: Overlay
       <Handle type="source" position={Position.Right} />
     </div>
   );
-}
+});
 
 const nodeTypes = { service: ServiceNode, group: GroupNode };
 
@@ -112,29 +113,33 @@ export function DiagramCanvas({
   data,
   groupNodes = [],
   overlayMode = 'none',
+  isLayouting = false,
 }: {
   data: DiagramData;
   groupNodes?: GroupNodeData[];
   overlayMode?: OverlayMode;
+  isLayouting?: boolean;
 }) {
-  const groups: Node[] = groupNodes.map((g) => ({
-    id: g.id,
-    type: 'group',
-    position: { x: g.x, y: g.y },
-    data: { label: g.label, nodeCount: g.nodeCount },
-    style: { width: g.width, height: g.height },
-  }));
+  const nodes = useMemo(() => {
+    const groups: Node[] = groupNodes.map((g) => ({
+      id: g.id,
+      type: 'group',
+      position: { x: g.x, y: g.y },
+      data: { label: g.label, nodeCount: g.nodeCount },
+      style: { width: g.width, height: g.height },
+    }));
 
-  const serviceNodes: Node[] = data.nodes.map((node) => ({
-    id: node.id,
-    type: 'service',
-    position: node.position ?? { x: 0, y: 0 },
-    data: { node, overlayMode },
-  }));
+    const serviceNodes: Node[] = data.nodes.map((node) => ({
+      id: node.id,
+      type: 'service',
+      position: node.position ?? { x: 0, y: 0 },
+      data: { node, overlayMode },
+    }));
 
-  const nodes = [...groups, ...serviceNodes];
+    return [...groups, ...serviceNodes];
+  }, [groupNodes, data.nodes, overlayMode]);
 
-  const edges: Edge[] = data.edges.map((edge) => {
+  const edges = useMemo(() => data.edges.map((edge) => {
     const stroke = trafficColor(edge.traffic, edge.trafficState);
     const trafficLabel = edge.trafficLabel ?? (edge.trafficState === 'unknown' ? 'N/A' : `${Math.round(edge.traffic * 100)}%`);
     const title = [
@@ -160,27 +165,35 @@ export function DiagramCanvas({
       data: { title },
       ariaLabel: title,
     };
-  });
+  }), [data.edges]);
+
+  const miniMapNodeColor = useCallback((n: Node) => {
+    const nodeData = n.data as { node?: DiagramNode };
+    if (!nodeData.node) return 'var(--border)';
+    const telemetryKnown = nodeData.node.telemetryStatus === 'known';
+    return resolveBorderColor(nodeData.node, overlayMode, telemetryKnown);
+  }, [overlayMode]);
 
   return (
     <div className="diagram-stage">
+      {isLayouting && (
+        <div className="layout-loading-overlay">
+          <span className="layout-loading-text">Computing layout…</span>
+        </div>
+      )}
       <ReactFlow
         fitView
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        onlyRenderVisibleElements={nodes.length > 500}
         minZoom={0.05}
         maxZoom={2}
         defaultViewport={{ x: 0, y: 0, zoom: 0.3 }}
       >
         <Background color="#203357" gap={18} size={1} />
         <MiniMap
-          nodeColor={(n) => {
-            const nodeData = n.data as { node?: DiagramNode };
-            if (!nodeData.node) return 'var(--border)';
-            const telemetryKnown = nodeData.node.telemetryStatus === 'known';
-            return resolveBorderColor(nodeData.node, overlayMode, telemetryKnown);
-          }}
+          nodeColor={miniMapNodeColor}
           nodeStrokeWidth={0}
           pannable
           zoomable
