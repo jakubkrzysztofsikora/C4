@@ -2,30 +2,30 @@
 Scope: Refactor
 Created: 2026-04-01
 Last Updated: 2026-04-01
-Status: Not Started
+Status: In Progress
 
 ## Current Focus
-Planning complete (reviewed by React expert + web architect) – ready to start with Epic 0
+Epics 0, 1, 2 complete — ready for Team 2 (Epics 3 + 4)
 
 ## Task Progress
 
 ### Epic 0: Infrastructure & Agent Teams Setup
-- [ ] 0.1 – Enable CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS in settings.json
-- [ ] 0.2 – Create visual-qa agent definition with Playwright MCP tools
+- [x] 0.1 – Enable CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS in settings.json
+- [x] 0.2 – Create visual-qa agent definition with Playwright MCP tools
 - [ ] 0.3 – Verify agent team orchestration with a dry-run test (incl. visual-qa teammate)
 
 ### Epic 1: React Rendering Optimizations — Team 1, Teammate A
-- [ ] 1.1 – Memoize ServiceNode/GroupNode with React.memo + memoize title tooltip string (depends on 1.2)
-- [ ] 1.2 – Memoize node/edge array transformations in DiagramCanvas with useMemo
-- [ ] 1.3 – Enable onlyRenderVisibleElements for large graphs (500+ nodes)
-- [ ] 1.4 – Add CSS containment (`contain: layout style paint`) to node classes
-- [ ] 1.5 – Stabilize MiniMap nodeColor callback with useCallback
+- [x] 1.1 – Memoize ServiceNode/GroupNode with React.memo + memoize title tooltip string (depends on 1.2)
+- [x] 1.2 – Memoize node/edge array transformations in DiagramCanvas with useMemo
+- [x] 1.3 – Enable onlyRenderVisibleElements for large graphs (500+ nodes)
+- [x] 1.4 – Add CSS containment (`contain: layout style paint`) to node classes
+- [x] 1.5 – Stabilize MiniMap nodeColor callback with useCallback
 - [ ] 1.6 – Write performance tests — data transform timing only, not jsdom render (Teammate C)
 - [ ] 1.7 – Visual QA: validate memoization, DOM counts, FPS, MiniMap culling (Teammate D)
 
 ### Epic 2: Layout Computation Offloading — Team 1, Teammate B
-- [ ] 2.1 – Switch ELK to web worker build with concrete Vite setup + bundle size measurement
-- [ ] 2.2 – Add layout loading indicator during computation (Teammate A, same as Epic 1)
+- [x] 2.1 – Switch ELK to web worker build with concrete Vite setup + bundle size measurement
+- [x] 2.2 – Add layout loading indicator during computation (Teammate A, same as Epic 1)
 - [ ] 2.3 – Verify web worker layout with large graphs (Teammate C)
 
 ### Epic 3: Level-of-Detail (LOD) Rendering — Team 2, Teammate A
@@ -98,3 +98,12 @@ Planning complete (reviewed by React expert + web architect) – ready to start 
 |------|---------|-------|------------|
 
 ## Completed Work
+- [x] 0.1 – Enable CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS in settings.json (2026-04-01)
+- [x] 0.2 – Create visual-qa agent definition with Playwright MCP tools (2026-04-01)
+- [x] 1.1 – Memoize ServiceNode/GroupNode with React.memo + memoize title tooltip (2026-04-01)
+- [x] 1.2 – Memoize node/edge array transformations with useMemo (2026-04-01)
+- [x] 1.3 – Enable onlyRenderVisibleElements for 500+ node graphs (2026-04-01)
+- [x] 1.4 – Add CSS containment to node classes (2026-04-01)
+- [x] 1.5 – Stabilize MiniMap nodeColor callback with useCallback (2026-04-01)
+- [x] 2.1 – Switch ELK to elk-api.js + elk-worker.js with Vite auto-bundling (2026-04-01)
+- [x] 2.2 – Add layout loading overlay during computation (2026-04-01)
