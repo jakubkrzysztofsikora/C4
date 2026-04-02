@@ -1,4 +1,5 @@
 using C4.Modules.Discovery.Domain.Resources;
+using C4.Modules.Graph.Application.Ports;
 using C4.Modules.Graph.Domain.GraphNode;
 
 namespace C4.Modules.Graph.Application.GetGraph;
@@ -27,6 +28,37 @@ internal static class GraphClassificationResolver
                 : node.Properties.ClassificationSource;
             confidence = node.Properties.ClassificationConfidence > 0 ? node.Properties.ClassificationConfidence : 0.75;
             isInfrastructure = node.Properties.IsInfrastructure;
+        }
+
+        return new ResolvedNodeClassification(
+            armType,
+            c4Level,
+            serviceType,
+            isInfrastructure,
+            source,
+            confidence);
+    }
+
+    public static ResolvedNodeClassification ResolveProjected(ProjectedNode node)
+    {
+        string armType = ExtractArmType(node.ExternalResourceId);
+        AzureResourceClassification classification = AzureResourceTypeCatalog.Classify(armType);
+
+        string serviceType = classification.ServiceType;
+        string c4Level = classification.C4Level;
+        string source = classification.ClassificationSource;
+        double confidence = classification.Confidence;
+        bool isInfrastructure = classification.IsInfrastructure;
+
+        if (classification.ClassificationSource.Equals("fallback", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(node.Technology)
+            && !node.Technology.Equals("external", StringComparison.OrdinalIgnoreCase))
+        {
+            serviceType = node.Technology;
+            c4Level = ((C4Level)node.LevelValue).ToString();
+            source = string.IsNullOrWhiteSpace(node.ClassificationSource) ? "legacy" : node.ClassificationSource;
+            confidence = node.ClassificationConfidence > 0 ? node.ClassificationConfidence : 0.75;
+            isInfrastructure = node.IsInfrastructure;
         }
 
         return new ResolvedNodeClassification(

@@ -380,6 +380,26 @@
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+}
+
+.group-node--collapsed {
+  background: rgba(var(--panel-rgb, 40, 40, 50), 0.3);
+  cursor: pointer;
+}
+
+.group-toggle {
+  cursor: pointer;
+  font-size: 14px;
+  margin-right: 6px;
+  user-select: none;
+}
+
+.group-collapsed-info {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
 }
 
 .service-node.c4-context {

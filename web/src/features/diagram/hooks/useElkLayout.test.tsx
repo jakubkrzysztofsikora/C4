@@ -13,7 +13,7 @@ function makeNode(overrides: Partial<DiagramNode> & { id: string; label: string 
 }
 
 function Harness({ data }: { data: DiagramData }) {
-  const result = useElkLayout(data);
+  const result = useElkLayout(data, new Set<string>());
   return (
     <output>
       {JSON.stringify({

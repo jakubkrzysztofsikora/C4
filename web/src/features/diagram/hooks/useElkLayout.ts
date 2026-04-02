@@ -14,6 +14,8 @@ const C4_DIMENSIONS: Record<DiagramNode['level'], { width: number; height: numbe
   Unknown: { width: 220, height: 84 },
 };
 
+const COLLAPSED_GROUP_DIMENSIONS = { width: 200, height: 60 };
+
 const ELK_OPTIONS = {
   'elk.algorithm': 'layered',
   'elk.direction': 'RIGHT',
@@ -46,10 +48,11 @@ function groupByResourceGroup(nodes: DiagramNode[]): Map<string, DiagramNode[]> 
   return groups;
 }
 
-function buildElkGraph(nodes: DiagramNode[], edges: DiagramData['edges']): ElkNode {
+function buildElkGraph(nodes: DiagramNode[], edges: DiagramData['edges'], collapsedGroups: Set<string>): ElkNode {
   const grouped = groupByResourceGroup(nodes);
   const nodeIdSet = new Set(nodes.map((n) => n.id));
 
+  const collapsedGroupNodeIds = new Set<string>();
   const children: ElkNode[] = [];
 
   for (const [rg, groupNodes] of grouped) {
@@ -64,21 +67,37 @@ function buildElkGraph(nodes: DiagramNode[], edges: DiagramData['edges']): ElkNo
       }
     } else {
       const groupId = `group-${rg}`;
-      const groupChildren: ElkNode[] = groupNodes.map((node) => {
-        const dim = C4_DIMENSIONS[node.level];
-        return { id: node.id, width: dim.width, height: dim.height };
-      });
 
-      children.push({
-        id: groupId,
-        children: groupChildren,
-        layoutOptions: GROUP_OPTIONS,
-      });
+      if (collapsedGroups.has(groupId)) {
+        for (const node of groupNodes) {
+          collapsedGroupNodeIds.add(node.id);
+        }
+        children.push({
+          id: groupId,
+          width: COLLAPSED_GROUP_DIMENSIONS.width,
+          height: COLLAPSED_GROUP_DIMENSIONS.height,
+        });
+      } else {
+        const groupChildren: ElkNode[] = groupNodes.map((node) => {
+          const dim = C4_DIMENSIONS[node.level];
+          return { id: node.id, width: dim.width, height: dim.height };
+        });
+
+        children.push({
+          id: groupId,
+          children: groupChildren,
+          layoutOptions: GROUP_OPTIONS,
+        });
+      }
     }
   }
 
   const elkEdges: ElkExtendedEdge[] = edges
-    .filter((e) => nodeIdSet.has(e.from) && nodeIdSet.has(e.to))
+    .filter((e) => {
+      if (!nodeIdSet.has(e.from) || !nodeIdSet.has(e.to)) return false;
+      if (collapsedGroupNodeIds.has(e.from) || collapsedGroupNodeIds.has(e.to)) return false;
+      return true;
+    })
     .map((e) => ({
       id: e.id,
       sources: [e.from],
@@ -99,6 +118,7 @@ function buildElkGraph(nodes: DiagramNode[], edges: DiagramData['edges']): ElkNo
 function extractPositions(
   layoutResult: ElkNode,
   originalNodes: DiagramNode[],
+  collapsedGroups: Set<string>,
 ): { nodes: DiagramNode[]; groups: LayoutResult['groupNodes'] } {
   const posMap = new Map<string, { x: number; y: number }>();
   const groups: LayoutResult['groupNodes'] = [];
@@ -125,6 +145,20 @@ function extractPositions(
           y: gy + (grandchild.y ?? 0),
         });
       }
+    } else if (collapsedGroups.has(child.id)) {
+      const rgName = child.id.replace('group-', '');
+      const groupedNodes = originalNodes.filter(
+        (n) => (n.groupKey || n.resourceGroup || '') === rgName,
+      );
+      groups.push({
+        id: child.id,
+        label: rgName,
+        nodeCount: groupedNodes.length,
+        x: child.x ?? 0,
+        y: child.y ?? 0,
+        width: child.width ?? COLLAPSED_GROUP_DIMENSIONS.width,
+        height: child.height ?? COLLAPSED_GROUP_DIMENSIONS.height,
+      });
     } else {
       posMap.set(child.id, { x: child.x ?? 0, y: child.y ?? 0 });
     }
@@ -138,7 +172,7 @@ function extractPositions(
   return { nodes, groups };
 }
 
-export function useElkLayout(data: DiagramData): LayoutResult {
+export function useElkLayout(data: DiagramData, collapsedGroups: Set<string>): LayoutResult {
   const [result, setResult] = useState<LayoutResult>({
     layoutedData: data,
     groupNodes: [],
@@ -160,11 +194,11 @@ export function useElkLayout(data: DiagramData): LayoutResult {
     const version = ++versionRef.current;
     setResult((prev) => ({ ...prev, isLayouting: true }));
 
-    const elkGraph = buildElkGraph(data.nodes, data.edges);
+    const elkGraph = buildElkGraph(data.nodes, data.edges, collapsedGroups);
 
     elk.layout(elkGraph).then((layoutResult) => {
       if (version !== versionRef.current) return;
-      const { nodes, groups } = extractPositions(layoutResult, data.nodes);
+      const { nodes, groups } = extractPositions(layoutResult, data.nodes, collapsedGroups);
       setResult({
         layoutedData: { nodes, edges: data.edges },
         groupNodes: groups,
@@ -174,7 +208,7 @@ export function useElkLayout(data: DiagramData): LayoutResult {
       if (version !== versionRef.current) return;
       setResult({ layoutedData: data, groupNodes: [], isLayouting: false });
     });
-  }, [data]);
+  }, [data, collapsedGroups]);
 
   return result;
 }
