@@ -175,33 +175,49 @@ export function DiagramCanvas({
     return [...groups, ...serviceNodes];
   }, [groupNodes, data.nodes, overlayMode]);
 
-  const edges = useMemo(() => data.edges.map((edge) => {
-    const stroke = trafficColor(edge.traffic, edge.trafficState);
-    const trafficLabel = edge.trafficLabel ?? (edge.trafficState === 'unknown' ? 'N/A' : `${Math.round(edge.traffic * 100)}%`);
-    const title = [
-      `Traffic state: ${edge.trafficState ?? 'unknown'}`,
-      `Traffic score: ${trafficLabel}`,
-      typeof edge.requestRate === 'number' ? `Request rate: ${edge.requestRate.toFixed(2)} rps` : undefined,
-      typeof edge.errorRate === 'number' ? `Error rate: ${(edge.errorRate * 100).toFixed(2)}%` : undefined,
-      typeof edge.p95LatencyMs === 'number' ? `p95 latency: ${edge.p95LatencyMs.toFixed(0)}ms` : undefined,
-      edge.protocol ? `Protocol: ${edge.protocol}` : undefined,
-    ].filter(Boolean).join(' | ');
+  const simplifyEdges = useStore((s) => s.transform[2] < 0.3);
 
-    return {
-      id: edge.id,
-      source: edge.from,
-      target: edge.to,
-      markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
-      style: {
-        strokeWidth: edge.diffStatus === 'added' || edge.diffStatus === 'removed' ? 3 : 2,
-        stroke,
-        strokeDasharray: edge.diffStatus === 'removed' ? '6 4' : edge.telemetrySource === 'service-health.derived' ? '5 3' : undefined,
-      },
-      label: trafficLabel,
-      data: { title },
-      ariaLabel: title,
-    };
-  }), [data.edges]);
+  const edges = useMemo(() => {
+    const hideLabels = simplifyEdges || data.edges.length > 500;
+
+    return data.edges.map((edge) => {
+      const stroke = trafficColor(edge.traffic, edge.trafficState);
+      const trafficLabel = edge.trafficLabel ?? (edge.trafficState === 'unknown' ? 'N/A' : `${Math.round(edge.traffic * 100)}%`);
+
+      if (hideLabels) {
+        return {
+          id: edge.id,
+          source: edge.from,
+          target: edge.to,
+          style: { strokeWidth: 1, stroke },
+        };
+      }
+
+      const title = [
+        `Traffic state: ${edge.trafficState ?? 'unknown'}`,
+        `Traffic score: ${trafficLabel}`,
+        typeof edge.requestRate === 'number' ? `Request rate: ${edge.requestRate.toFixed(2)} rps` : undefined,
+        typeof edge.errorRate === 'number' ? `Error rate: ${(edge.errorRate * 100).toFixed(2)}%` : undefined,
+        typeof edge.p95LatencyMs === 'number' ? `p95 latency: ${edge.p95LatencyMs.toFixed(0)}ms` : undefined,
+        edge.protocol ? `Protocol: ${edge.protocol}` : undefined,
+      ].filter(Boolean).join(' | ');
+
+      return {
+        id: edge.id,
+        source: edge.from,
+        target: edge.to,
+        markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
+        style: {
+          strokeWidth: edge.diffStatus === 'added' || edge.diffStatus === 'removed' ? 3 : 2,
+          stroke,
+          strokeDasharray: edge.diffStatus === 'removed' ? '6 4' : edge.telemetrySource === 'service-health.derived' ? '5 3' : undefined,
+        },
+        label: trafficLabel,
+        data: { title },
+        ariaLabel: title,
+      };
+    });
+  }, [data.edges, simplifyEdges]);
 
   const miniMapNodeColor = useCallback((n: Node) => {
     const nodeData = n.data as { node?: DiagramNode };
