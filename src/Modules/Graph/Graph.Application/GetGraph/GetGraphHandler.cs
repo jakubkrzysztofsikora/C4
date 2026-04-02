@@ -186,9 +186,9 @@ public sealed class GetGraphHandler(
                 dataQualityFlags);
         }).ToArray();
 
-        var nodeById = nodeDtos
-            .GroupBy(n => n.Id)
-            .ToDictionary(g => g.Key, g => g.First());
+        Dictionary<Guid, GraphNodeDto> nodeById = new(nodeDtos.Length);
+        foreach (var nodeDto in nodeDtos)
+            nodeById.TryAdd(nodeDto.Id, nodeDto);
 
         var edgeDtos = filteredEdges.Select(e =>
         {
@@ -238,7 +238,13 @@ public sealed class GetGraphHandler(
             knownNodes,
             knownEdges);
 
-        return Result<GraphDto>.Success(new GraphDto(request.ProjectId, nodeDtos, edgeDtos, enrichedQuality));
+        return Result<GraphDto>.Success(new GraphDto(
+            request.ProjectId,
+            nodeDtos,
+            edgeDtos,
+            enrichedQuality,
+            TotalNodeCount: sourceNodes.Length,
+            FilteredNodeCount: filteredList.Length));
     }
 
     private static C4Level? ParseLevel(string? level)

@@ -1,5 +1,5 @@
 import { memo, useMemo, useCallback } from 'react';
-import { Background, Controls, Edge, Handle, MarkerType, MiniMap, Node, Position, ReactFlow } from '@xyflow/react';
+import { Background, Controls, Edge, Handle, MarkerType, MiniMap, Node, Position, ReactFlow, useStore } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { SiPostgresql, SiRedis } from 'react-icons/si';
 import { LuActivity, LuBoxes, LuCloud, LuGlobe, LuHardDrive, LuNetwork, LuSquare } from 'react-icons/lu';
@@ -24,6 +24,8 @@ function iconFor(type: DiagramNode['serviceType']) {
     default: return <LuGlobe />;
   }
 }
+
+type LodTier = 'dot' | 'compact' | 'full';
 
 type OverlayMode = 'none' | 'threat' | 'cost' | 'security';
 
@@ -54,6 +56,13 @@ const ServiceNode = memo(function ServiceNode({ data }: { data: { node: DiagramN
   const telemetryKnown = node.telemetryStatus === 'known';
   const borderColor = resolveBorderColor(node, overlayMode, telemetryKnown);
 
+  const lodTier: LodTier = useStore((s) => {
+    const z = s.transform[2];
+    if (z < 0.2) return 'dot';
+    if (z < 0.5) return 'compact';
+    return 'full';
+  });
+
   const title = useMemo(() => [
     `Name: ${node.label}`,
     `C4 level: ${node.level}`,
@@ -73,6 +82,33 @@ const ServiceNode = memo(function ServiceNode({ data }: { data: { node: DiagramN
     node.riskLevel !== undefined ? `Risk: ${node.riskLevel}` : undefined,
     node.externalResourceId !== undefined ? `Resource: ${node.externalResourceId}` : undefined,
   ].filter(Boolean).join('\n'), [node]);
+
+  if (lodTier === 'dot') {
+    return (
+      <div className="service-node-dot" style={{ background: borderColor }}>
+        <Handle type="target" position={Position.Left} />
+        <Handle type="source" position={Position.Right} />
+      </div>
+    );
+  }
+
+  if (lodTier === 'compact') {
+    return (
+      <div
+        className={`service-node-compact c4-${node.level.toLowerCase()}${node.diffStatus === 'added' ? ' diff-added' : ''}${node.diffStatus === 'removed' ? ' diff-removed' : ''}`}
+        style={{ borderColor }}
+      >
+        <Handle type="target" position={Position.Left} />
+        <div className="header">
+          <div className="title">{iconFor(node.serviceType)} <span>{node.label}</span></div>
+          <span className={`badge ${telemetryKnown ? node.health : 'unknown'}`}>
+            {telemetryKnown ? node.health.toUpperCase() : 'UNKNOWN'}
+          </span>
+        </div>
+        <Handle type="source" position={Position.Right} />
+      </div>
+    );
+  }
 
   return (
     <div

@@ -19,7 +19,6 @@ const ELK_OPTIONS = {
   'elk.direction': 'RIGHT',
   'elk.spacing.nodeNode': '40',
   'elk.layered.spacing.nodeNodeBetweenLayers': '100',
-  'elk.edgeRouting': 'ORTHOGONAL',
 };
 
 const GROUP_OPTIONS = {
@@ -90,7 +89,10 @@ function buildElkGraph(nodes: DiagramNode[], edges: DiagramData['edges']): ElkNo
     id: 'root',
     children,
     edges: elkEdges,
-    layoutOptions: ELK_OPTIONS,
+    layoutOptions: {
+      ...ELK_OPTIONS,
+      'elk.edgeRouting': nodes.length > 500 ? 'POLYLINE' : 'ORTHOGONAL',
+    },
   };
 }
 
