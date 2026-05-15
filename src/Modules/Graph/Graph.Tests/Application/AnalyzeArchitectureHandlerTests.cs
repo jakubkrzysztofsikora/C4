@@ -77,6 +77,9 @@ public sealed class AnalyzeArchitectureHandlerTests
         public Task<ArchitectureGraph?> GetByProjectIdReadOnlyAsync(Guid projectId, CancellationToken cancellationToken)
             => Task.FromResult(graph is not null && graph.ProjectId == projectId ? graph : null);
 
+        public Task<GraphDataProjection> GetProjectionByProjectIdAsync(Guid projectId, Guid? snapshotId, CancellationToken cancellationToken)
+            => Task.FromResult(new GraphDataProjection(false, [], [], null));
+
         public Task UpsertAsync(ArchitectureGraph graph, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task DeleteAsync(ArchitectureGraph graph, CancellationToken cancellationToken) => Task.CompletedTask;

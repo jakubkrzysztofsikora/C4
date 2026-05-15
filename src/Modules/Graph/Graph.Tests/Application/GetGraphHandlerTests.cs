@@ -221,6 +221,37 @@ public sealed class GetGraphHandlerTests
         public Task<ArchitectureGraph?> GetByProjectIdReadOnlyAsync(Guid projectId, CancellationToken cancellationToken)
             => Task.FromResult<ArchitectureGraph?>(graph.ProjectId == projectId ? graph : null);
 
+        public Task<GraphDataProjection> GetProjectionByProjectIdAsync(Guid projectId, Guid? snapshotId, CancellationToken cancellationToken)
+        {
+            if (graph.ProjectId != projectId)
+                return Task.FromResult(new GraphDataProjection(false, [], [], null));
+
+            IReadOnlyCollection<ProjectedNode> nodes = graph.Nodes
+                .Select(n => new ProjectedNode(
+                    n.Id.Value,
+                    n.ExternalResourceId,
+                    n.Name,
+                    (int)n.Level,
+                    n.ParentId?.Value,
+                    n.Properties.Technology,
+                    n.Properties.Domain ?? string.Empty,
+                    n.Properties.IsInfrastructure,
+                    n.Properties.ClassificationSource,
+                    n.Properties.ClassificationConfidence,
+                    n.Properties.Tags))
+                .ToList();
+
+            IReadOnlyCollection<ProjectedEdge> edges = graph.Edges
+                .Select(e => new ProjectedEdge(
+                    e.Id.Value,
+                    e.SourceNodeId.Value,
+                    e.TargetNodeId.Value,
+                    e.Properties.Protocol))
+                .ToList();
+
+            return Task.FromResult(new GraphDataProjection(true, nodes, edges, null));
+        }
+
         public Task UpsertAsync(ArchitectureGraph graph, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task DeleteAsync(ArchitectureGraph graph, CancellationToken cancellationToken) => Task.CompletedTask;

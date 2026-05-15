@@ -249,6 +249,9 @@ public sealed class ResourcesDiscoveredHandlerTests
         public Task<ArchitectureGraph?> GetByProjectIdReadOnlyAsync(Guid projectId, CancellationToken cancellationToken)
             => Task.FromResult(Graph is not null && Graph.ProjectId == projectId ? Graph : null);
 
+        public Task<GraphDataProjection> GetProjectionByProjectIdAsync(Guid projectId, Guid? snapshotId, CancellationToken cancellationToken)
+            => Task.FromResult(new GraphDataProjection(false, [], [], null));
+
         public Task UpsertAsync(ArchitectureGraph graph, CancellationToken cancellationToken)
         {
             Graph = graph;

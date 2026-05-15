@@ -48,7 +48,7 @@ function groupByResourceGroup(nodes: DiagramNode[]): Map<string, DiagramNode[]> 
   return groups;
 }
 
-function buildElkGraph(nodes: DiagramNode[], edges: DiagramData['edges'], collapsedGroups: Set<string>): ElkNode {
+export function buildElkGraph(nodes: DiagramNode[], edges: DiagramData['edges'], collapsedGroups: Set<string>): ElkNode {
   const grouped = groupByResourceGroup(nodes);
   const nodeIdSet = new Set(nodes.map((n) => n.id));
 
@@ -115,7 +115,7 @@ function buildElkGraph(nodes: DiagramNode[], edges: DiagramData['edges'], collap
   };
 }
 
-function extractPositions(
+export function extractPositions(
   layoutResult: ElkNode,
   originalNodes: DiagramNode[],
   collapsedGroups: Set<string>,
