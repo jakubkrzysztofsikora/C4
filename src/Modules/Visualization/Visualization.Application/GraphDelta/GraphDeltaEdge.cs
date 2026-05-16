@@ -1,0 +1,8 @@
+namespace C4.Modules.Visualization.Application.GraphDelta;
+
+public sealed record GraphDeltaEdge(
+    string Id,
+    string SourceNodeId,
+    string TargetNodeId,
+    string? Protocol,
+    string? TrafficState);

@@ -6,4 +6,7 @@ public interface IDiagramClient
     Task HealthOverlayChanged(Guid projectId, string healthJson);
     Task NodeAdded(Guid projectId, string nodeJson);
     Task NodeRemoved(Guid projectId, string nodeId);
+    Task EdgeAdded(Guid projectId, string edgeJson);
+    Task EdgeRemoved(Guid projectId, string edgeId);
+    Task GraphDelta(Guid projectId, string deltaJson);
 }

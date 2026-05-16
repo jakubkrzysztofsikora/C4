@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJson, postJson, ApiError } from '../../../shared/api/client';
 import { DiagramData, DiagramNode, DiagramEdge, ServiceType, RiskLevel, DiagramLevel, SecuritySeverity } from '../types';
-import { useSignalR } from './useSignalR';
+import { useSignalR, GraphDeltaPayload, GraphDeltaNodePayload, GraphDeltaEdgePayload } from './useSignalR';
 
 type GraphNodeDto = {
   id: string;
@@ -266,6 +266,37 @@ function isVisibleAtLevel(node: DiagramNode, level: Exclude<DiagramLevel, 'Unkno
 
 const EMPTY_DIAGRAM_DATA: DiagramData = { nodes: [], edges: [] };
 
+function mapDeltaNodeToDiagramNode(deltaNode: GraphDeltaNodePayload): DiagramNode {
+  return {
+    id: deltaNode.id,
+    label: deltaNode.name,
+    level: mapLevel(deltaNode.level),
+    health: resolveHealth(deltaNode.health ?? undefined),
+    telemetryStatus: 'unknown',
+    serviceType: isValidServiceType(deltaNode.serviceType) ? deltaNode.serviceType : inferServiceType(deltaNode.name),
+    environment: deltaNode.environment ?? 'unknown',
+    ...(deltaNode.technology !== null ? { technology: deltaNode.technology } : {}),
+    ...(deltaNode.resourceGroup !== null ? { resourceGroup: deltaNode.resourceGroup } : {}),
+    ...(deltaNode.domain !== null ? { domain: deltaNode.domain } : {}),
+  };
+}
+
+function mapDeltaEdgeToDiagramEdge(deltaEdge: GraphDeltaEdgePayload): DiagramEdge {
+  const mapped: DiagramEdge = {
+    id: deltaEdge.id,
+    from: deltaEdge.sourceNodeId,
+    to: deltaEdge.targetNodeId,
+    traffic: 0,
+  };
+  if (deltaEdge.trafficState === 'green' || deltaEdge.trafficState === 'yellow' || deltaEdge.trafficState === 'red' || deltaEdge.trafficState === 'unknown') {
+    mapped.trafficState = deltaEdge.trafficState;
+  }
+  if (deltaEdge.protocol !== null) {
+    mapped.protocol = deltaEdge.protocol;
+  }
+  return mapped;
+}
+
 export function useDiagram(projectId?: string) {
   const inFlightGraphRequestKey = useRef<string | undefined>(undefined);
   const settledGraphRequestKey = useRef<string | undefined>(undefined);
@@ -510,9 +541,33 @@ export function useDiagram(projectId?: string) {
     }
   }, [projectId, selectedSnapshotId, fetchGraph]);
 
+  const handleGraphDelta = useCallback((_receivedProjectId: string, delta: GraphDeltaPayload) => {
+    setApiData((current) => {
+      if (current === undefined) return current;
+
+      const removedNodeIdSet = new Set(delta.removedNodeIds);
+      const updatedNodeMap = new Map(delta.updatedNodes.map((n) => [n.id, n]));
+
+      const survivingNodes = current.nodes.filter((n) => !removedNodeIdSet.has(n.id));
+      const mergedNodes = survivingNodes.map((n) => {
+        const update = updatedNodeMap.get(n.id);
+        return update !== undefined ? { ...n, ...mapDeltaNodeToDiagramNode(update) } : n;
+      });
+      const appendedNodes = [...mergedNodes, ...delta.addedNodes.map(mapDeltaNodeToDiagramNode)];
+
+      const removedEdgeIdSet = new Set(delta.removedEdgeIds);
+      const survivingEdges = current.edges.filter((e) => !removedEdgeIdSet.has(e.id));
+      const appendedEdges = [...survivingEdges, ...delta.addedEdges.map(mapDeltaEdgeToDiagramEdge)];
+
+      return { nodes: appendedNodes, edges: appendedEdges };
+    });
+    setLastRefreshAt(Date.now());
+  }, []);
+
   const signalR = useSignalR(projectId, {
     onHealthOverlayChanged: handleHealthOverlayChanged,
     onDiagramUpdated: handleDiagramUpdated,
+    onGraphDelta: handleGraphDelta,
   });
 
   useEffect(() => {
