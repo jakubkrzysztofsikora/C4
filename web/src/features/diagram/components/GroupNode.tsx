@@ -14,7 +14,11 @@ export const GroupNode = memo(function GroupNode({ data }: { data: GroupNodeData
   return (
     <div
       className={`group-node${collapsed ? ' group-node--collapsed' : ''}`}
+      role="button"
+      tabIndex={0}
+      aria-expanded={!collapsed}
       onClick={(e) => { e.stopPropagation(); onToggle(groupId); }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onToggle(groupId); } }}
     >
       <div className="group-header">
         <span className="group-toggle">{collapsed ? '▸' : '▾'}</span>

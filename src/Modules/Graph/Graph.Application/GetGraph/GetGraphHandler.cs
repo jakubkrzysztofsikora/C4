@@ -388,9 +388,10 @@ public sealed class GetGraphHandler(
 
     private static bool IsEmptySnapshotPayload(ProjectedSnapshot snapshot)
     {
-        var nodes = System.Text.Json.JsonSerializer.Deserialize<GraphSnapshotNode[]>(snapshot.NodesJson) ?? [];
-        var edges = System.Text.Json.JsonSerializer.Deserialize<GraphSnapshotEdge[]>(snapshot.EdgesJson) ?? [];
-        return nodes.Length == 0 && edges.Length == 0;
+        return string.IsNullOrWhiteSpace(snapshot.NodesJson)
+               || snapshot.NodesJson.Equals("[]", StringComparison.Ordinal)
+               || string.IsNullOrWhiteSpace(snapshot.EdgesJson)
+               || snapshot.EdgesJson.Equals("[]", StringComparison.Ordinal);
     }
 
     private static WorkingNode[] BuildWorkingNodes(GraphDataProjection projection)

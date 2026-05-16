@@ -48,7 +48,34 @@ public sealed class ArchitectureGraphRepository(GraphDbContext dbContext) : IArc
                 .Select(s => new ProjectedSnapshot(s.Id.Value, s.NodesJson, s.EdgesJson))
                 .FirstOrDefaultAsync(cancellationToken);
 
-            return new GraphDataProjection(true, [], [], snapshot);
+            var baseNodes = await dbContext.Nodes
+                .AsNoTracking()
+                .Where(n => EF.Property<Guid>(n, "ArchitectureGraphId") == graphId.Value)
+                .Select(n => new ProjectedNode(
+                    n.Id.Value,
+                    n.ExternalResourceId,
+                    n.Name,
+                    (int)n.Level,
+                    n.ParentId == null ? (Guid?)null : n.ParentId.Value,
+                    n.Properties.Technology,
+                    n.Properties.Domain,
+                    n.Properties.IsInfrastructure,
+                    n.Properties.ClassificationSource,
+                    n.Properties.ClassificationConfidence,
+                    n.Properties.Tags))
+                .ToListAsync(cancellationToken);
+
+            var baseEdges = await dbContext.Edges
+                .AsNoTracking()
+                .Where(e => EF.Property<Guid>(e, "ArchitectureGraphId") == graphId.Value)
+                .Select(e => new ProjectedEdge(
+                    e.Id.Value,
+                    e.SourceNodeId.Value,
+                    e.TargetNodeId.Value,
+                    e.Properties.Protocol))
+                .ToListAsync(cancellationToken);
+
+            return new GraphDataProjection(true, baseNodes, baseEdges, snapshot);
         }
 
         var nodes = await dbContext.Nodes

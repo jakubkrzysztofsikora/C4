@@ -122,6 +122,7 @@ export function extractPositions(
 ): { nodes: DiagramNode[]; groups: LayoutResult['groupNodes'] } {
   const posMap = new Map<string, { x: number; y: number }>();
   const groups: LayoutResult['groupNodes'] = [];
+  const nodesByGroup = groupByResourceGroup(originalNodes);
 
   for (const child of layoutResult.children ?? []) {
     if (child.children && child.children.length > 0) {
@@ -147,9 +148,7 @@ export function extractPositions(
       }
     } else if (collapsedGroups.has(child.id)) {
       const rgName = child.id.replace('group-', '');
-      const groupedNodes = originalNodes.filter(
-        (n) => (n.groupKey || n.resourceGroup || '') === rgName,
-      );
+      const groupedNodes = nodesByGroup.get(rgName) ?? [];
       groups.push({
         id: child.id,
         label: rgName,
@@ -219,6 +218,8 @@ export function useElkLayout(data: DiagramData, collapsedGroups: Set<string>): L
       if (version !== versionRef.current) return;
       setResult({ layoutedData: dataRef.current, groupNodes: [], isLayouting: false });
     });
+
+    return () => { versionRef.current++; };
   }, [layoutFingerprint, collapsedGroups]);
 
   return result;

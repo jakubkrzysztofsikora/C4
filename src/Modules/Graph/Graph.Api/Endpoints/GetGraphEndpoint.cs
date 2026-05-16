@@ -31,11 +31,12 @@ internal sealed class GetGraphEndpoint : IEndpoint
             if (!result.IsSuccess)
                 return Results.NotFound(result.Error);
 
-            var etag = ComputeETag(result.Value);
+            var etag = ComputeETag(result.Value, level, scope, groupBy, includeInfrastructure, environment, snapshotId);
 
             if (httpContext.Request.Headers.TryGetValue("If-None-Match", out var ifNoneMatch)
-                && ifNoneMatch.ToString() == etag)
+                && ifNoneMatch.ToString().Trim('"') == etag.Trim('"'))
             {
+                httpContext.Response.Headers.ETag = etag;
                 return Results.StatusCode(StatusCodes.Status304NotModified);
             }
 
@@ -45,9 +46,28 @@ internal sealed class GetGraphEndpoint : IEndpoint
         .RequireAuthorization();
     }
 
-    private static string ComputeETag(GraphDto graph)
+    private static string ComputeETag(
+        GraphDto graph,
+        string? level,
+        string? scope,
+        string? groupBy,
+        string? includeInfrastructure,
+        string? environment,
+        Guid? snapshotId)
     {
         var raw = new StringBuilder();
+        raw.Append(level ?? "");
+        raw.Append('|');
+        raw.Append(scope ?? "");
+        raw.Append('|');
+        raw.Append(groupBy ?? "");
+        raw.Append('|');
+        raw.Append(includeInfrastructure ?? "");
+        raw.Append('|');
+        raw.Append(environment ?? "");
+        raw.Append('|');
+        raw.Append(snapshotId?.ToString() ?? "");
+        raw.Append('|');
         raw.Append(graph.ProjectId);
         raw.Append('|');
         raw.Append(graph.Nodes.Count);
