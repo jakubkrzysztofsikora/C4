@@ -823,7 +823,7 @@ export function DiagramPage() {
           </div>
         )}
       </aside>
-      <DiagramCanvas data={deferredData} groupNodes={groupNodes} overlayMode={overlayMode} collapsedGroups={collapsedGroups} onToggleGroup={toggleGroup} />
+      <DiagramCanvas data={deferredData} groupNodes={groupNodes} overlayMode={overlayMode} isLayouting={isLayouting} collapsedGroups={collapsedGroups} onToggleGroup={toggleGroup} />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </section>
   );

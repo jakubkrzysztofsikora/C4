@@ -16,6 +16,7 @@ public sealed class GetGraphHandler(
     IProjectAuthorizationService authorizationService
 ) : IRequestHandler<GetGraphQuery, Result<GraphDto>>
 {
+    private static readonly System.Text.Json.JsonSerializerOptions SnapshotJsonOptions = new() { PropertyNameCaseInsensitive = true };
     public async Task<Result<GraphDto>> Handle(GetGraphQuery request, CancellationToken cancellationToken)
     {
         var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
@@ -81,9 +82,9 @@ public sealed class GetGraphHandler(
         var driftTask = QueryDriftedResourcesSafelyAsync(resourceIds, cancellationToken);
         await Task.WhenAll(healthTask, driftTask, dependencyTask);
 
-        var healthSummaries = healthTask.Result;
-        var dependencySummaries = dependencyTask.Result;
-        var driftedResources = driftTask.Result;
+        var healthSummaries = await healthTask;
+        var dependencySummaries = await dependencyTask;
+        var driftedResources = await driftTask;
 
         var healthByService = healthSummaries
             .Where(s => !string.IsNullOrWhiteSpace(s.Service))
@@ -398,7 +399,7 @@ public sealed class GetGraphHandler(
         {
             var snapshotNodes = System.Text.Json.JsonSerializer.Deserialize<GraphSnapshotNode[]>(
                 projection.Snapshot.NodesJson,
-                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+                SnapshotJsonOptions) ?? [];
 
             return snapshotNodes
                 .Select(node => new WorkingNode(
@@ -448,7 +449,7 @@ public sealed class GetGraphHandler(
         {
             var snapshotEdges = System.Text.Json.JsonSerializer.Deserialize<GraphSnapshotEdge[]>(
                 projection.Snapshot.EdgesJson,
-                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+                SnapshotJsonOptions) ?? [];
 
             return snapshotEdges
                 .Select(edge => new WorkingEdge(edge.Id, edge.SourceNodeId, edge.TargetNodeId, edge.Protocol))
@@ -714,7 +715,8 @@ public sealed class GetGraphHandler(
         if (string.IsNullOrWhiteSpace(value)) return string.Empty;
 
         var lower = value.Trim().ToLowerInvariant();
-        Span<char> buffer = stackalloc char[lower.Length];
+        const int MaxStackAlloc = 512;
+        Span<char> buffer = lower.Length <= MaxStackAlloc ? stackalloc char[lower.Length] : new char[lower.Length];
         var index = 0;
         foreach (var ch in lower)
         {

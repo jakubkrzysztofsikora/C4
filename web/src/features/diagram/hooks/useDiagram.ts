@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getJson, postJson, ApiError } from '../../../shared/api/client';
+import { getJson, getJsonConditional, postJson, ApiError } from '../../../shared/api/client';
 import { DiagramData, DiagramNode, DiagramEdge, ServiceType, RiskLevel, DiagramLevel, SecuritySeverity } from '../types';
 import { useSignalR, GraphDeltaPayload, GraphDeltaNodePayload, GraphDeltaEdgePayload } from './useSignalR';
 
@@ -272,7 +272,7 @@ function mapDeltaNodeToDiagramNode(deltaNode: GraphDeltaNodePayload): DiagramNod
     label: deltaNode.name,
     level: mapLevel(deltaNode.level),
     health: resolveHealth(deltaNode.health ?? undefined),
-    telemetryStatus: 'unknown',
+    telemetryStatus: deltaNode.health !== null && deltaNode.health !== undefined ? 'known' : 'unknown',
     serviceType: isValidServiceType(deltaNode.serviceType) ? deltaNode.serviceType : inferServiceType(deltaNode.name),
     environment: deltaNode.environment ?? 'unknown',
     ...(deltaNode.technology !== null ? { technology: deltaNode.technology } : {}),
@@ -301,6 +301,7 @@ export function useDiagram(projectId?: string) {
   const inFlightGraphRequestKey = useRef<string | undefined>(undefined);
   const settledGraphRequestKey = useRef<string | undefined>(undefined);
   const settledGraphRequestNotFound = useRef(false);
+  const lastGraphEtag = useRef<string | null>(null);
 
   const [level, setLevel] = useState<Exclude<DiagramLevel, 'Unknown'>>(() => {
     const initial = getInitialParam('level', 'Container');
@@ -362,6 +363,7 @@ export function useDiagram(projectId?: string) {
     inFlightGraphRequestKey.current = undefined;
     settledGraphRequestKey.current = undefined;
     settledGraphRequestNotFound.current = false;
+    lastGraphEtag.current = null;
     setApiData(undefined);
     setGraphQuality(undefined);
     setGraphNotFound(false);
@@ -428,7 +430,22 @@ export function useDiagram(projectId?: string) {
         params.set('snapshotId', snapshotId);
       }
 
-      const dto = await getJson<GraphDto>(`/api/projects/${id}/graph?${params.toString()}`);
+      const result = await getJsonConditional<GraphDto>(
+        `/api/projects/${id}/graph?${params.toString()}`,
+        lastGraphEtag.current ?? undefined,
+      );
+
+      if (result.notModified) {
+        settledGraphRequestKey.current = requestKey;
+        settledGraphRequestNotFound.current = false;
+        return;
+      }
+
+      if (result.etag !== null) {
+        lastGraphEtag.current = result.etag;
+      }
+
+      const dto = result.data;
       const mapped = mapGraphDtoToDiagramData(dto);
       setApiData(mapped);
       setGraphQuality(dto.quality);
@@ -553,11 +570,19 @@ export function useDiagram(projectId?: string) {
         const update = updatedNodeMap.get(n.id);
         return update !== undefined ? { ...n, ...mapDeltaNodeToDiagramNode(update) } : n;
       });
-      const appendedNodes = [...mergedNodes, ...delta.addedNodes.map(mapDeltaNodeToDiagramNode)];
+      const existingNodeIds = new Set(mergedNodes.map((n) => n.id));
+      const newNodes = delta.addedNodes
+        .filter((n) => !existingNodeIds.has(n.id))
+        .map(mapDeltaNodeToDiagramNode);
+      const appendedNodes = [...mergedNodes, ...newNodes];
 
       const removedEdgeIdSet = new Set(delta.removedEdgeIds);
       const survivingEdges = current.edges.filter((e) => !removedEdgeIdSet.has(e.id));
-      const appendedEdges = [...survivingEdges, ...delta.addedEdges.map(mapDeltaEdgeToDiagramEdge)];
+      const existingEdgeIds = new Set(survivingEdges.map((e) => e.id));
+      const newEdges = delta.addedEdges
+        .filter((e) => !existingEdgeIds.has(e.id))
+        .map(mapDeltaEdgeToDiagramEdge);
+      const appendedEdges = [...survivingEdges, ...newEdges];
 
       return { nodes: appendedNodes, edges: appendedEdges };
     });

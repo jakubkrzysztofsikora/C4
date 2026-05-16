@@ -14,7 +14,7 @@ export const GroupNode = memo(function GroupNode({ data }: { data: GroupNodeData
   return (
     <div
       className={`group-node${collapsed ? ' group-node--collapsed' : ''}`}
-      onClick={() => onToggle(groupId)}
+      onClick={(e) => { e.stopPropagation(); onToggle(groupId); }}
     >
       <div className="group-header">
         <span className="group-toggle">{collapsed ? '▸' : '▾'}</span>

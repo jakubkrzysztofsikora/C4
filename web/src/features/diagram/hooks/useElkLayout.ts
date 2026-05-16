@@ -1,5 +1,5 @@
 import ELK, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk-api.js';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DiagramData, DiagramNode } from '../types';
 
 const elk = new ELK({
@@ -179,14 +179,24 @@ export function useElkLayout(data: DiagramData, collapsedGroups: Set<string>): L
     isLayouting: false,
   });
   const versionRef = useRef(0);
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
+  const layoutFingerprint = useMemo(() => {
+    const nodeIds = data.nodes.map((n) => n.id).sort().join(',');
+    const edgeIds = data.edges.map((e) => e.id).sort().join(',');
+    return `${nodeIds}|${edgeIds}`;
+  }, [data.nodes, data.edges]);
 
   useEffect(() => {
-    if (data.nodes.length === 0) {
+    const currentData = dataRef.current;
+
+    if (currentData.nodes.length === 0) {
       setResult((prev) => {
         if (!prev.isLayouting && prev.groupNodes.length === 0 && prev.layoutedData.nodes.length === 0 && prev.layoutedData.edges.length === 0) {
           return prev;
         }
-        return { layoutedData: data, groupNodes: [], isLayouting: false };
+        return { layoutedData: currentData, groupNodes: [], isLayouting: false };
       });
       return;
     }
@@ -194,21 +204,22 @@ export function useElkLayout(data: DiagramData, collapsedGroups: Set<string>): L
     const version = ++versionRef.current;
     setResult((prev) => ({ ...prev, isLayouting: true }));
 
-    const elkGraph = buildElkGraph(data.nodes, data.edges, collapsedGroups);
+    const elkGraph = buildElkGraph(currentData.nodes, currentData.edges, collapsedGroups);
 
     elk.layout(elkGraph).then((layoutResult) => {
       if (version !== versionRef.current) return;
-      const { nodes, groups } = extractPositions(layoutResult, data.nodes, collapsedGroups);
+      const snapshot = dataRef.current;
+      const { nodes, groups } = extractPositions(layoutResult, snapshot.nodes, collapsedGroups);
       setResult({
-        layoutedData: { nodes, edges: data.edges },
+        layoutedData: { nodes, edges: snapshot.edges },
         groupNodes: groups,
         isLayouting: false,
       });
     }).catch(() => {
       if (version !== versionRef.current) return;
-      setResult({ layoutedData: data, groupNodes: [], isLayouting: false });
+      setResult({ layoutedData: dataRef.current, groupNodes: [], isLayouting: false });
     });
-  }, [data, collapsedGroups]);
+  }, [layoutFingerprint, collapsedGroups]);
 
   return result;
 }

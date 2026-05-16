@@ -6,6 +6,7 @@ import { LuActivity, LuBoxes, LuCloud, LuGlobe, LuHardDrive, LuNetwork, LuSquare
 import { DiagramData, DiagramNode } from '../types';
 import { GroupNode } from './GroupNode';
 import { healthColor, riskColor, trafficColor } from '../utils';
+import { useRenderingStrategy } from '../hooks/useRenderingStrategy';
 import '../diagram.css';
 
 type GroupNodeData = { id: string; label: string; nodeCount: number; x: number; y: number; width: number; height: number };
@@ -145,6 +146,8 @@ const ServiceNode = memo(function ServiceNode({ data }: { data: { node: DiagramN
 
 const nodeTypes = { service: ServiceNode, group: GroupNode };
 
+type RenderingStrategy = 'default' | 'optimized' | 'aggressive';
+
 export function DiagramCanvas({
   data,
   groupNodes = [],
@@ -160,6 +163,7 @@ export function DiagramCanvas({
   collapsedGroups: Set<string>;
   onToggleGroup: (groupId: string) => void;
 }) {
+  const strategy: RenderingStrategy = useRenderingStrategy(data.nodes.length);
   const toggleGroup = onToggleGroup;
 
   const collapsedGroupNodeIds = useMemo<Set<string>>(() => {
@@ -200,10 +204,13 @@ export function DiagramCanvas({
     return [...groups, ...serviceNodes];
   }, [groupNodes, data.nodes, overlayMode, collapsedGroups, collapsedGroupNodeIds, toggleGroup]);
 
-  const simplifyEdges = useStore((s) => s.transform[2] < 0.3);
+  const canvasLod: 'minimal' | 'normal' = useStore((s) => {
+    const z = s.transform[2];
+    return z < 0.3 ? 'minimal' : 'normal';
+  });
 
   const edges = useMemo(() => {
-    const hideLabels = simplifyEdges || data.edges.length > 500;
+    const hideLabels = canvasLod === 'minimal' || data.edges.length > 500;
 
     return data.edges
       .filter((edge) => !collapsedGroupNodeIds.has(edge.from) && !collapsedGroupNodeIds.has(edge.to))
@@ -244,7 +251,7 @@ export function DiagramCanvas({
           ariaLabel: title,
         };
       });
-  }, [data.edges, simplifyEdges, collapsedGroupNodeIds]);
+  }, [data.edges, canvasLod, collapsedGroupNodeIds]);
 
   const miniMapNodeColor = useCallback((n: Node) => {
     const nodeData = n.data as { node?: DiagramNode };
@@ -265,18 +272,20 @@ export function DiagramCanvas({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        onlyRenderVisibleElements={nodes.length > 500}
+        onlyRenderVisibleElements={strategy !== 'default'}
         minZoom={0.05}
         maxZoom={2}
         defaultViewport={{ x: 0, y: 0, zoom: 0.3 }}
       >
         <Background color="#203357" gap={18} size={1} />
-        <MiniMap
-          nodeColor={miniMapNodeColor}
-          nodeStrokeWidth={0}
-          pannable
-          zoomable
-        />
+        {strategy !== 'aggressive' && (
+          <MiniMap
+            nodeColor={miniMapNodeColor}
+            nodeStrokeWidth={0}
+            pannable
+            zoomable
+          />
+        )}
         <Controls />
       </ReactFlow>
     </div>
