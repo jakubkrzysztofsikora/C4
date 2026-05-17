@@ -149,6 +149,8 @@ describe('useDiagram', () => {
 
 vi.mock('../../../shared/api/client', () => ({
   getJson: vi.fn(),
+  getJsonConditional: vi.fn(),
+  postJson: vi.fn(),
   ApiError: class ApiError extends Error {
     public readonly status: number;
     constructor(status: number, message: string) {
@@ -163,7 +165,7 @@ vi.mock('./useSignalR', () => ({
   useSignalR: vi.fn(),
 }));
 
-import { getJson, ApiError } from '../../../shared/api/client';
+import { getJson, getJsonConditional, ApiError } from '../../../shared/api/client';
 import { useSignalR } from './useSignalR';
 
 const DISCONNECTED_SIGNALR_STATE = {
@@ -173,6 +175,7 @@ const DISCONNECTED_SIGNALR_STATE = {
 
 beforeEach(() => {
   vi.mocked(getJson).mockReset();
+  vi.mocked(getJsonConditional).mockReset();
   vi.mocked(useSignalR).mockReturnValue(DISCONNECTED_SIGNALR_STATE);
   window.history.replaceState({}, '', '/');
 });
@@ -189,8 +192,12 @@ function mockGraphResponses(projectId: string, graphResponse: unknown) {
     if (url.includes('/graph/snapshots')) {
       return Promise.resolve({ projectId, snapshots: [] });
     }
+    return Promise.reject(new Error(`Unexpected URL: ${url}`));
+  });
+  const mockGetJsonConditional = vi.mocked(getJsonConditional);
+  mockGetJsonConditional.mockImplementation((url: string) => {
     if (url.includes('/graph?')) {
-      return Promise.resolve(graphResponse);
+      return Promise.resolve({ notModified: false, data: graphResponse, etag: null });
     }
     return Promise.reject(new Error(`Unexpected URL: ${url}`));
   });
@@ -265,8 +272,12 @@ describe('useDiagram parentId mapping from API', () => {
           snapshots: [{ snapshotId: 'snap-1', createdAtUtc: '2026-03-02T08:34:52Z', source: 'discovery' }],
         });
       }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    });
+    const mockGetJsonConditional = vi.mocked(getJsonConditional);
+    mockGetJsonConditional.mockImplementation((url: string) => {
       if (url.includes('/graph?')) {
-        return Promise.resolve({ projectId: 'proj-live', nodes: [], edges: [] });
+        return Promise.resolve({ notModified: false, data: { projectId: 'proj-live', nodes: [], edges: [] }, etag: null });
       }
       return Promise.reject(new Error(`Unexpected URL: ${url}`));
     });
@@ -277,7 +288,7 @@ describe('useDiagram parentId mapping from API', () => {
     await flushEffects();
     await flushEffects();
 
-    const graphCalls = mockGetJson.mock.calls
+    const graphCalls = mockGetJsonConditional.mock.calls
       .map(([url]) => String(url))
       .filter((url) => url.includes('/graph?'));
 
@@ -295,8 +306,12 @@ describe('useDiagram parentId mapping from API', () => {
           snapshots: [{ snapshotId: 'snap-1', createdAtUtc: '2026-03-02T08:34:52Z', source: 'discovery' }],
         });
       }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    });
+    const mockGetJsonConditional = vi.mocked(getJsonConditional);
+    mockGetJsonConditional.mockImplementation((url: string) => {
       if (url.includes('/graph?')) {
-        return Promise.resolve({ projectId: 'proj-snap', nodes: [], edges: [] });
+        return Promise.resolve({ notModified: false, data: { projectId: 'proj-snap', nodes: [], edges: [] }, etag: null });
       }
       return Promise.reject(new Error(`Unexpected URL: ${url}`));
     });
@@ -306,7 +321,7 @@ describe('useDiagram parentId mapping from API', () => {
     });
     await flushEffects();
 
-    const graphCalls = mockGetJson.mock.calls
+    const graphCalls = mockGetJsonConditional.mock.calls
       .map(([url]) => String(url))
       .filter((url) => url.includes('/graph?'));
 
@@ -413,17 +428,21 @@ describe('useDiagram parentId mapping from API', () => {
   it('does not fetch snapshots for a no-graph project after switching projects', async () => {
     const mockGetJson = vi.mocked(getJson);
     mockGetJson.mockImplementation((url: string) => {
-      if (url.includes('/api/projects/proj-a/graph?')) {
-        return Promise.resolve({ projectId: 'proj-a', nodes: [], edges: [] });
-      }
       if (url.includes('/api/projects/proj-a/graph/snapshots')) {
         return Promise.resolve({ projectId: 'proj-a', snapshots: [] });
       }
-      if (url.includes('/api/projects/proj-b/graph?')) {
-        return Promise.reject(new ApiError(404, 'graph.not_found'));
-      }
       if (url.includes('/api/projects/proj-b/graph/snapshots')) {
         return Promise.reject(new Error('snapshots should not be fetched for graph.not_found project'));
+      }
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    });
+    const mockGetJsonConditional = vi.mocked(getJsonConditional);
+    mockGetJsonConditional.mockImplementation((url: string) => {
+      if (url.includes('/api/projects/proj-a/graph?')) {
+        return Promise.resolve({ notModified: false, data: { projectId: 'proj-a', nodes: [], edges: [] }, etag: null });
+      }
+      if (url.includes('/api/projects/proj-b/graph?')) {
+        return Promise.reject(new ApiError(404, 'graph.not_found'));
       }
       return Promise.reject(new Error(`Unexpected URL: ${url}`));
     });
@@ -440,9 +459,10 @@ describe('useDiagram parentId mapping from API', () => {
     await flushEffects();
     await flushEffects();
 
-    const urls = mockGetJson.mock.calls.map(([url]) => String(url));
-    const projectBGraphCalls = urls.filter((url) => url.includes('/api/projects/proj-b/graph?'));
-    const projectBSnapshotCalls = urls.filter((url) => url.includes('/api/projects/proj-b/graph/snapshots'));
+    const conditionalUrls = mockGetJsonConditional.mock.calls.map(([url]) => String(url));
+    const snapshotUrls = mockGetJson.mock.calls.map(([url]) => String(url));
+    const projectBGraphCalls = conditionalUrls.filter((url) => url.includes('/api/projects/proj-b/graph?'));
+    const projectBSnapshotCalls = snapshotUrls.filter((url) => url.includes('/api/projects/proj-b/graph/snapshots'));
 
     expect(projectBGraphCalls).toHaveLength(1);
     expect(projectBSnapshotCalls).toHaveLength(0);

@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
+import type { ElkNode } from 'elkjs/lib/elk-api.js';
+
+vi.mock('elkjs/lib/elk-api.js', () => ({
+  default: class MockElk {
+    layout(graph: ElkNode): Promise<ElkNode> {
+      return Promise.resolve(graph);
+    }
+  },
+}));
+
 import { useElkLayout, buildElkGraph } from './useElkLayout';
 import type { DiagramData, DiagramNode } from '../types';
 
