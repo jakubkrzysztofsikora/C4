@@ -1,6 +1,5 @@
 using C4.Modules.Graph.Application.Ports;
 using C4.Modules.Graph.Domain.ArchitectureGraph;
-using C4.Modules.Graph.Domain.GraphSnapshot;
 
 namespace C4.Modules.Graph.Api.Persistence;
 
@@ -51,7 +50,7 @@ public sealed class InMemoryArchitectureGraphRepository : IArchitectureGraphRepo
         ProjectedSnapshot? snapshot = null;
         if (snapshotId.HasValue)
         {
-            var match = graph.Snapshots.FirstOrDefault(s => s.Id == new GraphSnapshotId(snapshotId.Value));
+            var match = graph.Snapshots.FirstOrDefault(s => s.Id.Value == snapshotId.Value);
             if (match is not null)
                 snapshot = new ProjectedSnapshot(match.Id.Value, match.NodesJson, match.EdgesJson);
         }
