@@ -1,6 +1,6 @@
 using System.Text.Json;
 using C4.Modules.Visualization.Api.Hubs;
-using C4.Modules.Visualization.Application.GraphDelta;
+using C4.Modules.Visualization.Application.Deltas;
 using C4.Modules.Visualization.Application.Ports;
 using Microsoft.AspNetCore.SignalR;
 
