@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
+import type { ElkNode } from 'elkjs/lib/elk-api.js';
 
 vi.mock('elkjs/lib/elk-api.js', () => ({
   default: class MockElk {
-    layout(): Promise<{ children: never[]; edges: never[] }> {
-      return Promise.resolve({ children: [], edges: [] });
+    layout(graph: ElkNode): Promise<ElkNode> {
+      return Promise.resolve(graph);
     }
   },
 }));
