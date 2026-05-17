@@ -1,4 +1,4 @@
-namespace C4.Modules.Visualization.Application.GraphDelta;
+namespace C4.Modules.Visualization.Application.Deltas;
 
 public sealed record GraphDeltaNode(
     string Id,

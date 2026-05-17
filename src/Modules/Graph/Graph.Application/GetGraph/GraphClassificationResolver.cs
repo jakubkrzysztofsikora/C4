@@ -1,5 +1,6 @@
 using C4.Modules.Discovery.Domain.Resources;
 using C4.Modules.Graph.Application.Ports;
+using C4.Modules.Graph.Domain;
 using C4.Modules.Graph.Domain.GraphNode;
 
 namespace C4.Modules.Graph.Application.GetGraph;

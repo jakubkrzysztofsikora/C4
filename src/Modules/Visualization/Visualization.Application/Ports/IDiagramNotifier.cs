@@ -1,4 +1,4 @@
-using C4.Modules.Visualization.Application.GraphDelta;
+using C4.Modules.Visualization.Application.Deltas;
 
 namespace C4.Modules.Visualization.Application.Ports;
 
