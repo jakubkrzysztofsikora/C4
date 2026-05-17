@@ -1,4 +1,5 @@
 using System.Text.Json;
+using C4.Modules.Visualization.Application.Deltas;
 using C4.Modules.Visualization.Application.IntegrationEventHandlers;
 using C4.Modules.Visualization.Application.Ports;
 using C4.Shared.Kernel.IntegrationEvents;
@@ -73,5 +74,8 @@ public sealed class TelemetryUpdatedHandlerTests
             HealthOverlayCalls.Add((projectId, healthJson));
             return Task.CompletedTask;
         }
+
+        public Task NotifyGraphDeltaAsync(Guid projectId, GraphDelta delta, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 }
