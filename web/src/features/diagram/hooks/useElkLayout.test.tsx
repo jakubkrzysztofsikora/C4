@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import { useElkLayout } from './useElkLayout';
+import { useElkLayout, buildElkGraph } from './useElkLayout';
 import type { DiagramData, DiagramNode } from '../types';
 
 function makeNode(overrides: Partial<DiagramNode> & { id: string; label: string }): DiagramNode {
@@ -13,7 +13,7 @@ function makeNode(overrides: Partial<DiagramNode> & { id: string; label: string 
 }
 
 function Harness({ data }: { data: DiagramData }) {
-  const result = useElkLayout(data);
+  const result = useElkLayout(data, new Set<string>());
   return (
     <output>
       {JSON.stringify({
@@ -101,5 +101,76 @@ describe('useElkLayout', () => {
     const result = parseResult(renderToString(<Harness data={data} />));
 
     expect(result.groupCount).toBe(0);
+  });
+});
+
+describe('buildElkGraph', () => {
+  it('collapsed group produces a single top-level child node without children', () => {
+    const nodes: DiagramNode[] = [
+      makeNode({ id: 'n1', label: 'API', resourceGroup: 'rg-prod' }),
+      makeNode({ id: 'n2', label: 'DB', resourceGroup: 'rg-prod' }),
+    ];
+    const collapsedGroups = new Set(['group-rg-prod']);
+
+    const graph = buildElkGraph(nodes, [], collapsedGroups);
+
+    const groupChild = graph.children?.find((c) => c.id === 'group-rg-prod');
+    expect(groupChild).toBeDefined();
+    expect(groupChild?.children).toBeUndefined();
+  });
+
+  it('edges to children of a collapsed group are filtered out', () => {
+    const nodes: DiagramNode[] = [
+      makeNode({ id: 'n1', label: 'API', resourceGroup: 'rg-prod' }),
+      makeNode({ id: 'n2', label: 'DB', resourceGroup: 'rg-prod' }),
+      makeNode({ id: 'n3', label: 'Gateway' }),
+    ];
+    const edges: DiagramData['edges'] = [
+      { id: 'e1', from: 'n3', to: 'n1', traffic: 1 },
+      { id: 'e2', from: 'n3', to: 'n2', traffic: 1 },
+    ];
+    const collapsedGroups = new Set(['group-rg-prod']);
+
+    const graph = buildElkGraph(nodes, edges, collapsedGroups);
+
+    expect(graph.edges).toHaveLength(0);
+  });
+
+  it('edges between non-collapsed nodes are retained', () => {
+    const nodes: DiagramNode[] = [
+      makeNode({ id: 'n1', label: 'API' }),
+      makeNode({ id: 'n2', label: 'DB' }),
+      makeNode({ id: 'n3', label: 'Cache', resourceGroup: 'rg-infra' }),
+      makeNode({ id: 'n4', label: 'Queue', resourceGroup: 'rg-infra' }),
+    ];
+    const edges: DiagramData['edges'] = [
+      { id: 'e1', from: 'n1', to: 'n2', traffic: 1 },
+    ];
+    const collapsedGroups = new Set<string>();
+
+    const graph = buildElkGraph(nodes, edges, collapsedGroups);
+
+    expect(graph.edges).toHaveLength(1);
+    expect(graph.edges?.[0]?.id).toBe('e1');
+  });
+
+  it('uses POLYLINE edge routing when node count exceeds 500', () => {
+    const nodes: DiagramNode[] = Array.from({ length: 501 }, (_, i) =>
+      makeNode({ id: `n${i}`, label: `Node ${i}` }),
+    );
+
+    const graph = buildElkGraph(nodes, [], new Set());
+
+    expect(graph.layoutOptions?.['elk.edgeRouting']).toBe('POLYLINE');
+  });
+
+  it('uses ORTHOGONAL edge routing when node count is at most 500', () => {
+    const nodes: DiagramNode[] = Array.from({ length: 500 }, (_, i) =>
+      makeNode({ id: `n${i}`, label: `Node ${i}` }),
+    );
+
+    const graph = buildElkGraph(nodes, [], new Set());
+
+    expect(graph.layoutOptions?.['elk.edgeRouting']).toBe('ORTHOGONAL');
   });
 });

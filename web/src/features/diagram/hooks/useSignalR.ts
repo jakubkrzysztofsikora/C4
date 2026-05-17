@@ -2,9 +2,38 @@ import { useEffect, useRef, useState } from 'react';
 import { HubConnection, HubConnectionState } from '@microsoft/signalr';
 import { createDiagramHubConnection, joinProject, leaveProject } from '../../../shared/api/signalrClient';
 
+export type GraphDeltaPayload = {
+  readonly addedNodes: ReadonlyArray<GraphDeltaNodePayload>;
+  readonly removedNodeIds: ReadonlyArray<string>;
+  readonly updatedNodes: ReadonlyArray<GraphDeltaNodePayload>;
+  readonly addedEdges: ReadonlyArray<GraphDeltaEdgePayload>;
+  readonly removedEdgeIds: ReadonlyArray<string>;
+};
+
+export type GraphDeltaNodePayload = {
+  readonly id: string;
+  readonly name: string;
+  readonly level: string;
+  readonly health: string | null;
+  readonly serviceType: string | null;
+  readonly technology: string | null;
+  readonly resourceGroup: string | null;
+  readonly environment: string | null;
+  readonly domain: string | null;
+};
+
+export type GraphDeltaEdgePayload = {
+  readonly id: string;
+  readonly sourceNodeId: string;
+  readonly targetNodeId: string;
+  readonly protocol: string | null;
+  readonly trafficState: string | null;
+};
+
 type SignalRCallbacks = {
   onHealthOverlayChanged?: (projectId: string, healthJson: string) => void;
   onDiagramUpdated?: (projectId: string, diagramJson: string) => void;
+  onGraphDelta?: (projectId: string, delta: GraphDeltaPayload) => void;
 };
 
 export type SignalRConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -37,6 +66,16 @@ export function useSignalR(projectId: string | undefined, callbacks: SignalRCall
     connection.on('DiagramUpdated', (receivedProjectId: string, diagramJson: string) => {
       setState((prev) => ({ ...prev, lastMessageAt: Date.now() }));
       callbacksRef.current.onDiagramUpdated?.(receivedProjectId, diagramJson);
+    });
+
+    connection.on('GraphDelta', (receivedProjectId: string, deltaJson: string) => {
+      setState((prev) => ({ ...prev, lastMessageAt: Date.now() }));
+      try {
+        const delta = JSON.parse(deltaJson) as GraphDeltaPayload;
+        callbacksRef.current.onGraphDelta?.(receivedProjectId, delta);
+      } catch {
+        // Malformed delta — ignore silently; DiagramUpdated fallback covers this case.
+      }
     });
 
     connection.onclose((error) => {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getJson, postJson, ApiError } from '../../../shared/api/client';
+import { getJson, getJsonConditional, postJson, ApiError } from '../../../shared/api/client';
 import { DiagramData, DiagramNode, DiagramEdge, ServiceType, RiskLevel, DiagramLevel, SecuritySeverity } from '../types';
-import { useSignalR } from './useSignalR';
+import { useSignalR, GraphDeltaPayload, GraphDeltaNodePayload, GraphDeltaEdgePayload } from './useSignalR';
 
 type GraphNodeDto = {
   id: string;
@@ -168,48 +168,52 @@ function maxSecuritySeverity(left: SecuritySeverity, right: SecuritySeverity): S
 }
 
 function mapGraphDtoToDiagramData(dto: GraphDto): DiagramData {
-  const nodes: DiagramNode[] = (dto.nodes ?? []).map((node) => ({
-    id: node.id,
-    label: node.name,
-    externalResourceId: node.externalResourceId,
-    level: mapLevel(node.level),
-    health: resolveHealth(node.health),
-    telemetryStatus: node.telemetryStatus === 'known' ? 'known' : 'unknown',
-    ...(typeof node.requestRate === 'number' ? { requestRate: node.requestRate } : {}),
-    ...(typeof node.errorRate === 'number' ? { errorRate: node.errorRate } : {}),
-    ...(typeof node.p95LatencyMs === 'number' ? { p95LatencyMs: node.p95LatencyMs } : {}),
-    ...(isValidRiskLevel(node.riskLevel) ? { riskLevel: node.riskLevel } : {}),
-    ...(typeof node.hourlyCostUsd === 'number' ? { hourlyCostUsd: node.hourlyCostUsd } : {}),
-    serviceType: isValidServiceType(node.serviceType) ? node.serviceType : inferServiceType(node.name),
-    ...(node.technology ? { technology: node.technology } : {}),
-    environment: node.environment ?? 'unknown',
-    ...(node.resourceGroup ? { resourceGroup: node.resourceGroup } : {}),
-    ...(node.domain ? { domain: node.domain } : {}),
-    ...(node.groupKey ? { groupKey: node.groupKey } : {}),
-    ...(Array.isArray(node.tags) && node.tags.length > 0 ? { tags: node.tags.filter((tag) => typeof tag === 'string' && tag.length > 0) } : {}),
-    ...(typeof node.isInfrastructure === 'boolean' ? { isInfrastructure: node.isInfrastructure } : {}),
-    ...(node.classificationSource ? { classificationSource: node.classificationSource } : {}),
-    ...(typeof node.classificationConfidence === 'number' ? { classificationConfidence: node.classificationConfidence } : {}),
-    ...(node.parentNodeId !== undefined && { parentId: node.parentNodeId }),
-    ...(node.drift === true && { drift: true }),
-  }));
+  const nodes: DiagramNode[] = (dto.nodes ?? []).map((node) => {
+    const mapped: DiagramNode = {
+      id: node.id,
+      label: node.name,
+      externalResourceId: node.externalResourceId,
+      level: mapLevel(node.level),
+      health: resolveHealth(node.health),
+      telemetryStatus: node.telemetryStatus === 'known' ? 'known' : 'unknown',
+      serviceType: isValidServiceType(node.serviceType) ? node.serviceType : inferServiceType(node.name),
+      environment: node.environment ?? 'unknown',
+    };
+    if (typeof node.requestRate === 'number') mapped.requestRate = node.requestRate;
+    if (typeof node.errorRate === 'number') mapped.errorRate = node.errorRate;
+    if (typeof node.p95LatencyMs === 'number') mapped.p95LatencyMs = node.p95LatencyMs;
+    if (isValidRiskLevel(node.riskLevel)) mapped.riskLevel = node.riskLevel;
+    if (typeof node.hourlyCostUsd === 'number') mapped.hourlyCostUsd = node.hourlyCostUsd;
+    if (node.technology) mapped.technology = node.technology;
+    if (node.resourceGroup) mapped.resourceGroup = node.resourceGroup;
+    if (node.domain) mapped.domain = node.domain;
+    if (node.groupKey) mapped.groupKey = node.groupKey;
+    if (Array.isArray(node.tags) && node.tags.length > 0) mapped.tags = node.tags.filter((tag) => typeof tag === 'string' && tag.length > 0);
+    if (typeof node.isInfrastructure === 'boolean') mapped.isInfrastructure = node.isInfrastructure;
+    if (node.classificationSource) mapped.classificationSource = node.classificationSource;
+    if (typeof node.classificationConfidence === 'number') mapped.classificationConfidence = node.classificationConfidence;
+    if (node.parentNodeId !== undefined) mapped.parentId = node.parentNodeId;
+    if (node.drift === true) mapped.drift = true;
+    return mapped;
+  });
 
-  const edges: DiagramEdge[] = (dto.edges ?? []).map((edge) => ({
-    id: edge.id,
-    from: edge.sourceNodeId,
-    to: edge.targetNodeId,
-    traffic: edge.traffic ?? 0,
-    ...(edge.trafficState === 'green' || edge.trafficState === 'yellow' || edge.trafficState === 'red' || edge.trafficState === 'unknown'
-      ? { trafficState: edge.trafficState }
-      : {}),
-    ...(typeof edge.requestRate === 'number' ? { requestRate: edge.requestRate } : {}),
-    ...(typeof edge.errorRate === 'number' ? { errorRate: edge.errorRate } : {}),
-    ...(typeof edge.p95LatencyMs === 'number' ? { p95LatencyMs: edge.p95LatencyMs } : {}),
-    ...(typeof edge.trafficLabel === 'string' && edge.trafficLabel.length > 0 ? { trafficLabel: edge.trafficLabel } : {}),
-    ...(edge.protocol ? { protocol: edge.protocol } : {}),
-    ...(edge.sourceExternalResourceId ? { sourceExternalResourceId: edge.sourceExternalResourceId } : {}),
-    ...(edge.targetExternalResourceId ? { targetExternalResourceId: edge.targetExternalResourceId } : {}),
-  }));
+  const edges: DiagramEdge[] = (dto.edges ?? []).map((edge) => {
+    const mapped: DiagramEdge = {
+      id: edge.id,
+      from: edge.sourceNodeId,
+      to: edge.targetNodeId,
+      traffic: edge.traffic ?? 0,
+    };
+    if (edge.trafficState === 'green' || edge.trafficState === 'yellow' || edge.trafficState === 'red' || edge.trafficState === 'unknown') mapped.trafficState = edge.trafficState;
+    if (typeof edge.requestRate === 'number') mapped.requestRate = edge.requestRate;
+    if (typeof edge.errorRate === 'number') mapped.errorRate = edge.errorRate;
+    if (typeof edge.p95LatencyMs === 'number') mapped.p95LatencyMs = edge.p95LatencyMs;
+    if (typeof edge.trafficLabel === 'string' && edge.trafficLabel.length > 0) mapped.trafficLabel = edge.trafficLabel;
+    if (edge.protocol) mapped.protocol = edge.protocol;
+    if (edge.sourceExternalResourceId) mapped.sourceExternalResourceId = edge.sourceExternalResourceId;
+    if (edge.targetExternalResourceId) mapped.targetExternalResourceId = edge.targetExternalResourceId;
+    return mapped;
+  });
 
   return { nodes, edges };
 }
@@ -262,10 +266,42 @@ function isVisibleAtLevel(node: DiagramNode, level: Exclude<DiagramLevel, 'Unkno
 
 const EMPTY_DIAGRAM_DATA: DiagramData = { nodes: [], edges: [] };
 
+function mapDeltaNodeToDiagramNode(deltaNode: GraphDeltaNodePayload): DiagramNode {
+  return {
+    id: deltaNode.id,
+    label: deltaNode.name,
+    level: mapLevel(deltaNode.level),
+    health: resolveHealth(deltaNode.health ?? undefined),
+    telemetryStatus: deltaNode.health !== null && deltaNode.health !== undefined ? 'known' : 'unknown',
+    serviceType: isValidServiceType(deltaNode.serviceType) ? deltaNode.serviceType : inferServiceType(deltaNode.name),
+    environment: deltaNode.environment ?? 'unknown',
+    ...(deltaNode.technology !== null ? { technology: deltaNode.technology } : {}),
+    ...(deltaNode.resourceGroup !== null ? { resourceGroup: deltaNode.resourceGroup } : {}),
+    ...(deltaNode.domain !== null ? { domain: deltaNode.domain } : {}),
+  };
+}
+
+function mapDeltaEdgeToDiagramEdge(deltaEdge: GraphDeltaEdgePayload): DiagramEdge {
+  const mapped: DiagramEdge = {
+    id: deltaEdge.id,
+    from: deltaEdge.sourceNodeId,
+    to: deltaEdge.targetNodeId,
+    traffic: 0,
+  };
+  if (deltaEdge.trafficState === 'green' || deltaEdge.trafficState === 'yellow' || deltaEdge.trafficState === 'red' || deltaEdge.trafficState === 'unknown') {
+    mapped.trafficState = deltaEdge.trafficState;
+  }
+  if (deltaEdge.protocol !== null) {
+    mapped.protocol = deltaEdge.protocol;
+  }
+  return mapped;
+}
+
 export function useDiagram(projectId?: string) {
   const inFlightGraphRequestKey = useRef<string | undefined>(undefined);
   const settledGraphRequestKey = useRef<string | undefined>(undefined);
   const settledGraphRequestNotFound = useRef(false);
+  const lastGraphEtag = useRef<string | null>(null);
 
   const [level, setLevel] = useState<Exclude<DiagramLevel, 'Unknown'>>(() => {
     const initial = getInitialParam('level', 'Container');
@@ -327,6 +363,7 @@ export function useDiagram(projectId?: string) {
     inFlightGraphRequestKey.current = undefined;
     settledGraphRequestKey.current = undefined;
     settledGraphRequestNotFound.current = false;
+    lastGraphEtag.current = null;
     setApiData(undefined);
     setGraphQuality(undefined);
     setGraphNotFound(false);
@@ -393,7 +430,22 @@ export function useDiagram(projectId?: string) {
         params.set('snapshotId', snapshotId);
       }
 
-      const dto = await getJson<GraphDto>(`/api/projects/${id}/graph?${params.toString()}`);
+      const result = await getJsonConditional<GraphDto>(
+        `/api/projects/${id}/graph?${params.toString()}`,
+        lastGraphEtag.current ?? undefined,
+      );
+
+      if (result.notModified) {
+        settledGraphRequestKey.current = requestKey;
+        settledGraphRequestNotFound.current = false;
+        return;
+      }
+
+      if (result.etag !== null) {
+        lastGraphEtag.current = result.etag;
+      }
+
+      const dto = result.data;
       const mapped = mapGraphDtoToDiagramData(dto);
       setApiData(mapped);
       setGraphQuality(dto.quality);
@@ -506,9 +558,41 @@ export function useDiagram(projectId?: string) {
     }
   }, [projectId, selectedSnapshotId, fetchGraph]);
 
+  const handleGraphDelta = useCallback((_receivedProjectId: string, delta: GraphDeltaPayload) => {
+    setApiData((current) => {
+      if (current === undefined) return current;
+
+      const removedNodeIdSet = new Set(delta.removedNodeIds);
+      const updatedNodeMap = new Map(delta.updatedNodes.map((n) => [n.id, n]));
+
+      const survivingNodes = current.nodes.filter((n) => !removedNodeIdSet.has(n.id));
+      const mergedNodes = survivingNodes.map((n) => {
+        const update = updatedNodeMap.get(n.id);
+        return update !== undefined ? { ...n, ...mapDeltaNodeToDiagramNode(update) } : n;
+      });
+      const existingNodeIds = new Set(mergedNodes.map((n) => n.id));
+      const newNodes = delta.addedNodes
+        .filter((n) => !existingNodeIds.has(n.id))
+        .map(mapDeltaNodeToDiagramNode);
+      const appendedNodes = [...mergedNodes, ...newNodes];
+
+      const removedEdgeIdSet = new Set(delta.removedEdgeIds);
+      const survivingEdges = current.edges.filter((e) => !removedEdgeIdSet.has(e.id));
+      const existingEdgeIds = new Set(survivingEdges.map((e) => e.id));
+      const newEdges = delta.addedEdges
+        .filter((e) => !existingEdgeIds.has(e.id))
+        .map(mapDeltaEdgeToDiagramEdge);
+      const appendedEdges = [...survivingEdges, ...newEdges];
+
+      return { nodes: appendedNodes, edges: appendedEdges };
+    });
+    setLastRefreshAt(Date.now());
+  }, []);
+
   const signalR = useSignalR(projectId, {
     onHealthOverlayChanged: handleHealthOverlayChanged,
     onDiagramUpdated: handleDiagramUpdated,
+    onGraphDelta: handleGraphDelta,
   });
 
   useEffect(() => {

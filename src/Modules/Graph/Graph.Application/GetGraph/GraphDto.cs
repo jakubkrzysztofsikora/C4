@@ -4,7 +4,9 @@ public sealed record GraphDto(
     Guid ProjectId,
     IReadOnlyCollection<GraphNodeDto> Nodes,
     IReadOnlyCollection<GraphEdgeDto> Edges,
-    GraphQualityDto? Quality = null);
+    GraphQualityDto? Quality = null,
+    int TotalNodeCount = 0,
+    int FilteredNodeCount = 0);
 
 public sealed record GraphQualityDto(
     int TotalNodes,

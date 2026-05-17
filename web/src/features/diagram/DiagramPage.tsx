@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DiagramCanvas } from './components/DiagramCanvas';
 import { useDiagram } from './hooks/useDiagram';
 import { useDiagramExport } from './hooks/useDiagramExport';
 import { useElkLayout } from './hooks/useElkLayout';
+import { useCollapsedGroups } from './hooks/useCollapsedGroups';
 import { usePanZoom } from './hooks/usePanZoom';
 import { useProject } from '../../shared/project/ProjectContext';
 import { useToast } from '../../shared/hooks/useToast';
@@ -152,7 +153,10 @@ export function DiagramPage() {
     captureSnapshot,
     refetch,
   } = useDiagram(projectId);
-  const { layoutedData, groupNodes, isLayouting } = useElkLayout(data);
+  const { collapsedGroups, toggleGroup } = useCollapsedGroups();
+  const { layoutedData, groupNodes, isLayouting } = useElkLayout(data, collapsedGroups);
+  const deferredData = useDeferredValue(layoutedData);
+  const isProgressivelyRendering = deferredData !== layoutedData;
   const { zoom, setZoom } = usePanZoom();
   const { exportAs } = useDiagramExport(layoutedData, projectId);
   const { toasts, addToast, removeToast } = useToast();
@@ -423,10 +427,10 @@ export function DiagramPage() {
         <h2 style={{ marginTop: 0 }}>Architecture Diagram</h2>
         <p className="subtle">Truthful C4 architecture map with health, drift, risk, cost and security overlays.</p>
 
-        {(loading || isLayouting) && (
+        {(loading || isLayouting || isProgressivelyRendering) && (
           <div className="loading-state">
             <span className="spinner" />
-            {isLayouting ? 'Computing layout...' : 'Loading graph data...'}
+            {isLayouting ? 'Computing layout...' : isProgressivelyRendering ? 'Rendering nodes...' : 'Loading graph data...'}
           </div>
         )}
 
@@ -819,7 +823,7 @@ export function DiagramPage() {
           </div>
         )}
       </aside>
-      <DiagramCanvas data={layoutedData} groupNodes={groupNodes} overlayMode={overlayMode} />
+      <DiagramCanvas data={deferredData} groupNodes={groupNodes} overlayMode={overlayMode} isLayouting={isLayouting} collapsedGroups={collapsedGroups} onToggleGroup={toggleGroup} />
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </section>
   );

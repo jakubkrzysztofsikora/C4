@@ -1,8 +1,10 @@
-import ELK, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js';
-import { useEffect, useRef, useState } from 'react';
+import ELK, { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk-api.js';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DiagramData, DiagramNode } from '../types';
 
-const elk = new ELK();
+const elk = new ELK({
+  workerUrl: new URL('elkjs/lib/elk-worker.js', import.meta.url).href,
+});
 
 const C4_DIMENSIONS: Record<DiagramNode['level'], { width: number; height: number }> = {
   Context: { width: 360, height: 140 },
@@ -12,12 +14,13 @@ const C4_DIMENSIONS: Record<DiagramNode['level'], { width: number; height: numbe
   Unknown: { width: 220, height: 84 },
 };
 
+const COLLAPSED_GROUP_DIMENSIONS = { width: 200, height: 60 };
+
 const ELK_OPTIONS = {
   'elk.algorithm': 'layered',
   'elk.direction': 'RIGHT',
   'elk.spacing.nodeNode': '40',
   'elk.layered.spacing.nodeNodeBetweenLayers': '100',
-  'elk.edgeRouting': 'ORTHOGONAL',
 };
 
 const GROUP_OPTIONS = {
@@ -45,10 +48,11 @@ function groupByResourceGroup(nodes: DiagramNode[]): Map<string, DiagramNode[]> 
   return groups;
 }
 
-function buildElkGraph(nodes: DiagramNode[], edges: DiagramData['edges']): ElkNode {
+export function buildElkGraph(nodes: DiagramNode[], edges: DiagramData['edges'], collapsedGroups: Set<string>): ElkNode {
   const grouped = groupByResourceGroup(nodes);
   const nodeIdSet = new Set(nodes.map((n) => n.id));
 
+  const collapsedGroupNodeIds = new Set<string>();
   const children: ElkNode[] = [];
 
   for (const [rg, groupNodes] of grouped) {
@@ -63,21 +67,37 @@ function buildElkGraph(nodes: DiagramNode[], edges: DiagramData['edges']): ElkNo
       }
     } else {
       const groupId = `group-${rg}`;
-      const groupChildren: ElkNode[] = groupNodes.map((node) => {
-        const dim = C4_DIMENSIONS[node.level];
-        return { id: node.id, width: dim.width, height: dim.height };
-      });
 
-      children.push({
-        id: groupId,
-        children: groupChildren,
-        layoutOptions: GROUP_OPTIONS,
-      });
+      if (collapsedGroups.has(groupId)) {
+        for (const node of groupNodes) {
+          collapsedGroupNodeIds.add(node.id);
+        }
+        children.push({
+          id: groupId,
+          width: COLLAPSED_GROUP_DIMENSIONS.width,
+          height: COLLAPSED_GROUP_DIMENSIONS.height,
+        });
+      } else {
+        const groupChildren: ElkNode[] = groupNodes.map((node) => {
+          const dim = C4_DIMENSIONS[node.level];
+          return { id: node.id, width: dim.width, height: dim.height };
+        });
+
+        children.push({
+          id: groupId,
+          children: groupChildren,
+          layoutOptions: GROUP_OPTIONS,
+        });
+      }
     }
   }
 
   const elkEdges: ElkExtendedEdge[] = edges
-    .filter((e) => nodeIdSet.has(e.from) && nodeIdSet.has(e.to))
+    .filter((e) => {
+      if (!nodeIdSet.has(e.from) || !nodeIdSet.has(e.to)) return false;
+      if (collapsedGroupNodeIds.has(e.from) || collapsedGroupNodeIds.has(e.to)) return false;
+      return true;
+    })
     .map((e) => ({
       id: e.id,
       sources: [e.from],
@@ -88,16 +108,21 @@ function buildElkGraph(nodes: DiagramNode[], edges: DiagramData['edges']): ElkNo
     id: 'root',
     children,
     edges: elkEdges,
-    layoutOptions: ELK_OPTIONS,
+    layoutOptions: {
+      ...ELK_OPTIONS,
+      'elk.edgeRouting': nodes.length > 500 ? 'POLYLINE' : 'ORTHOGONAL',
+    },
   };
 }
 
-function extractPositions(
+export function extractPositions(
   layoutResult: ElkNode,
   originalNodes: DiagramNode[],
+  collapsedGroups: Set<string>,
 ): { nodes: DiagramNode[]; groups: LayoutResult['groupNodes'] } {
   const posMap = new Map<string, { x: number; y: number }>();
   const groups: LayoutResult['groupNodes'] = [];
+  const nodesByGroup = groupByResourceGroup(originalNodes);
 
   for (const child of layoutResult.children ?? []) {
     if (child.children && child.children.length > 0) {
@@ -121,6 +146,18 @@ function extractPositions(
           y: gy + (grandchild.y ?? 0),
         });
       }
+    } else if (collapsedGroups.has(child.id)) {
+      const rgName = child.id.replace('group-', '');
+      const groupedNodes = nodesByGroup.get(rgName) ?? [];
+      groups.push({
+        id: child.id,
+        label: rgName,
+        nodeCount: groupedNodes.length,
+        x: child.x ?? 0,
+        y: child.y ?? 0,
+        width: child.width ?? COLLAPSED_GROUP_DIMENSIONS.width,
+        height: child.height ?? COLLAPSED_GROUP_DIMENSIONS.height,
+      });
     } else {
       posMap.set(child.id, { x: child.x ?? 0, y: child.y ?? 0 });
     }
@@ -134,21 +171,31 @@ function extractPositions(
   return { nodes, groups };
 }
 
-export function useElkLayout(data: DiagramData): LayoutResult {
+export function useElkLayout(data: DiagramData, collapsedGroups: Set<string>): LayoutResult {
   const [result, setResult] = useState<LayoutResult>({
     layoutedData: data,
     groupNodes: [],
     isLayouting: false,
   });
   const versionRef = useRef(0);
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
+  const layoutFingerprint = useMemo(() => {
+    const nodeIds = data.nodes.map((n) => n.id).sort().join(',');
+    const edgeIds = data.edges.map((e) => e.id).sort().join(',');
+    return `${nodeIds}|${edgeIds}`;
+  }, [data.nodes, data.edges]);
 
   useEffect(() => {
-    if (data.nodes.length === 0) {
+    const currentData = dataRef.current;
+
+    if (currentData.nodes.length === 0) {
       setResult((prev) => {
         if (!prev.isLayouting && prev.groupNodes.length === 0 && prev.layoutedData.nodes.length === 0 && prev.layoutedData.edges.length === 0) {
           return prev;
         }
-        return { layoutedData: data, groupNodes: [], isLayouting: false };
+        return { layoutedData: currentData, groupNodes: [], isLayouting: false };
       });
       return;
     }
@@ -156,21 +203,24 @@ export function useElkLayout(data: DiagramData): LayoutResult {
     const version = ++versionRef.current;
     setResult((prev) => ({ ...prev, isLayouting: true }));
 
-    const elkGraph = buildElkGraph(data.nodes, data.edges);
+    const elkGraph = buildElkGraph(currentData.nodes, currentData.edges, collapsedGroups);
 
     elk.layout(elkGraph).then((layoutResult) => {
       if (version !== versionRef.current) return;
-      const { nodes, groups } = extractPositions(layoutResult, data.nodes);
+      const snapshot = dataRef.current;
+      const { nodes, groups } = extractPositions(layoutResult, snapshot.nodes, collapsedGroups);
       setResult({
-        layoutedData: { nodes, edges: data.edges },
+        layoutedData: { nodes, edges: snapshot.edges },
         groupNodes: groups,
         isLayouting: false,
       });
     }).catch(() => {
       if (version !== versionRef.current) return;
-      setResult({ layoutedData: data, groupNodes: [], isLayouting: false });
+      setResult({ layoutedData: dataRef.current, groupNodes: [], isLayouting: false });
     });
-  }, [data]);
+
+    return () => { versionRef.current++; };
+  }, [layoutFingerprint, collapsedGroups]);
 
   return result;
 }

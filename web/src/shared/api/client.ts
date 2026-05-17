@@ -166,6 +166,33 @@ export async function getJson<TResponse>(path: string): Promise<TResponse> {
   return handleResponse<TResponse>(response);
 }
 
+export type ConditionalGetResult<TResponse> =
+  | { notModified: true; data: null; etag: string | null }
+  | { notModified: false; data: TResponse; etag: string | null };
+
+export async function getJsonConditional<TResponse>(
+  path: string,
+  etag?: string,
+): Promise<ConditionalGetResult<TResponse>> {
+  const conditionalHeaders: Record<string, string> = etag !== undefined ? { 'If-None-Match': etag } : {};
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: { ...getAuthHeaders(), ...conditionalHeaders },
+  });
+
+  const responseEtag = response.headers.get('ETag');
+
+  if (response.status === 304) {
+    return { notModified: true, data: null, etag: responseEtag };
+  }
+
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+
+  const data = (await response.json()) as TResponse;
+  return { notModified: false, data, etag: responseEtag };
+}
+
 export async function postJson<TRequest, TResponse>(path: string, body: TRequest): Promise<TResponse> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',

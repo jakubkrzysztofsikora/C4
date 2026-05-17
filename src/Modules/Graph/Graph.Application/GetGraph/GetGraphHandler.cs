@@ -2,6 +2,7 @@ using C4.Modules.Graph.Application.Ports;
 using C4.Modules.Discovery.Domain.Resources;
 using C4.Modules.Graph.Domain;
 using C4.Modules.Graph.Domain.Errors;
+using C4.Modules.Graph.Domain.GraphSnapshot;
 using C4.Shared.Kernel;
 using C4.Shared.Kernel.Contracts;
 using MediatR;
@@ -15,22 +16,17 @@ public sealed class GetGraphHandler(
     IProjectAuthorizationService authorizationService
 ) : IRequestHandler<GetGraphQuery, Result<GraphDto>>
 {
+    private static readonly System.Text.Json.JsonSerializerOptions SnapshotJsonOptions = new() { PropertyNameCaseInsensitive = true };
     public async Task<Result<GraphDto>> Handle(GetGraphQuery request, CancellationToken cancellationToken)
     {
         var authCheck = await authorizationService.AuthorizeAsync(request.ProjectId, cancellationToken);
         if (!authCheck.IsSuccess) return Result<GraphDto>.Failure(authCheck.Error);
 
-        var graph = await repository.GetByProjectIdReadOnlyAsync(request.ProjectId, cancellationToken);
-        if (graph is null) return Result<GraphDto>.Failure(GraphErrors.GraphNotFound(request.ProjectId));
+        var projection = await repository.GetProjectionByProjectIdAsync(request.ProjectId, request.SnapshotId, cancellationToken);
+        if (!projection.Exists) return Result<GraphDto>.Failure(GraphErrors.GraphNotFound(request.ProjectId));
 
-        var snapshot = request.SnapshotId.HasValue
-            ? graph.Snapshots.FirstOrDefault(s => s.Id.Value == request.SnapshotId.Value)
-            : null;
-        if (snapshot is not null && IsEmptySnapshot(snapshot))
-            snapshot = null;
-
-        var sourceNodes = BuildWorkingNodes(graph, snapshot);
-        var sourceEdges = BuildWorkingEdges(graph, snapshot);
+        var sourceNodes = BuildWorkingNodes(projection);
+        var sourceEdges = BuildWorkingEdges(projection);
 
         C4Level? requestedLevel = ParseLevel(request.Level);
         var includeInfrastructure = ResolveIncludeInfrastructure(request.IncludeInfrastructure, requestedLevel);
@@ -86,9 +82,9 @@ public sealed class GetGraphHandler(
         var driftTask = QueryDriftedResourcesSafelyAsync(resourceIds, cancellationToken);
         await Task.WhenAll(healthTask, driftTask, dependencyTask);
 
-        var healthSummaries = healthTask.Result;
-        var dependencySummaries = dependencyTask.Result;
-        var driftedResources = driftTask.Result;
+        var healthSummaries = await healthTask;
+        var dependencySummaries = await dependencyTask;
+        var driftedResources = await driftTask;
 
         var healthByService = healthSummaries
             .Where(s => !string.IsNullOrWhiteSpace(s.Service))
@@ -186,9 +182,9 @@ public sealed class GetGraphHandler(
                 dataQualityFlags);
         }).ToArray();
 
-        var nodeById = nodeDtos
-            .GroupBy(n => n.Id)
-            .ToDictionary(g => g.Key, g => g.First());
+        Dictionary<Guid, GraphNodeDto> nodeById = new(nodeDtos.Length);
+        foreach (var nodeDto in nodeDtos)
+            nodeById.TryAdd(nodeDto.Id, nodeDto);
 
         var edgeDtos = filteredEdges.Select(e =>
         {
@@ -238,7 +234,13 @@ public sealed class GetGraphHandler(
             knownNodes,
             knownEdges);
 
-        return Result<GraphDto>.Success(new GraphDto(request.ProjectId, nodeDtos, edgeDtos, enrichedQuality));
+        return Result<GraphDto>.Success(new GraphDto(
+            request.ProjectId,
+            nodeDtos,
+            edgeDtos,
+            enrichedQuality,
+            TotalNodeCount: sourceNodes.Length,
+            FilteredNodeCount: filteredList.Length));
     }
 
     private static C4Level? ParseLevel(string? level)
@@ -384,16 +386,23 @@ public sealed class GetGraphHandler(
         return includeInfrastructure.Equals("true", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsEmptySnapshot(Domain.GraphSnapshot.GraphSnapshot snapshot)
-        => snapshot.Nodes.Count == 0 && snapshot.Edges.Count == 0;
-
-    private static WorkingNode[] BuildWorkingNodes(
-        Domain.ArchitectureGraph.ArchitectureGraph graph,
-        Domain.GraphSnapshot.GraphSnapshot? snapshot)
+    private static bool IsEmptySnapshotPayload(ProjectedSnapshot snapshot)
     {
-        if (snapshot is not null)
+        return string.IsNullOrWhiteSpace(snapshot.NodesJson)
+               || snapshot.NodesJson.Equals("[]", StringComparison.Ordinal)
+               || string.IsNullOrWhiteSpace(snapshot.EdgesJson)
+               || snapshot.EdgesJson.Equals("[]", StringComparison.Ordinal);
+    }
+
+    private static WorkingNode[] BuildWorkingNodes(GraphDataProjection projection)
+    {
+        if (projection.Snapshot is not null && !IsEmptySnapshotPayload(projection.Snapshot))
         {
-            return snapshot.Nodes
+            var snapshotNodes = System.Text.Json.JsonSerializer.Deserialize<GraphSnapshotNode[]>(
+                projection.Snapshot.NodesJson,
+                SnapshotJsonOptions) ?? [];
+
+            return snapshotNodes
                 .Select(node => new WorkingNode(
                     node.Id,
                     node.ExternalResourceId,
@@ -410,44 +419,46 @@ public sealed class GetGraphHandler(
                 .ToArray();
         }
 
-        return graph.Nodes
+        return projection.Nodes
             .Select(node =>
             {
                 var resourceGroup = ExtractResourceGroup(node.ExternalResourceId) ?? "";
-                var resolved = GraphClassificationResolver.Resolve(node, resourceGroup);
+                var resolved = GraphClassificationResolver.ResolveProjected(node);
                 var effectiveLevel = ParseResolvedLevel(resolved.C4Level);
-                var domain = GraphDomainClassifier.InferDomain(node.Properties.Domain, node.Name, resourceGroup);
+                var domain = GraphDomainClassifier.InferDomain(node.Domain, node.Name, resourceGroup);
 
                 return new WorkingNode(
-                    node.Id.Value,
+                    node.Id,
                     node.ExternalResourceId,
                     node.Name,
                     effectiveLevel,
-                    node.ParentId?.Value,
+                    node.ParentId,
                     resolved.ServiceType,
-                    ResolveTechnologyHint(node.ExternalResourceId, node.Properties.Technology),
+                    ResolveTechnologyHint(node.ExternalResourceId, node.Technology),
                     domain,
                     resolved.IsInfrastructure,
                     resolved.ClassificationSource,
                     resolved.ClassificationConfidence,
-                    node.Properties.Tags);
+                    node.Tags);
             })
             .ToArray();
     }
 
-    private static WorkingEdge[] BuildWorkingEdges(
-        Domain.ArchitectureGraph.ArchitectureGraph graph,
-        Domain.GraphSnapshot.GraphSnapshot? snapshot)
+    private static WorkingEdge[] BuildWorkingEdges(GraphDataProjection projection)
     {
-        if (snapshot is not null)
+        if (projection.Snapshot is not null && !IsEmptySnapshotPayload(projection.Snapshot))
         {
-            return snapshot.Edges
+            var snapshotEdges = System.Text.Json.JsonSerializer.Deserialize<GraphSnapshotEdge[]>(
+                projection.Snapshot.EdgesJson,
+                SnapshotJsonOptions) ?? [];
+
+            return snapshotEdges
                 .Select(edge => new WorkingEdge(edge.Id, edge.SourceNodeId, edge.TargetNodeId, edge.Protocol))
                 .ToArray();
         }
 
-        return graph.Edges
-            .Select(e => new WorkingEdge(e.Id.Value, e.SourceNodeId.Value, e.TargetNodeId.Value, e.Properties.Protocol))
+        return projection.Edges
+            .Select(e => new WorkingEdge(e.Id, e.SourceNodeId, e.TargetNodeId, e.Protocol))
             .ToArray();
     }
 
@@ -705,7 +716,8 @@ public sealed class GetGraphHandler(
         if (string.IsNullOrWhiteSpace(value)) return string.Empty;
 
         var lower = value.Trim().ToLowerInvariant();
-        Span<char> buffer = stackalloc char[lower.Length];
+        const int MaxStackAlloc = 512;
+        Span<char> buffer = lower.Length <= MaxStackAlloc ? stackalloc char[lower.Length] : new char[lower.Length];
         var index = 0;
         foreach (var ch in lower)
         {

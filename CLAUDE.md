@@ -160,6 +160,7 @@ The `.claude/agents/` directory contains specialized subagents that Claude Code 
 | `build-runner` | Runs builds and tests, interprets errors, provides fix diagnostics | Verification |
 | `change-verifier` | Validates recent changes — compilation, targeted tests, coverage gaps, regression detection | Verification |
 | `issue-investigator` | Investigates bugs, failing tests, unexpected behavior through systematic root cause analysis | Investigation |
+| `visual-qa` | Visual QA via Playwright MCP — screenshots, DOM counts, FPS measurement, LOD/culling validation, console error checking | QA (browser-based) |
 
 ### Orchestration Patterns
 
